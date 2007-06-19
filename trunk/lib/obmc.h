@@ -20,6 +20,8 @@
 
 #pragma once
 
+#include "image.h"
+
 namespace rududu {
 
 typedef union {
@@ -36,8 +38,7 @@ public:
 
     ~COBMC();
 
-	template <bool sub> static void obmc_block(short * pSrc, short * pDst, int stride);
-	template <bool sub, int flags> static void obmc_block(short * pSrc, short * pDst, int stride);
+	void apply_mv(CImage * pRefFrames, CImage & dstImage);
 
 protected:
 	unsigned int dimX;
@@ -46,7 +47,11 @@ protected:
 
 	char * pData;
 	SMotionVector * pMV;
+	unsigned char * pRef;
 
+private:
+	static void obmc_block(const short * pSrc, short * pDst, const int stride);
+	template <int flags> static void obmc_block(const short * pSrc, short * pDst, const int stride);
 };
 
 }

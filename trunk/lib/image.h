@@ -20,38 +20,41 @@
 
 #pragma once
 
+#include <iostream>
+
 namespace rududu {
 
 typedef enum cspace {rvb, yuv, yog};
 
 #define BORDER	15
+#define MAX_COMPONENT	3
 
-template <int component>
 class CImage{
+	friend class COBMC;
 public:
-	CImage(unsigned int x, unsigned int y, int Align);
+	CImage(unsigned int x, unsigned int y, int cmpnt, int Align);
 
     ~CImage();
 
-	void Init( unsigned int x, unsigned int y, int Align);
+	void Init( unsigned int x, unsigned int y, int cmpnt, int Align);
 
-	template <class input_t>
-	void inputRGB(input_t * pIn, int stride, short offset);
-	template <class output_t>
-	void outputRGB(output_t * pIn, int stride, short offset);
-	template <class output_t>
-	void outputYUV(output_t * pOut, int stride, short offset);
+	template <class input_t> void inputRGB(input_t * pIn, int stride, short offset);
+	void inputRGB(std::istream & is, int stride, short offset);
+	template <class output_t> void outputRGB(output_t * pIn, int stride, short offset);
+	template <class output_t> void outputYUV(output_t * pOut, int stride, short offset);
+	void outputBW(std::ostream & os, int stride, short offset);
 
 	void extend(void);
 
 private:
-	unsigned int DimX;
-	unsigned int DimY;
-	unsigned int DimXAlign;
+	unsigned int dimX;
+	unsigned int dimY;
+	unsigned int dimXAlign;
+	int component;
 	cspace colorspace;
 
 	char * pData;
-	short * pImage[component];
+	short * pImage[MAX_COMPONENT];
 };
 
 }
