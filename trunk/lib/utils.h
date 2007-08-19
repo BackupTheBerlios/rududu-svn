@@ -60,6 +60,16 @@ typedef enum trans {cdf97, cdf53, haar};
 #define MIN(a,b)	\
 	(((a) > (b)) ? (b) : (a))
 
+template <class a>
+a inline clip(const a nb, const a min, const a max)
+{
+	if (nb < min)
+		return min;
+	if (nb > max)
+		return max;
+	return nb;
+}
+
 int inline s2u(int s)
 {
 	int u = -(2 * s + 1);

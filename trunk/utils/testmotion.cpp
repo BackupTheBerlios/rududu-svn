@@ -19,12 +19,17 @@ int main( int argc, char *argv[] )
 	rududu::COBMC obmc(WIDTH >> 3, HEIGHT >> 3);
 	CImage inImage(WIDTH, HEIGHT, CMPNT,  ALIGN);
 	CImage outImage(WIDTH, HEIGHT, CMPNT, ALIGN);
+	unsigned char * tmp = new unsigned char[WIDTH * HEIGHT * CMPNT];
 
 	while(! cin.eof()) {
-		inImage.inputRGB(cin, WIDTH, 0);
+		cin.read((char*)tmp, WIDTH * HEIGHT * CMPNT);
+		inImage.inputSGI(tmp, WIDTH, 0);
 // 		obmc.apply_mv(& inImage, outImage);
-		inImage.outputBW(cout, WIDTH, 0);
+		inImage.outputYV12<char, false>((char*)tmp, WIDTH, 0);
+		cout.write((char*)tmp, WIDTH * HEIGHT * CMPNT / 2);
 	}
+
+	cout.flush();
 
 	return 0;
 }

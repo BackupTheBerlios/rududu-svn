@@ -14,18 +14,17 @@ void usage(string & progname)
 #define HEIGHT	720
 
 
-void convert(char * buff)
+void convert(unsigned char * buff)
 {
 	for( int i = 0; i < WIDTH; i++){
-		short tmp = (buff[2*i] << 8) | buff[2*i+1];
-		buff[i] = (tmp + 128) >> 8;
+		buff[i] = buff[2*i];
 	}
 }
 
 int main( int argc, char *argv[] )
 {
 	string progname = argv[0];
-	char buff[WIDTH * sizeof(short)];
+	unsigned char buff[WIDTH * sizeof(short)];
 
 	if (argc < 2) {
 		usage(progname);
@@ -36,9 +35,9 @@ int main( int argc, char *argv[] )
 		ifstream is( argv[i] , ios::in | ios::binary );
 		is.seekg(512, ios::beg);
 		for( int j = 0; j < HEIGHT; j++){
-			is.read(buff, WIDTH * sizeof(short));
+			is.read((char*)buff, WIDTH * sizeof(short));
 			convert(buff);
-			cout.write(buff, WIDTH);
+			cout.write((char*)buff, WIDTH);
 		}
 	}
 

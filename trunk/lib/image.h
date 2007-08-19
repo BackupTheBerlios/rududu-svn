@@ -20,11 +20,9 @@
 
 #pragma once
 
-#include <iostream>
-
 namespace rududu {
 
-typedef enum cspace {rvb, yuv, yog};
+typedef enum cspace {rvb, yuv, yog, yv12, i420};
 
 #define BORDER	15
 #define MAX_COMPONENT	3
@@ -39,10 +37,9 @@ public:
 	void Init( unsigned int x, unsigned int y, int cmpnt, int Align);
 
 	template <class input_t> void inputRGB(input_t * pIn, int stride, short offset);
-	void inputRGB(std::istream & is, int stride, short offset);
-	template <class output_t> void outputRGB(output_t * pIn, int stride, short offset);
-	template <class output_t> void outputYUV(output_t * pOut, int stride, short offset);
-	void outputBW(std::ostream & os, int stride, short offset);
+	template <class input_t> void inputSGI(input_t * pIn, int stride, short offset);
+	template <class output_t> void outputRGB(output_t * pOut, int stride, short offset);
+	template <class output_t, bool i420> void outputYV12(output_t * pOut, int stride, short offset);
 
 	void extend(void);
 

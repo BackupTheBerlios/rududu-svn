@@ -19,6 +19,7 @@
  ***************************************************************************/
 
 #include <stdint.h>
+#include <string.h>
 
 #include "obmc.h"
 #include "utils.h"
