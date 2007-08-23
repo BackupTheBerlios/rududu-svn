@@ -199,20 +199,84 @@ void CImage::extend(void)
 	}
 }
 
-CImage & CImage::operator-= (const CImage & pIn)
+CImage & CImage::operator-= (const CImage & In)
 {
 	for (int c = 0; c < component; c++) {
 		short * out = pImage[c];
-		short * in = pIn.pImage[c];
+		short * in = In.pImage[c];
 		for (int j = 0; j < dimY; j++) {
 			for (int i = 0; i < dimX; i++) {
 				out[i] -= in[i];
 			}
 			out += dimXAlign;
-			in += pIn.dimXAlign;
+			in += In.dimXAlign;
 		}
 	}
 	return *this;
 }
+
+template <int pos>
+void CImage::interH(const CImage & In)
+{
+	for (int c = 0; c < component; c++) {
+		short * out = pImage[c];
+		short * in = In.pImage[c];
+		for (int j = 0; j < dimY; j++) {
+			for (int i = 0; i < dimX; i++) {
+				switch (pos) {
+				case 1:
+					out[i] = (53 * (int)in[i] + 18 * in[i+1] - 4 * in[i-1] - 3 * in[i+2] + 32) >> 6;
+					break;
+				case 2:
+					out[i] = (((int)in[i] + in[i+1]) * 9 - in[i-1] - in[i+2] + 8) >> 4;
+					break;
+				case 3:
+					out[i] = (18 * (int)in[i] + 53 * in[i+1] - 3 * in[i-1] - 4 * in[i+2] + 32) >> 6;
+				}
+			}
+			out += dimXAlign;
+			in += In.dimXAlign;
+		}
+	}
+}
+
+template void CImage::interH<1>(const CImage &);
+template void CImage::interH<2>(const CImage &);
+template void CImage::interH<3>(const CImage &);
+
+template <int pos>
+void CImage::interV(const CImage & In)
+{
+	for (int c = 0; c < component; c++) {
+		short * out = pImage[c];
+		short * in = In.pImage[c];
+		short * in_1 = in - In.dimXAlign;
+		short * in1 = in + In.dimXAlign;
+		short * in2 = in + 2 * In.dimXAlign;
+		for (int j = 0; j < dimY; j++) {
+			for (int i = 0; i < dimX; i++) {
+				switch (pos) {
+				case 1:
+					out[i] = (53 * (int)in[i] + 18 * in1[i] - 4 * in_1[i] - 3 * in2[i] + 32) >> 6;
+					break;
+				case 2:
+					out[i] = (((int)in[i] + in1[i]) * 9 - in_1[i] - in2[i] + 8) >> 4;
+					break;
+				case 3:
+					out[i] = (18 * (int)in[i] + 53 * in1[i] - 3 * in_1[i] - 4 * in2[i] + 32) >> 6;
+				}
+			}
+			out += dimXAlign;
+			in_1 += In.dimXAlign;
+			in += In.dimXAlign;
+			in1 += In.dimXAlign;
+			in2 += In.dimXAlign;
+		}
+	}
+}
+
+template void CImage::interV<1>(const CImage &);
+template void CImage::interV<2>(const CImage &);
+template void CImage::interV<3>(const CImage &);
 
 }

@@ -41,7 +41,10 @@ public:
 	template <class output_t> void outputRGB(output_t * pOut, int stride, short offset);
 	template <class output_t, bool i420> void outputYV12(output_t * pOut, int stride, short offset);
 
-	CImage & operator-= (const CImage & pIn);
+	CImage & operator-= (const CImage & In);
+
+	template <int pos> void interH(const CImage & In);
+	template <int pos> void interV(const CImage & In);
 
 	void extend(void);
 
