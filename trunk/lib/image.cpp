@@ -68,12 +68,8 @@ void CImage::inputRGB(input_t * pIn, int stride, short offset)
 			Y[i] += (Cg[i] >> 1) + offset;
 			if (sizeof(input_t) == 1) {
 				Y[i] <<= 4;
-				Co[i] <<= 4;
-				Cg[i] <<= 4;
-			} else if (sizeof(input_t) == 2) {
-				Y[i] = (Y[i] + 8) >> 4;
-				Co[i] = (Co[i] + 8) >> 4;
-				Cg[i] = (Cg[i] + 8) >> 4;
+				Co[i] <<= 3;
+				Cg[i] <<= 3;
 			}
 		}
 		Y += dimXAlign;
@@ -104,12 +100,8 @@ void CImage::inputSGI(input_t * pIn, int stride, short offset)
 			Y[i] += (Cg[i] >> 1) + offset;
 			if (sizeof(input_t) == 1) {
 				Y[i] <<= 4;
-				Co[i] <<= 4;
-				Cg[i] <<= 4;
-			} else if (sizeof(input_t) == 2) {
-				Y[i] = (Y[i] + 8) >> 4;
-				Co[i] = (Co[i] + 8) >> 4;
-				Cg[i] = (Cg[i] + 8) >> 4;
+				Co[i] <<= 3;
+				Cg[i] <<= 3;
 			}
 		}
 		Y += dimXAlign;
@@ -150,6 +142,8 @@ void CImage::outputYV12(output_t * pOut, int stride, short offset)
 	output_t * Uo = Vo + ((stride * dimY) >> 2);
 
 	const int shift = 12 - sizeof(output_t) * 8;
+	if (sizeof(output_t) == 1) offset <<= 4;
+	else if (sizeof(output_t) == 2) offset >>= 4;
 
 	if (i420) {
 		output_t * tmp = Uo;
@@ -159,15 +153,15 @@ void CImage::outputYV12(output_t * pOut, int stride, short offset)
 
 	for( int j = 0; j < dimY; j += 2){
 		for (int i = 0; i < dimX; i += 2){
-			Yo[i] = ((440 * Y[i] + 41 * Co[i] + 38 * Cg[i] + (1 << (8 + shift))) >> (9 + shift)) + 16;
-			Yo[i+1] = ((440 * Y[i+1] + 41 * Co[i+1] + 38 * Cg[i+1] + (1 << (8 + shift))) >> (9 + shift)) + 16;
-			Yo[i+stride] = ((440 * Y[i+dimXAlign] + 41 * Co[i+dimXAlign] + 38 * Cg[i+dimXAlign] + (1 << (8 + shift))) >> (9 + shift)) + 16;
-			Yo[i+stride+1] = ((440 * Y[i+dimXAlign+1] + 41 * Co[i+dimXAlign+1] + 38 * Cg[i+dimXAlign+1] + (1 << (8 + shift))) >> (9 + shift)) + 16;
+			Yo[i] = ((440 * (Y[i] - offset) + 82 * Co[i] + 76 * Cg[i] + (1 << (8 + shift))) >> (9 + shift)) + 16;
+			Yo[i+1] = ((440 * (Y[i+1] - offset) + 82 * Co[i+1] + 76 * Cg[i+1] + (1 << (8 + shift))) >> (9 + shift)) + 16;
+			Yo[i+stride] = ((440 * (Y[i+dimXAlign] - offset) + 82 * Co[i+dimXAlign] + 76 * Cg[i+dimXAlign] + (1 << (8 + shift))) >> (9 + shift)) + 16;
+			Yo[i+stride+1] = ((440 * (Y[i+dimXAlign+1] - offset) + 82 * Co[i+dimXAlign+1] + 76 * Cg[i+dimXAlign+1] + (1 << (8 + shift))) >> (9 + shift)) + 16;
 
 			Uo[i>>1] = ((- 150 * (Co[i] + Co[i+1] + Co[i+dimXAlign] + Co[i+dimXAlign+1])
-			             - 148 * (Cg[i] + Cg[i+1] + Cg[i+dimXAlign] + Cg[i+dimXAlign+1]) + (1 << (10 + shift))) >> (11 + shift)) + 128;
+			             - 148 * (Cg[i] + Cg[i+1] + Cg[i+dimXAlign] + Cg[i+dimXAlign+1]) + (1 << (9 + shift))) >> (10 + shift)) + 128;
 			Vo[i>>1] = ((130 * (Co[i] + Co[i+1] + Co[i+dimXAlign] + Co[i+dimXAlign+1])
-			             - 188 * (Cg[i] + Cg[i+1] + Cg[i+dimXAlign] + Cg[i+dimXAlign+1]) + (1 << (10 + shift))) >> (11 + shift)) + 128;
+			             - 188 * (Cg[i] + Cg[i+1] + Cg[i+dimXAlign] + Cg[i+dimXAlign+1]) + (1 << (9 + shift))) >> (10 + shift)) + 128;
 		}
 		Y += dimXAlign * 2;
 		Co += dimXAlign * 2;
@@ -203,6 +197,22 @@ void CImage::extend(void)
 			dest += dimXAlign;
 		}
 	}
+}
+
+CImage & CImage::operator-= (const CImage & pIn)
+{
+	for (int c = 0; c < component; c++) {
+		short * out = pImage[c];
+		short * in = pIn.pImage[c];
+		for (int j = 0; j < dimY; j++) {
+			for (int i = 0; i < dimX; i++) {
+				out[i] -= in[i];
+			}
+			out += dimXAlign;
+			in += pIn.dimXAlign;
+		}
+	}
+	return *this;
 }
 
 }

@@ -41,6 +41,8 @@ public:
 	template <class output_t> void outputRGB(output_t * pOut, int stride, short offset);
 	template <class output_t, bool i420> void outputYV12(output_t * pOut, int stride, short offset);
 
+	CImage & operator-= (const CImage & pIn);
+
 	void extend(void);
 
 private:

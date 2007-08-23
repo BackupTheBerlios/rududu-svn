@@ -23,9 +23,10 @@ int main( int argc, char *argv[] )
 
 	while(! cin.eof()) {
 		cin.read((char*)tmp, WIDTH * HEIGHT * CMPNT);
-		inImage.inputSGI(tmp, WIDTH, 0);
-// 		obmc.apply_mv(& inImage, outImage);
-		inImage.outputYV12<char, false>((char*)tmp, WIDTH, 0);
+		inImage.inputSGI(tmp, WIDTH, -128);
+		obmc.apply_mv(& inImage, outImage);
+// 		outImage -= inImage;
+		outImage.outputYV12<char, false>((char*)tmp, WIDTH, -128);
 		cout.write((char*)tmp, WIDTH * HEIGHT * CMPNT / 2);
 	}
 

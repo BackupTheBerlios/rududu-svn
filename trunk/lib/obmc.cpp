@@ -59,6 +59,18 @@ const short COBMC::window[8][8] =
 	{1,	2,	4,	6,	9,	11,	13,	14}
 };
 
+// const short COBMC::window[8][8] =
+// {
+// 	{0,	0,	0,	0,	0,	0,	0,	0},
+// 	{0,	0,	0,	0,	0,	0,	0,	0},
+// 	{0,	0,	0,	0,	0,	0,	0,	0},
+// 	{0,	0,	0,	0,	0,	0,	0,	0},
+// 	{0,	0,	0,	0,	16,	16,	16,	16},
+// 	{0,	0,	0,	0,	16,	16,	16,	16},
+// 	{0,	0,	0,	0,	16,	16,	16,	16},
+// 	{0,	0,	0,	0,	16,	16,	16,	16}
+// };
+
 void COBMC::obmc_block(const short * pSrc, short * pDst, const int stride)
 {
 	for( int j = 0; j < 8; j++) {
@@ -170,23 +182,67 @@ void COBMC::obmc_block(const short * pSrc, short * pDst, const int stride)
 void COBMC::apply_mv(CImage * pRefFrames, CImage & dstImage)
 {
 	const int stride = dstImage.dimXAlign;
-	const int diff = dstImage.dimXAlign * 8 - dimX * 8;
+	const int diff = dstImage.dimXAlign * 8 - dimX * 8 + 8;
 	const int im_x = dstImage.dimX, im_y = dstImage.dimY;
 	SMotionVector * pCurMV = pMV;
 	unsigned char * pCurRef = pRef;
 	int dst_pos = -4 - 4 * stride, src_pos, component = dstImage.component;
 
-	for( int j = 0; j < dimY; j++) {
-		for( int i = 0; i < dimX; i++) {
+	int j = 0, i = 0;
+
+	CHECK_MV(pCurMV[i]);
+	for( int c = 0; c < component; c++)
+		obmc_block<TOP | LEFT>(pRefFrames[pCurRef[i]].pImage[c] + src_pos, dstImage.pImage[c] + dst_pos, stride);
+	dst_pos += 8;
+	for( i = 1; i < dimX - 1; i++) {
+		CHECK_MV(pCurMV[i]);
+		for( int c = 0; c < component; c++)
+			obmc_block<TOP>(pRefFrames[pCurRef[i]].pImage[c] + src_pos, dstImage.pImage[c] + dst_pos, stride);
+		dst_pos += 8;
+	}
+	CHECK_MV(pCurMV[i]);
+	for( int c = 0; c < component; c++)
+		obmc_block<TOP | RIGHT>(pRefFrames[pCurRef[i]].pImage[c] + src_pos, dstImage.pImage[c] + dst_pos, stride);
+
+	pCurMV += dimX;
+	pCurRef += dimX;
+	dst_pos += diff;
+
+	for( j = 1; j < dimY - 1; j++) {
+		i = 0;
+		CHECK_MV(pCurMV[i]);
+		for( int c = 0; c < component; c++)
+			obmc_block<LEFT>(pRefFrames[pCurRef[i]].pImage[c] + src_pos, dstImage.pImage[c] + dst_pos, stride);
+		dst_pos += 8;
+		for( i = 1; i < dimX - 1; i++) {
 			CHECK_MV(pCurMV[i]);
 			for( int c = 0; c < component; c++)
 				obmc_block(pRefFrames[pCurRef[i]].pImage[c] + src_pos, dstImage.pImage[c] + dst_pos, stride);
 			dst_pos += 8;
 		}
+		CHECK_MV(pCurMV[i]);
+		for( int c = 0; c < component; c++)
+			obmc_block<RIGHT>(pRefFrames[pCurRef[i]].pImage[c] + src_pos, dstImage.pImage[c] + dst_pos, stride);
+
 		pCurMV += dimX;
 		pCurRef += dimX;
 		dst_pos += diff;
 	}
+
+	i = 0;
+	CHECK_MV(pCurMV[i]);
+	for( int c = 0; c < component; c++)
+		obmc_block<BOTTOM | LEFT>(pRefFrames[pCurRef[i]].pImage[c] + src_pos, dstImage.pImage[c] + dst_pos, stride);
+	dst_pos += 8;
+	for( i = 1; i < dimX - 1; i++) {
+		CHECK_MV(pCurMV[i]);
+		for( int c = 0; c < component; c++)
+			obmc_block<BOTTOM>(pRefFrames[pCurRef[i]].pImage[c] + src_pos, dstImage.pImage[c] + dst_pos, stride);
+		dst_pos += 8;
+	}
+	CHECK_MV(pCurMV[i]);
+	for( int c = 0; c < component; c++)
+		obmc_block<BOTTOM | RIGHT>(pRefFrames[pCurRef[i]].pImage[c] + src_pos, dstImage.pImage[c] + dst_pos, stride);
 }
 
 }
