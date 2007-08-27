@@ -32,13 +32,13 @@ COBMC::COBMC(unsigned int dimX, unsigned int dimY):
 	this->dimX = dimX;
 	this->dimY = dimY;
 
-	int allocated = (dimX * dimY + 1) * (sizeof(SMotionVector) + 1);
+	int allocated = (dimX * dimY + 1) * (sizeof(sMotionVector) + 1);
 	pData = new char[allocated];
 
 	// FIXME : remove this :
 	memset(pData, 0, allocated);
 
-	pMV = (SMotionVector*)(((intptr_t)pData + sizeof(SMotionVector) - 1) & (-sizeof(SMotionVector)));
+	pMV = (sMotionVector*)(((intptr_t)pData + sizeof(sMotionVector) - 1) & (-sizeof(sMotionVector)));
 	pRef = (unsigned char*) (pMV + dimX * dimY);
 }
 
@@ -184,7 +184,7 @@ void COBMC::apply_mv(CImage * pRefFrames, CImage & dstImage)
 	const int stride = dstImage.dimXAlign;
 	const int diff = dstImage.dimXAlign * 8 - dimX * 8 + 8;
 	const int im_x = dstImage.dimX, im_y = dstImage.dimY;
-	SMotionVector * pCurMV = pMV;
+	sMotionVector * pCurMV = pMV;
 	unsigned char * pCurRef = pRef;
 	int dst_pos = -4 - 4 * stride, src_pos, component = dstImage.component;
 
@@ -244,5 +244,7 @@ void COBMC::apply_mv(CImage * pRefFrames, CImage & dstImage)
 	for( int c = 0; c < component; c++)
 		obmc_block<BOTTOM | RIGHT>(pRefFrames[pCurRef[i]].pImage[c] + src_pos, dstImage.pImage[c] + dst_pos, stride);
 }
+
+#undef CHECK_MV
 
 }

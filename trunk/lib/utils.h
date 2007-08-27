@@ -41,7 +41,9 @@ typedef enum cmode {encode, decode};
 typedef enum trans {cdf97, cdf53, haar};
 
 #define TOP		1
+#define UP		1
 #define BOTTOM	2
+#define DOWN	2
 #define LEFT	4
 #define RIGHT	8
 
