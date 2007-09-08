@@ -45,7 +45,7 @@ template <cmode mode>
 	else
 		pCur[0] = u2s(pCodec->tabooDecode());
 
-	for( int i = 1; i < DimX; i++){
+	for( unsigned int i = 1; i < DimX; i++){
 		if (mode == encode)
 			pCodec->golombCode(s2u(pCur[i] - pCur[i - 1]), k);
 		else
@@ -53,13 +53,13 @@ template <cmode mode>
 	}
 	pCur += stride;
 
-	for( int j = 1; j < DimY; j++){
+	for( unsigned int j = 1; j < DimY; j++){
 		if (mode == encode)
 			pCodec->golombCode(s2u(pCur[0] - pCur[-stride]), k);
 		else
 			pCur[0] = pCur[-stride] + u2s(pCodec->golombDecode(k));
 
-		for( int i = 1; i < DimX; i++){
+		for( unsigned int i = 1; i < DimX; i++){
 			int var = ABS(pCur[i - 1] - pCur[i - 1 - stride]) +
 					ABS(pCur[i - stride] - pCur[i - 1 - stride]);
 			var -= var >> 2;
@@ -98,8 +98,8 @@ template <bool high_band>
 		child_stride = this->pChild->DimXAlign * 4;
 	}
 
-	for( int j = 0; j < DimY; j += 2){
-		for( int i = 0; i < DimX; i += 2){
+	for( unsigned int j = 0; j < DimY; j += 2){
+		for( unsigned int i = 0; i < DimX; i += 2){
 			if (high_band) {
 				if (0 == (pCur1[i] | pCur1[i + 1] | pCur2[i] | pCur2[i + 1]))
 					pCur1[i] = INSIGNIF_BLOCK;
@@ -162,8 +162,8 @@ template <cmode mode>
 		CBitCodec lenCodec(pCodec);
 		CBitCodec treeCodec(pCodec);
 
-		for( int j = 0; j < DimY; j += 2){
-			for( int i = 0; i < (DimX >> 1); i++){
+		for( unsigned int j = 0; j < DimY; j += 2){
+			for( unsigned int i = 0; i < (DimX >> 1); i++){
 				int context = 0;
 				if (pPar) context = pPar[i];
 

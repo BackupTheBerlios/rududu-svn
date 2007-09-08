@@ -148,7 +148,7 @@ unsigned int CMuxCodec::fiboDecode(void)
 	unsigned int t = 3 << (nbBits - l);
 	while( (buffer & t) != t ){
 		l++;
-		if (l > nbBits){
+		if (l > (int)nbBits){
 			fillBuffer(l);
 			t <<= 8;
 		}
@@ -198,7 +198,7 @@ void CMuxCodec::tabooCode(unsigned int nb)
 	i--;
 	nb -= sumTaboo[i];
 
-	while (i > nTaboo) {
+	while (i > (int)nTaboo) {
 		unsigned int k = i - nTaboo + 1, cnt = nbTaboo[k], j = 0;
 		while (nb >= cnt)
 			cnt += nbTaboo[k + ++j];
@@ -208,7 +208,7 @@ void CMuxCodec::tabooCode(unsigned int nb)
 		i -= j;
 	}
 
-	if (i == nTaboo) nb++;
+	if (i == (int)nTaboo) nb++;
 
 	r = ((((r << i) | (nb & ((1 << i) - 1))) << 1) | 1) << nTaboo;
 	bitsCode(r, l + nTaboo);
@@ -224,7 +224,7 @@ unsigned int CMuxCodec::tabooDecode(void)
 	unsigned int t = ((1 << nTaboo) - 1) << (nbBits - nTaboo);
 	while( (~buffer & t) != t ){
 		l++;
-		if (l > nbBits){
+		if (l > (int)nbBits){
 			fillBuffer(l);
 			t <<= 8;
 		}
@@ -241,14 +241,14 @@ unsigned int CMuxCodec::tabooDecode(void)
 		nb += sumTaboo[i];
 	}
 
-	while (i > nTaboo) {
+	while (i > (int)nTaboo) {
 		unsigned int j = 1;
 		while (((cd >> (i - j)) & 1) == 0) j++;
 		nb += sumTaboo[i - j] - sumTaboo[i - nTaboo];
 		i -= j;
 	}
 
-	if (i == nTaboo) nb -= 1;
+	if (i == (int)nTaboo) nb -= 1;
 	nb += cd & ((1 << i) - 1);
 
 	return nb;

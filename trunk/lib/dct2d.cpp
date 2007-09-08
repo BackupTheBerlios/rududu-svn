@@ -386,7 +386,7 @@ unsigned int CDCT2D::TSUQ(short Quant, float Thres)
 		}
 	}
 
-	for ( int j = 0; j < DCTBand.DimY ; j++ ) {
+	for ( unsigned int j = 0; j < DCTBand.DimY ; j++ ) {
 		for ( int i = 0; i < 64 ; i++ ) {
 			if ( (unsigned short) (pBand[i] + T[i]) <= (unsigned short) (2 * T[i])) {
 				pBand[i] = 0;
@@ -415,7 +415,7 @@ void CDCT2D::TSUQi(short Quant)
 		}
 	}
 
-	for ( int j = 0; j < DCTBand.DimY ; j++ ) {
+	for ( unsigned int j = 0; j < DCTBand.DimY ; j++ ) {
 		for ( int i = 0; i < 64 ; i++ ) {
 			pBand[i] = pBand[i] * Q[i];
 		}

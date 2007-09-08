@@ -45,8 +45,8 @@ template <unsigned int size>
 unsigned short COBME::SAD(const short * pSrc, const short * pDst, const int stride)
 {
 	unsigned int ret = 0;
-	for (int j = 0; j < size; j++) {
-		for (int i = 0; i < size; i++) {
+	for (unsigned int j = 0; j < size; j++) {
+		for (unsigned int i = 0; i < size; i++) {
 			int tmp = pDst[i] - pSrc[i];
 			ret += ABS(tmp);
 		}
@@ -142,13 +142,12 @@ sFullMV COBME::EPZS(int cur_x, int cur_y, int im_x, int im_y, int stride,
 void COBME::EPZS(int im_x, int im_y, int stride, short ** pIm)
 {
 	sFullMV MVPred[MAX_PREDS];
-	int setB = 0, setC = 0;
 	sMotionVector * pCurMV = pMV;
 	unsigned char * pCurRef = pRef;
 	unsigned short * pCurDist = pDist;
 
-	for( int j = 0; j < dimY; j++){
-		for( int i = 0; i < dimX; i++){
+	for( unsigned int j = 0; j < dimY; j++){
+		for( unsigned int i = 0; i < dimX; i++){
 			int n = 1;
 			MVPred[0].MV.all = 0;
 			if (j == 0) {

@@ -187,7 +187,7 @@ void COBMC::apply_mv(CImage * pRefFrames, CImage & dstImage)
 	unsigned char * pCurRef = pRef;
 	int dst_pos = -4 - 4 * stride, src_pos, component = dstImage.component;
 
-	int j = 0, i = 0;
+	unsigned int j = 0, i = 0;
 
 	CHECK_MV(pCurMV[i]);
 	for( int c = 0; c < component; c++)

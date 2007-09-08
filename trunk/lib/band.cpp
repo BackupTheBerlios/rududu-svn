@@ -69,8 +69,8 @@ unsigned int CBand::TSUQ(short Quant, float Thres)
 	short T = (short) (Thres * Quant);
 	int Min = 0, Max = 0;
 	Count = 0;
-	for ( int j = 0, n = 0; j < DimY ; j++ ) {
-		for ( int nEnd = n + DimX; n < nEnd ; n++ ) {
+	for ( unsigned int j = 0, n = 0; j < DimY ; j++ ) {
+		for ( unsigned int nEnd = n + DimX; n < nEnd ; n++ ) {
 			if ( (unsigned short) (pBand[n] + T) <= (unsigned short) (2 * T)) {
 				pBand[n] = 0;
 			} else {
@@ -92,8 +92,8 @@ void CBand::TSUQi(short Quant)
 	int Diff = DimXAlign - DimX;
 	Quant = (short) (Quant / Weight);
 	if (Quant == 0) Quant = 1;
-	for ( int j = 0, n = 0; j < DimY ; j ++ ) {
-		for ( int nEnd = n + DimX; n < nEnd ; n++ ) {
+	for ( unsigned int j = 0, n = 0; j < DimY ; j ++ ) {
+		for ( unsigned int nEnd = n + DimX; n < nEnd ; n++ ) {
 			pBand[n] = pBand[n] * Quant;
 		}
 		n += Diff;
@@ -102,7 +102,7 @@ void CBand::TSUQi(short Quant)
 
 void CBand::Add( short val )
 {
-	for ( int i = 0; i < BandSize; i++ )
+	for ( unsigned int i = 0; i < BandSize; i++ )
 		pBand[i] += val;
 }
 

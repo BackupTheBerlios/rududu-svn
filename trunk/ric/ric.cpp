@@ -173,7 +173,7 @@ void Test(string & infile, int Quant)
 	short * ImgPixels = new short [imSize * 3];
 
 	img.write(0, 0, img.columns(), img.rows(), "R", ShortPixel, ImgPixels);
-	for( int i = 0; i < imSize; i++)
+	for( unsigned int i = 0; i < imSize; i++)
 		ImgPixels[i] = ((short)(ImgPixels[i] + (1 << 15))) >> 6;
 
 	CDCT2D dct(img.columns(), img.rows());
@@ -184,7 +184,7 @@ void Test(string & infile, int Quant)
 	dct.Transform<false>(ImgPixels, img.columns());
 // 	dct.Proc<false>(ImgPixels, img.columns());
 
-	for( int i = 0; i < imSize; i++) {
+	for( unsigned int i = 0; i < imSize; i++) {
 		int tmp = (ImgPixels[i] << 6) + (1 << 15);
 		if (tmp > ((1 << 16) - 1)) tmp = ((1 << 16) - 1);
 		if (tmp < 0) tmp = 0;
@@ -202,8 +202,6 @@ int main( int argc, char *argv[] )
 {
 	int c;
 	extern char * optarg;
-	extern int optind, opterr;
-	char * progname = argv[0];
 	string infile;
 	string outfile;
 	float ThresRatio = 0.7;
@@ -242,7 +240,7 @@ int main( int argc, char *argv[] )
 	}
 
 	int mode = 0; // 0 = code , 1 = decode
-	int loc;
+	size_t loc;
 	if ((loc = infile.rfind(".ric", string::npos, 4)) != string::npos){
 		// mode décodage
 		mode = 1;
@@ -257,7 +255,7 @@ int main( int argc, char *argv[] )
 		if (outfile.length() == 0) {
 			outfile = infile;
 			loc = infile.find_last_of(".", string::npos, 5);
-			int loc2 = infile.find_last_of("/");
+			size_t loc2 = infile.find_last_of("/");
 			if (loc != string::npos && loc2 < loc) {
 				outfile.resize(loc);
 			}

@@ -16,19 +16,19 @@ namespace rududu {
 #define SQRT2	1.414213562f
 
 CWavelet2D::CWavelet2D(int x, int y, int level, int Align):
-DimX(x),
-DimY(y),
-pHigh(0),
-pLow(0)
+	pLow(0),
+	pHigh(0),
+	DimX(x),
+	DimY(y)
 {
 	Init(level, Align);
 }
 
 CWavelet2D::CWavelet2D(int x, int y, int level, CWavelet2D * pHigh, int Align):
-DimX(x),
-DimY(y),
-pHigh(0),
-pLow(0)
+	pLow(0),
+	pHigh(0),
+	DimX(x),
+	DimY(y)
 {
 	this->pHigh = pHigh;
 	pHigh->DBand.pParent = &DBand;

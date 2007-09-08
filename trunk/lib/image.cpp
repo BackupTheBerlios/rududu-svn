@@ -60,8 +60,8 @@ void CImage::inputRGB(input_t * pIn, int stride, short offset)
 {
 	short * Y = pImage[0], * Co = pImage[1], * Cg = pImage[2];
 
-	for( int j = 0; j < dimY; j++){
-		for (int i = 0, k = 0; i < dimX; i++ , k += 3){
+	for( unsigned int j = 0; j < dimY; j++){
+		for (unsigned int i = 0, k = 0; i < dimX; i++ , k += 3){
 			Co[i] = pIn[k] - pIn[k + 2];
 			Y[i] = pIn[k + 2] + (Co[i] >> 1);
 			Cg[i] = pIn[k + 1] - Y[i];
@@ -89,11 +89,11 @@ void CImage::inputSGI(input_t * pIn, int stride, short offset)
 	input_t * G = R + stride * dimY;
 	input_t * B = G + stride * dimY;
 
-	for( int j = 0; j < dimY; j++){
+	for( unsigned int j = 0; j < dimY; j++){
 		R -= stride;
 		G -= stride;
 		B -= stride;
-		for (int i = 0; i < dimX; i++){
+		for (unsigned int i = 0; i < dimX; i++){
 			Co[i] = R[i] - B[i];
 			Y[i] = B[i] + (Co[i] >> 1);
 			Cg[i] = G[i] - Y[i];
@@ -117,8 +117,8 @@ void CImage::outputRGB(output_t * pOut, int stride, short offset)
 {
 	short * Y = pImage[0], * Co = pImage[1], * Cg = pImage[2];
 
-	for( int j = 0; j < dimY; j++){
-		for (int i = 0, k = 0; i < dimX; i++ , k += 3){
+	for( unsigned int j = 0; j < dimY; j++){
+		for (unsigned int i = 0, k = 0; i < dimX; i++ , k += 3){
 			pOut[k + 2] = Y[i] - (Cg[i] >> 1) - offset;
 			pOut[k + 1] = Cg[i] + pOut[k + 2];
 			pOut[k + 2] -= Co[i] >> 1;
@@ -151,8 +151,8 @@ void CImage::outputYV12(output_t * pOut, int stride, short offset)
 		Vo = tmp;
 	}
 
-	for( int j = 0; j < dimY; j += 2){
-		for (int i = 0; i < dimX; i += 2){
+	for( unsigned int j = 0; j < dimY; j += 2){
+		for (unsigned int i = 0; i < dimX; i += 2){
 			Yo[i] = ((440 * (Y[i] - offset) + 82 * Co[i] + 76 * Cg[i] + (1 << (8 + shift))) >> (9 + shift)) + 16;
 			Yo[i+1] = ((440 * (Y[i+1] - offset) + 82 * Co[i+1] + 76 * Cg[i+1] + (1 << (8 + shift))) >> (9 + shift)) + 16;
 			Yo[i+stride] = ((440 * (Y[i+dimXAlign] - offset) + 82 * Co[i+dimXAlign] + 76 * Cg[i+dimXAlign] + (1 << (8 + shift))) >> (9 + shift)) + 16;
@@ -204,8 +204,8 @@ CImage & CImage::operator-= (const CImage & In)
 	for (int c = 0; c < component; c++) {
 		short * out = pImage[c];
 		short * in = In.pImage[c];
-		for (int j = 0; j < dimY; j++) {
-			for (int i = 0; i < dimX; i++) {
+		for (unsigned int j = 0; j < dimY; j++) {
+			for (unsigned int i = 0; i < dimX; i++) {
 				out[i] -= in[i];
 			}
 			out += dimXAlign;
@@ -221,8 +221,8 @@ void CImage::interH(const CImage & In)
 	for (int c = 0; c < component; c++) {
 		short * out = pImage[c];
 		short * in = In.pImage[c];
-		for (int j = 0; j < dimY; j++) {
-			for (int i = 0; i < dimX; i++) {
+		for (unsigned int j = 0; j < dimY; j++) {
+			for (unsigned int i = 0; i < dimX; i++) {
 				switch (pos) {
 				case 1:
 					out[i] = (53 * (int)in[i] + 18 * in[i+1] - 4 * in[i-1] - 3 * in[i+2] + 32) >> 6;
@@ -253,8 +253,8 @@ void CImage::interV(const CImage & In)
 		short * in_1 = in - In.dimXAlign;
 		short * in1 = in + In.dimXAlign;
 		short * in2 = in + 2 * In.dimXAlign;
-		for (int j = 0; j < dimY; j++) {
-			for (int i = 0; i < dimX; i++) {
+		for (unsigned int j = 0; j < dimY; j++) {
+			for (unsigned int i = 0; i < dimX; i++) {
 				switch (pos) {
 				case 1:
 					out[i] = (53 * (int)in[i] + 18 * in1[i] - 4 * in_1[i] - 3 * in2[i] + 32) >> 6;
