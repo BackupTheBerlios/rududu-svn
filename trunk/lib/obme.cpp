@@ -18,6 +18,7 @@
  *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.             *
  ***************************************************************************/
 
+#define __STDC_LIMIT_MACROS
 #include <stdint.h>
 
 #include "obme.h"
@@ -57,34 +58,43 @@ unsigned short COBME::SAD(const short * pSrc, const short * pDst, const int stri
 
 #define CHECK_MV(mv)	\
 {	\
-	int x = cur_x + mv.x - 4;	\
-	int y = cur_y + mv.y - 4;	\
-	if (x < -15) x = -15;	\
+	int x = cur_x + mv.x;	\
+	int y = cur_y + mv.y;	\
+	if (x < -7) x = -7;	\
 	if (x >= im_x) x = im_x - 1;	\
-	if (y < -15) y = -15;	\
+	if (y < -7) y = -7;	\
 	if (y >= im_y) y = im_y - 1;	\
 	src_pos = x + y * stride; \
+}
+
+#define BEST_MV(mv_result, mv_test)	\
+{	\
+	int src_pos;	\
+	CHECK_MV(mv_test.MV);	\
+	mv_test.dist = SAD<8>(pIm[1] + src_pos, pCur, stride);	\
+	if (mv_result.dist > mv_test.dist)	\
+		mv_result = mv_test;	\
 }
 
 void COBME::DiamondSearch(int cur_x, int cur_y, int im_x, int im_y, int stride,
                           short ** pIm, sFullMV & MVBest)
 {
 	unsigned int LastMove = 0, Last2Moves = 0, CurrentMove = 0;
-	sFullMV MVTemp = MVBest;
 	short * pCur = pIm[0] + cur_x + cur_y * stride;
 	static const short x_mov[4] = {0, 0, -1, 2};
 	static const short y_mov[4] = {-1, 2, -1, 0};
-	static const short tst[4] = {DOWN, UP, RIGHT, LEFT};
-	static const short step[4] = {UP, DOWN, LEFT, RIGHT};
+	static const unsigned int tst[4] = {DOWN, UP, RIGHT, LEFT};
+	static const unsigned int step[4] = {UP, DOWN, LEFT, RIGHT};
 
 	do {
+		sFullMV MVTemp = MVBest;
 		for (int i = 0; i < 4; i++) {
 			MVTemp.MV.x += x_mov[i];
 			MVTemp.MV.y += y_mov[i];
 			if (!(Last2Moves & tst[i])){
 				int src_pos;
 				CHECK_MV(MVTemp.MV);
-				MVTemp.dist = SAD<8>(pIm[1] + src_pos, pCur, stride);
+				MVTemp.dist = SAD<8>(pIm[1 + MVTemp.ref] + src_pos, pCur, stride);
 				if (MVBest.dist > MVTemp.dist){
 					MVBest = MVTemp;
 					CurrentMove = step[i];
@@ -97,5 +107,82 @@ void COBME::DiamondSearch(int cur_x, int cur_y, int im_x, int im_y, int stride,
 	}while(LastMove);
 }
 
+#define THRES_A	256
+#define THRES_B (thres + (thres >> 2))
+#define THRES_C (thres + (thres >> 2))
+
+sFullMV COBME::EPZS(int cur_x, int cur_y, int im_x, int im_y, int stride,
+                 short ** pIm, sFullMV * MVPred, int setB, int setC, int thres)
+{
+	short * pCur = pIm[0] + cur_x + cur_y * stride;
+	// test predictors
+	sFullMV MVBest = MVPred[0];
+	BEST_MV(MVBest, MVBest);
+	if (MVBest.dist < THRES_A)
+		return MVBest;
+
+	for( int i = 1; i < setB + 1; i++){
+		BEST_MV(MVBest, MVPred[i]);
+	}
+	if (MVBest.dist < THRES_B)
+		return MVBest;
+
+	for( int i = setB + 1; i < setB + 1 + setC; i++){
+		BEST_MV(MVBest, MVPred[i]);
+	}
+	if (MVBest.dist < THRES_C)
+		return MVBest;
+
+	DiamondSearch(cur_x, cur_y, im_x, im_y, stride, pIm, MVBest);
+	return MVBest;
+}
+
+#define MAX_PREDS	16
+
+void COBME::EPZS(int im_x, int im_y, int stride, short ** pIm)
+{
+	sFullMV MVPred[MAX_PREDS];
+	int setB = 0, setC = 0;
+	sMotionVector * pCurMV = pMV;
+	unsigned char * pCurRef = pRef;
+	unsigned short * pCurDist = pDist;
+
+	for( int j = 0; j < dimY; j++){
+		for( int i = 0; i < dimX; i++){
+			int n = 1;
+			MVPred[0].MV.all = 0;
+			if (j == 0) {
+				if (i == 0)
+					MVPred[0].MV.all = 0;
+				else
+					MVPred[0].MV = pCurMV[i - 1];
+			} else {
+				if (i == 0 || i == dimX -1)
+					MVPred[0].MV = pCurMV[i - dimX];
+				else {
+					MVPred[0].MV = median_mv(pCurMV[i - 1], pCurMV[i - dimX], pCurMV[i - dimX + 1]);
+					MVPred[n++].MV = pCurMV[i - 1];
+					MVPred[n++].MV = pCurMV[i - dimX];
+					MVPred[n++].MV = pCurMV[i - dimX + 1];
+				}
+			}
+
+			MVPred[n++].MV = pCurMV[i];
+
+			for( int k = 0; k < n; k++){
+				MVPred[k].ref = 0;
+				MVPred[k].dist = UINT16_MAX;
+			}
+
+			sFullMV MVBest = EPZS(8 * i, 8 * j, im_x, im_y, stride, pIm, MVPred, n - 1, 0, 0);
+			pCurMV[i] = MVBest.MV;
+			pCurRef[i] = MVBest.ref;
+			pCurDist[i] = MVBest.dist;
+		}
+		pCurMV += dimX;
+		pCurRef += dimX;
+		pCurDist += dimX;
+	}
+}
 
 }

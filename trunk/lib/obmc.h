@@ -21,11 +21,12 @@
 #pragma once
 
 #include "image.h"
+#include "utils.h"
 
 namespace rududu {
 
 typedef union {
-	unsigned int All;
+	unsigned int all;
 	struct {
 		short	x;
 		short	y;
@@ -47,6 +48,14 @@ protected:
 
 	sMotionVector * pMV;
 	unsigned char * pRef;
+
+	sMotionVector median_mv(sMotionVector v1, sMotionVector v2, sMotionVector v3)
+	{
+		sMotionVector ret;
+		ret.x = median(v1.x, v2.x, v3.x);
+		ret.y = median(v1.y, v2.y, v3.y);
+		return ret;
+	}
 
 private:
 	char * pData;

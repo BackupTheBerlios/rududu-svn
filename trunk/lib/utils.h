@@ -72,6 +72,21 @@ a inline clip(const a nb, const a min, const a max)
 	return nb;
 }
 
+template <class a>
+a inline median(a nb1, a nb2, const a nb3)
+{
+	if (nb2 < nb1) {
+		a tmp = nb1;
+		nb1 = nb2;
+		nb2 = tmp;
+	}
+	if (nb3 <= nb1)
+		return nb1;
+	if (nb3 <= nb2)
+		return nb3;
+	return nb2;
+}
+
 int inline s2u(int s)
 {
 	int u = -(2 * s + 1);

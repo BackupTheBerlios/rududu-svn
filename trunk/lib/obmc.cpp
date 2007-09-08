@@ -22,7 +22,6 @@
 #include <string.h>
 
 #include "obmc.h"
-#include "utils.h"
 
 namespace rududu {
 

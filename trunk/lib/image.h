@@ -48,6 +48,9 @@ public:
 
 	void extend(void);
 
+	int get_dimXAlign(){ return dimXAlign; }
+	short * get_pImage(int cmp){ return pImage[cmp]; }
+
 private:
 	unsigned int dimX;
 	unsigned int dimY;

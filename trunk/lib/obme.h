@@ -38,6 +38,8 @@ public:
 
 	~COBME();
 
+	void EPZS(int im_x, int im_y, int stride, short ** pIm);
+
 protected:
 	unsigned short * pDist;
 
@@ -45,7 +47,8 @@ private:
 	char * pData;
 
 	template <unsigned int size> static unsigned short SAD(const short * pSrc, const short * pDst, const int stride);
-	static void DiamondSearch(int cur_x, int cur_y, int im_x, int im_y, int stride, short ** pIm, sFullMV & MVBest);
+	static inline void DiamondSearch(int cur_x, int cur_y, int im_x, int im_y, int stride, short ** pIm, sFullMV & MVBest);
+	static sFullMV EPZS(int cur_x, int cur_y, int im_x, int im_y, int stride, short ** pIm, sFullMV * MVPred, int setB, int setC, int thres);
 
 };
 
