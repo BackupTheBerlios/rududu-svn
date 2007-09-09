@@ -21,6 +21,7 @@
 #include <stdint.h>
 #include <string.h>
 
+#include "bitcodec.h"
 #include "obmc.h"
 
 namespace rududu {
@@ -245,5 +246,64 @@ void COBMC::apply_mv(CImage * pRefFrames, CImage & dstImage)
 }
 
 #undef CHECK_MV
+
+void COBMC::encode(CMuxCodec * outCodec)
+{
+	sMotionVector * pCurMV = pMV;
+	CBitCodec intraCodec(outCodec);
+
+	for( int j = 0; j < dimY; j++) {
+		for( int i = 0; i < dimX; i++) {
+			if (pCurMV->all == MV_INTRA)
+				intraCodec.code1(0);
+			else {
+				intraCodec.code0(0);
+				sMotionVector MVPred = {0};
+				if (j == 0) {
+					if (i != 0)
+						MVPred = pCurMV[i - 1];
+				} else {
+					if (i == 0 || i == dimX -1)
+						MVPred = pCurMV[i - dimX];
+					else {
+						MVPred = median_mv(pCurMV[i - 1], pCurMV[i - dimX], pCurMV[i - dimX + 1]);
+					}
+				}
+				outCodec->tabooCode(s2u(pCurMV->x - MVPred.x));
+				outCodec->tabooCode(s2u(pCurMV->y - MVPred.y));
+			}
+		}
+		pCurMV += dimX;
+	}
+}
+
+void COBMC::decode(CMuxCodec * inCodec)
+{
+	sMotionVector * pCurMV = pMV;
+	CBitCodec intraCodec(inCodec);
+
+	for( int j = 0; j < dimY; j++) {
+		for( int i = 0; i < dimX; i++) {
+			if (intraCodec.decode(0))
+				pCurMV->all = MV_INTRA;
+			else {
+				sMotionVector MVPred = {0};
+				if (j == 0) {
+					if (i != 0)
+						MVPred = pCurMV[i - 1];
+				} else {
+					if (i == 0 || i == dimX -1)
+						MVPred = pCurMV[i - dimX];
+					else {
+						MVPred = median_mv(pCurMV[i - 1], pCurMV[i - dimX], pCurMV[i - dimX + 1]);
+					}
+				}
+				pCurMV->x = u2s(inCodec->tabooDecode()) + MVPred.x;
+				pCurMV->y = u2s(inCodec->tabooDecode()) + MVPred.y;
+			}
+		}
+		pCurMV += dimX;
+	}
+}
 
 }

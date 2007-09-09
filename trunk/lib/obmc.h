@@ -20,6 +20,7 @@
 
 #pragma once
 
+#include "muxcodec.h"
 #include "image.h"
 #include "utils.h"
 
@@ -33,6 +34,8 @@ typedef union {
 	};
 } sMotionVector;
 
+#define MV_INTRA	0x80008000
+
 class COBMC{
 public:
 	COBMC(unsigned int dimX, unsigned int dimY);
@@ -40,6 +43,8 @@ public:
     ~COBMC();
 
 	void apply_mv(CImage * pRefFrames, CImage & dstImage);
+	void encode(CMuxCodec * inCodec);
+	void decode(CMuxCodec * inCodec);
 
 protected:
 	unsigned int dimX;
