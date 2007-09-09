@@ -3,6 +3,7 @@
 #include <iostream>
 
 #include "obme.h"
+#include "huffcodec.h"
 
 using namespace std;
 using namespace rududu;
@@ -12,6 +13,21 @@ using namespace rududu;
 #define CMPNT	3
 
 #define ALIGN	32
+
+sHuffSym hufftable[] = {
+	{12, 0, 0},
+	{8, 0, 1},
+	{125, 0, 2},
+	{741, 0, 3},
+	{65, 0, 4},
+	{9, 0, 5},
+	{2, 0, 6},
+	{78, 0, 7},
+	{93, 0, 8},
+	{52, 0, 9},
+	{512, 0, 10},
+	{3, 0, 11},
+};
 
 int main( int argc, char *argv[] )
 {
@@ -25,18 +41,20 @@ int main( int argc, char *argv[] )
 	int cur_image = 0;
 	short * pIm[2];
 
-	while(! cin.eof()) {
-		cin.read((char*)tmp, WIDTH * HEIGHT * CMPNT);
-		inImages[cur_image]->inputSGI(tmp, WIDTH, -128);
-		pIm[0] = inImages[cur_image]->get_pImage(0);
-		pIm[1] = inImages[1-cur_image]->get_pImage(0);
-		obme.EPZS(WIDTH, HEIGHT, inImage.get_dimXAlign(), pIm);
-		obme.apply_mv(inImages[1-cur_image], outImage);
-		outImage -= *inImages[cur_image];
-		outImage.outputYV12<char, false>((char*)tmp, WIDTH, -128);
-		cout.write((char*)tmp, WIDTH * HEIGHT * CMPNT / 2);
-		cur_image = 1-cur_image;
-	}
+// 	while(! cin.eof()) {
+// 		cin.read((char*)tmp, WIDTH * HEIGHT * CMPNT);
+// 		inImages[cur_image]->inputSGI(tmp, WIDTH, -128);
+// 		pIm[0] = inImages[cur_image]->get_pImage(0);
+// 		pIm[1] = inImages[1-cur_image]->get_pImage(0);
+// 		obme.EPZS(WIDTH, HEIGHT, inImage.get_dimXAlign(), pIm);
+// 		obme.apply_mv(inImages[1-cur_image], outImage);
+// 		outImage -= *inImages[cur_image];
+// 		outImage.outputYV12<char, false>((char*)tmp, WIDTH, -128);
+// 		cout.write((char*)tmp, WIDTH * HEIGHT * CMPNT / 2);
+// 		cur_image = 1-cur_image;
+// 	}
+
+	CHuffCodec::make_huffman(hufftable, sizeof(hufftable) / sizeof(sHuffSym));
 
 	cout.flush();
 

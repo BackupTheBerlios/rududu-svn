@@ -6,6 +6,7 @@
 
 namespace rududu {
 
+// TODO : faire une allocation dynamique pour toute la classe
 #define BIT_CONTEXT_NB	16
 
 #if FREQ_COUNT != 4096

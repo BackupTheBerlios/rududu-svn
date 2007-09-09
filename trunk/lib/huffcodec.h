@@ -20,36 +20,27 @@
 
 #pragma once
 
-#include <obmc.h>
+#include "muxcodec.h"
 
 namespace rududu {
 
-typedef struct {
-	sMotionVector MV;
-	unsigned char ref; /// reference frame
-	unsigned char bitCost; /// bit cost of the motion vector in 1/8 bit unit
-	unsigned short dist; /// distortion of this MV
-} sFullMV;
-
-class COBME : public COBMC
-{
+class CHuffCodec{
 public:
-	COBME(unsigned int dimX, unsigned int dimY);
+    CHuffCodec();
 
-	~COBME();
+    ~CHuffCodec();
 
-	void EPZS(int im_x, int im_y, int stride, short ** pIm);
-
-protected:
-	unsigned short * pDist;
+	static void make_huffman(sHuffSym * sym, int n);
 
 private:
-	char * pData;
 
-	template <unsigned int size> static unsigned short SAD(const short * pSrc, const short * pDst, const int stride);
-	static inline void DiamondSearch(int cur_x, int cur_y, int im_x, int im_y, int stride, short ** pIm, sFullMV & MVBest);
-	static sFullMV EPZS(int cur_x, int cur_y, int im_x, int im_y, int stride, short ** pIm, sFullMV * MVPred, int setB, int setC, int thres);
+	static void print(sHuffSym * sym, int n, int print_type, int offset);
+	static void make_codes(sHuffSym * sym, int n);
+	static void make_len(sHuffSym * sym, int n);
 
+	static int comp_freq(const sHuffSym * sym1, const sHuffSym * sym2);
+	static int comp_sym(const sHuffSym * sym1, const sHuffSym * sym2);
 };
 
 }
+
