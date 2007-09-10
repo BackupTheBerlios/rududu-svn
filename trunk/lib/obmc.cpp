@@ -252,9 +252,9 @@ void COBMC::encode(CMuxCodec * outCodec)
 	sMotionVector * pCurMV = pMV;
 	CBitCodec intraCodec(outCodec);
 
-	for( int j = 0; j < dimY; j++) {
-		for( int i = 0; i < dimX; i++) {
-			if (pCurMV->all == MV_INTRA)
+	for( unsigned int j = 0; j < dimY; j++) {
+		for( unsigned int i = 0; i < dimX; i++) {
+			if (pCurMV[i].all == MV_INTRA)
 				intraCodec.code1(0);
 			else {
 				intraCodec.code0(0);
@@ -263,14 +263,14 @@ void COBMC::encode(CMuxCodec * outCodec)
 					if (i != 0)
 						MVPred = pCurMV[i - 1];
 				} else {
-					if (i == 0 || i == dimX -1)
+					if (i == 0 || i == dimX - 1)
 						MVPred = pCurMV[i - dimX];
 					else {
 						MVPred = median_mv(pCurMV[i - 1], pCurMV[i - dimX], pCurMV[i - dimX + 1]);
 					}
 				}
-				outCodec->tabooCode(s2u(pCurMV->x - MVPred.x));
-				outCodec->tabooCode(s2u(pCurMV->y - MVPred.y));
+				outCodec->tabooCode(s2u(pCurMV[i].x - MVPred.x));
+				outCodec->tabooCode(s2u(pCurMV[i].y - MVPred.y));
 			}
 		}
 		pCurMV += dimX;
@@ -282,24 +282,24 @@ void COBMC::decode(CMuxCodec * inCodec)
 	sMotionVector * pCurMV = pMV;
 	CBitCodec intraCodec(inCodec);
 
-	for( int j = 0; j < dimY; j++) {
-		for( int i = 0; i < dimX; i++) {
+	for( unsigned int j = 0; j < dimY; j++) {
+		for( unsigned int i = 0; i < dimX; i++) {
 			if (intraCodec.decode(0))
-				pCurMV->all = MV_INTRA;
+				pCurMV[i].all = MV_INTRA;
 			else {
 				sMotionVector MVPred = {0};
 				if (j == 0) {
 					if (i != 0)
 						MVPred = pCurMV[i - 1];
 				} else {
-					if (i == 0 || i == dimX -1)
+					if (i == 0 || i == dimX - 1)
 						MVPred = pCurMV[i - dimX];
 					else {
 						MVPred = median_mv(pCurMV[i - 1], pCurMV[i - dimX], pCurMV[i - dimX + 1]);
 					}
 				}
-				pCurMV->x = u2s(inCodec->tabooDecode()) + MVPred.x;
-				pCurMV->y = u2s(inCodec->tabooDecode()) + MVPred.y;
+				pCurMV[i].x = u2s(inCodec->tabooDecode()) + MVPred.x;
+				pCurMV[i].y = u2s(inCodec->tabooDecode()) + MVPred.y;
 			}
 		}
 		pCurMV += dimX;
