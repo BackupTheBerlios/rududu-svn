@@ -21,8 +21,12 @@
 #include <stdint.h>
 #include <string.h>
 
+#include <iostream>
+
 #include "bitcodec.h"
 #include "obmc.h"
+
+using namespace std;
 
 namespace rududu {
 
@@ -37,6 +41,10 @@ COBMC::COBMC(unsigned int dimX, unsigned int dimY):
 
 	// FIXME : remove this :
 	memset(pData, 0, allocated);
+	for (int i = 0; i < 256; i++) {
+		histo[0][i] = 1;
+		histo[1][i] = 1;
+	}
 
 	pMV = (sMotionVector*)(((intptr_t)pData + sizeof(sMotionVector) - 1) & (-sizeof(sMotionVector)));
 	pRef = (unsigned char*) (pMV + dimX * dimY);
@@ -45,6 +53,13 @@ COBMC::COBMC(unsigned int dimX, unsigned int dimY):
 COBMC::~COBMC()
 {
 	delete[] pData;
+	for( int i = 0; i < 256; i++){
+		cerr << histo[0][i] << endl;
+	}
+	cerr << endl;
+	for( int i = 0; i < 256; i++){
+		cerr << histo[1][i] << endl;
+	}
 }
 
 const short COBMC::window[8][8] =
@@ -250,7 +265,7 @@ void COBMC::apply_mv(CImage * pRefFrames, CImage & dstImage)
 void COBMC::encode(CMuxCodec * outCodec)
 {
 	sMotionVector * pCurMV = pMV;
-	CBitCodec intraCodec(outCodec);
+	CBitCodec intraCodec(outCodec), zeroCodec(outCodec);
 
 	for( unsigned int j = 0; j < dimY; j++) {
 		for( unsigned int i = 0; i < dimX; i++) {
@@ -267,10 +282,27 @@ void COBMC::encode(CMuxCodec * outCodec)
 						MVPred = pCurMV[i - dimX];
 					else {
 						MVPred = median_mv(pCurMV[i - 1], pCurMV[i - dimX], pCurMV[i - dimX + 1]);
+						int tmp = s2u(pCurMV[i].x - MVPred.x);
+						if (tmp > 255) tmp = 255;
+						histo[0][tmp]++;
+						tmp = s2u(pCurMV[i].y - MVPred.y);
+						if (tmp > 255) tmp = 255;
+						histo[1][tmp]++;
 					}
 				}
-				outCodec->tabooCode(s2u(pCurMV[i].x - MVPred.x));
-				outCodec->tabooCode(s2u(pCurMV[i].y - MVPred.y));
+				if (pCurMV[i].x == MVPred.x)
+					zeroCodec.code0(0);
+				else {
+					zeroCodec.code1(0);
+					outCodec->tabooCode(s2u(pCurMV[i].x - MVPred.x) - 1);
+				}
+
+				if (pCurMV[i].y == MVPred.y)
+					zeroCodec.code0(1);
+				else {
+					zeroCodec.code1(1);
+					outCodec->tabooCode(s2u(pCurMV[i].y - MVPred.y) - 1);
+				}
 			}
 		}
 		pCurMV += dimX;
@@ -280,7 +312,7 @@ void COBMC::encode(CMuxCodec * outCodec)
 void COBMC::decode(CMuxCodec * inCodec)
 {
 	sMotionVector * pCurMV = pMV;
-	CBitCodec intraCodec(inCodec);
+	CBitCodec intraCodec(inCodec), zeroCodec(inCodec);
 
 	for( unsigned int j = 0; j < dimY; j++) {
 		for( unsigned int i = 0; i < dimX; i++) {
@@ -298,8 +330,14 @@ void COBMC::decode(CMuxCodec * inCodec)
 						MVPred = median_mv(pCurMV[i - 1], pCurMV[i - dimX], pCurMV[i - dimX + 1]);
 					}
 				}
-				pCurMV[i].x = u2s(inCodec->tabooDecode()) + MVPred.x;
-				pCurMV[i].y = u2s(inCodec->tabooDecode()) + MVPred.y;
+				if (zeroCodec.decode(0))
+					pCurMV[i].x = u2s(inCodec->tabooDecode() + 1) + MVPred.x;
+				else
+					pCurMV[i].x = 0;
+				if (zeroCodec.decode(1))
+					pCurMV[i].y = u2s(inCodec->tabooDecode() + 1) + MVPred.y;
+				else
+					pCurMV[i].y = 0;
 			}
 		}
 		pCurMV += dimX;
