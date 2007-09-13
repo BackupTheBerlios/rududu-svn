@@ -54,8 +54,6 @@ protected:
 	sMotionVector * pMV;
 	unsigned char * pRef;
 
-	unsigned int histo[2][256];
-
 	sMotionVector median_mv(sMotionVector v1, sMotionVector v2, sMotionVector v3)
 	{
 		sMotionVector ret;
