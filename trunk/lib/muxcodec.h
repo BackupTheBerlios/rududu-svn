@@ -72,6 +72,8 @@ public:
 
 	void golombCode(unsigned int nb, const int k);
 	unsigned int golombDecode(const int k);
+	void golombLinCode(unsigned int nb, int k, int m);
+	unsigned int golombLinDecode(int k, int m);
 
 	void fiboCode(unsigned int nb);
 	unsigned int fiboDecode(void);
@@ -193,7 +195,7 @@ public:
 		return (buffer >> nbBits) & ((1 << length) - 1);
 	}
 
-	unsigned int inline huffDecode(sHuffSym * huffTable)
+	unsigned int inline huffDecode(const sHuffSym * huffTable)
 	{
 		unsigned short code;
 		code = (unsigned short)((((buffer << 16) | (pStream[0] << 8) | pStream[1]) >> nbBits) & 0xFFFF);

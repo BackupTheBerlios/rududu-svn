@@ -383,6 +383,56 @@ unsigned int CMuxCodec::golombDecode(const int k)
 	}
 }
 
+void CMuxCodec::golombLinCode(unsigned int nb, int k, int m)
+{
+	unsigned int l = 1;
+
+	while( nb >= (1u << (k + m)) ){
+		l += 1u << m;
+		nb -= 1u << (k + m);
+		k++;
+	}
+
+	l += nb >> k;
+	nb &= (1 << k) - 1;
+
+	while ((int)l > (31 - (int)nbBits)){
+		if (31 - (int)nbBits >= 0) {
+			buffer <<= 31 - nbBits;
+			l -= 31 - nbBits;
+			nbBits = 31;
+		}
+		emptyBuffer();
+	}
+
+	buffer <<= l;
+	buffer |= 1;
+	nbBits += l;
+
+	bitsCode(nb, k);
+}
+
+unsigned int CMuxCodec::golombLinDecode(int k, int m)
+{
+	unsigned int l = 0;
+
+	while(0 == (buffer & ((1 << nbBits) - 1))) {
+		l += nbBits;
+		nbBits = 0;
+		fillBuffer(1);
+	}
+
+	while( (buffer & (1 << --nbBits)) == 0 )
+		l++;
+
+	unsigned int nb = ((1 << (l >> m)) - 1) << k;
+	k += l >> m;
+	l &= (1 << m) - 1;
+
+	nb += (l << k) | bitsDecode(k);
+	return nb;
+}
+
 void CMuxCodec::emptyBuffer(void)
 {
 	do {
