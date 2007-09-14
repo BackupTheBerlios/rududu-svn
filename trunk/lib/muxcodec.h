@@ -17,6 +17,8 @@ namespace rududu {
 
 #define REG_SIZE (sizeof(unsigned int) * 8)
 
+#define MAX_HUFF_LEN	16 // maximum size of a huffman code in bits
+
 typedef struct {
 	unsigned short code;
 	unsigned char len;

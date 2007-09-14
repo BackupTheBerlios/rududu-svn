@@ -20,19 +20,34 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 
 #include "huffcodec.h"
 
 namespace rududu {
 
-CHuffCodec::CHuffCodec()
+CHuffCodec::CHuffCodec(cmode mode, unsigned int n) :
+	nbSym(n)
 {
+	if (mode == encode) {
+		pData = new char[(sizeof(sHuffSym) + sizeof(unsigned short)) * n];
+		pSym = (sHuffSym *) pData;
+		pSymLUT = 0;
+		pFreq = (unsigned short *) (pSym + n);
+	} else {
+		pData = new char[sizeof(sHuffSym) * MAX_HUFF_LEN + n * (1 + sizeof(unsigned short))];
+		pSym = (sHuffSym *) pData;
+		pSymLUT = (unsigned char *) (pSym + MAX_HUFF_LEN);
+		pFreq = (unsigned short *) (pSymLUT + n);
+	}
 }
 
 
 CHuffCodec::~CHuffCodec()
 {
+	delete[] pData;
 }
+
 
 /**
  * Calculate huffman code lenth in place from a sorted frequency array
@@ -112,6 +127,73 @@ void CHuffCodec::make_codes(sHuffSym * sym, int n)
 	}
 }
 
+void CHuffCodec::RL2len(const sHuffRL * pRL, sHuffSym * pHuff, int n)
+{
+	int i = 0, j = 0, len = 0;
+	while( i < n ){
+		len += pRL[j].diff;
+		for( int iend = i + 1 + pRL[j].len; i < iend; i++){
+			pHuff[i].value = i;
+			pHuff[i].len = len;
+		}
+		j++;
+	}
+}
+
+int CHuffCodec::len2RL(sHuffRL * pRL, const sHuffSym * pHuff, int n)
+{
+	int i = 0, j = 0, len = 0;
+	while( i < n ){
+		pRL[j].diff = pHuff[i].len - len;
+		len = pHuff[i].len;
+		int k = i;
+		do {
+			i++;
+		} while( i < n && pHuff[k].len == pHuff[i].len );
+		pRL[j].len = i - k;
+		j++;
+	}
+	return j;
+}
+
+int CHuffCodec::enc2dec(sHuffSym * sym, sHuffSym * outSym,
+                        unsigned char * pSymLUT, int n)
+{
+	unsigned int bits = sym[0].len;
+	unsigned int cnt = 0;
+	for ( int i = 1; i < n; i++ ) {
+		if (sym[i].len != bits) {
+			bits = sym[i].len;
+			outSym[cnt].code = sym[i-1].code << (16 - sym[i-1].len);
+			outSym[cnt].len = sym[i-1].len;
+			outSym[cnt++].value = (char)(sym[i-1].code + i - 1);
+		}
+	}
+	outSym[cnt].code = sym[n-1].code << (16 - sym[n-1].len);
+	outSym[cnt].len = sym[n-1].len;
+	outSym[cnt++].value = (char)(sym[n-1].code + n - 1);
+
+	for ( int i = 0; i < n; i++ )
+		pSymLUT[i] = sym[i].value;
+	return cnt;
+}
+
+void CHuffCodec::update_code(sHuffSym * sym)
+{
+	qsort(sym, nbSym, sizeof(sHuffSym),
+	      (int (*)(const void *, const void *)) comp_freq);
+
+	make_len(sym, nbSym);
+	make_codes(sym, nbSym);
+	if (pSymLUT == 0) {
+		qsort(sym, nbSym, sizeof(sHuffSym),
+		      (int (*)(const void *, const void *)) comp_sym);
+		memcpy(pSym, sym, sizeof(sHuffSym) * nbSym);
+	} else {
+		enc2dec(sym, pSym, pSymLUT, nbSym);
+	}
+}
+
 void CHuffCodec::make_huffman(sHuffSym * sym, int n)
 {
 	qsort(sym, n, sizeof(sHuffSym),
@@ -128,6 +210,7 @@ void CHuffCodec::make_huffman(sHuffSym * sym, int n)
  * print_type = 0 => print the coding table
  * print_type = 1 => print the decoding table
  * print_type = 2 => print the canonical decoding table
+ * print_type = 3 => print the RL-coded table
  * @param sym
  * @param n
  * @param print_type
@@ -135,6 +218,7 @@ void CHuffCodec::make_huffman(sHuffSym * sym, int n)
  */
 void CHuffCodec::print(sHuffSym * sym, int n, int print_type, int offset)
 {
+	unsigned int bits, cnt;
 	switch( print_type ) {
 	case 0 :
 		qsort(sym, n, sizeof(sHuffSym),
@@ -158,8 +242,8 @@ void CHuffCodec::print(sHuffSym * sym, int n, int print_type, int offset)
 		break;
 	case 2:
 		printf("{\n	");
-		unsigned int bits = sym[0].len;
-		unsigned int cnt = 1;
+		bits = sym[0].len;
+		cnt = 1;
 		for ( int i = 1; i < n; i++ ) {
 			if (sym[i].len != bits) {
 				bits = sym[i].len;
@@ -179,6 +263,19 @@ void CHuffCodec::print(sHuffSym * sym, int n, int print_type, int offset)
 				printf(", ");
 		}
 		printf(" };\n");
+		break;
+	case 3:
+		qsort(sym, n, sizeof(sHuffSym),
+		      (int (*)(const void *, const void *)) comp_sym);
+		sHuffRL rl_table[MAX_HUFF_LEN];
+		int k = len2RL(rl_table, sym, n);
+		printf("{\n	");
+		for( int i = 0; i < k; i++) {
+			if (i != 0)
+				printf(", ");
+			printf("{%i, %i}", rl_table[i].diff, rl_table[i].len);
+		}
+		printf("\n}\n");
 	}
 }
 

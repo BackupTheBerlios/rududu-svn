@@ -64,7 +64,7 @@ int main( int argc, char *argv[] )
 		obmc.apply_mv(inImages[1-cur_image], outImage);
 		outImage -= *inImages[cur_image];
 		outImage.outputYV12<char, false>((char*)tmp, WIDTH, -128);
-		cout.write((char*)tmp, WIDTH * HEIGHT * CMPNT / 2);
+		//cout.write((char*)tmp, WIDTH * HEIGHT * CMPNT / 2);
 		cur_image = 1-cur_image;
 	}
 

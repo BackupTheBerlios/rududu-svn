@@ -20,19 +20,37 @@
 
 #pragma once
 
+#include "utils.h"
 #include "muxcodec.h"
 
 namespace rududu {
 
+#define MAX_HUFF_SYM	256 // maximum huffman table size
+
+typedef struct {
+	signed char diff;
+	unsigned char len;
+} sHuffRL;
+
 class CHuffCodec{
 public:
-    CHuffCodec();
+    CHuffCodec(cmode mode, unsigned int n);
 
     ~CHuffCodec();
 
 	static void make_huffman(sHuffSym * sym, int n);
 
+	void init(sHuffSym * pInitTable);
+
 private:
+
+	char * pData;
+	unsigned int nbSym;
+	sHuffSym * pSym;
+	unsigned char * pSymLUT;
+	unsigned short * pFreq;
+
+	void update_code(sHuffSym * sym);
 
 	static void print(sHuffSym * sym, int n, int print_type, int offset);
 	static void make_codes(sHuffSym * sym, int n);
@@ -40,6 +58,10 @@ private:
 
 	static int comp_freq(const sHuffSym * sym1, const sHuffSym * sym2);
 	static int comp_sym(const sHuffSym * sym1, const sHuffSym * sym2);
+
+	static void RL2len(const sHuffRL * pRL, sHuffSym * pHuff, int n);
+	static int len2RL(sHuffRL * pRL, const sHuffSym * pHuff, int n);
+	static int enc2dec(sHuffSym * sym, sHuffSym * outSym, unsigned char * pSymLUT, int n);
 };
 
 }
