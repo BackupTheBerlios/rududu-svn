@@ -56,7 +56,7 @@ int main( int argc, char *argv[] )
 		Codec.initCoder(0, pStream);
 		obme.encode(& Codec);
 		pEnd = Codec.endCoding();
-		cerr << "mv size : " << (int)(pEnd - pStream) << endl;
+// 		cerr << "mv size : " << (int)(pEnd - pStream) << endl;
 
 		Codec.initDecoder(pStream);
 		obmc.decode(& Codec);
@@ -64,7 +64,7 @@ int main( int argc, char *argv[] )
 		obmc.apply_mv(inImages[1-cur_image], outImage);
 		outImage -= *inImages[cur_image];
 		outImage.outputYV12<char, false>((char*)tmp, WIDTH, -128);
-		//cout.write((char*)tmp, WIDTH * HEIGHT * CMPNT / 2);
+		cout.write((char*)tmp, WIDTH * HEIGHT * CMPNT / 2);
 		cur_image = 1-cur_image;
 	}
 

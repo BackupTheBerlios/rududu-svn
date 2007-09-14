@@ -205,8 +205,9 @@ public:
 		while (code < huffTable->code) huffTable++;
 
 		pStream -= (int)(nbBits - huffTable->len) >> 3;
+		if (nbBits < huffTable->len)
+			buffer = pStream[-1];
 		nbBits = (nbBits - huffTable->len) & 0x07;
-		buffer = pStream[-1];
 
 		return (huffTable->value - (code >> (16 - huffTable->len))) & 0xFF;
 	}
