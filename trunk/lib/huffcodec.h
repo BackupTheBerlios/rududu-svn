@@ -26,6 +26,8 @@
 namespace rududu {
 
 #define MAX_HUFF_SYM	256 // maximum huffman table size
+#define UPDATE_STEP		64u
+#define UPDATE_THRES	(1u << 14)
 
 typedef struct {
 	signed char diff;
@@ -34,13 +36,13 @@ typedef struct {
 
 class CHuffCodec{
 public:
-    CHuffCodec(cmode mode, unsigned int n);
+	CHuffCodec(cmode mode, const sHuffRL * pInitTable, unsigned int n);
 
     ~CHuffCodec();
 
 	static void make_huffman(sHuffSym * sym, int n);
 
-	void init(sHuffSym * pInitTable);
+	static void print(sHuffSym * sym, int n, int print_type, int offset);
 
 private:
 
@@ -49,19 +51,48 @@ private:
 	sHuffSym * pSym;
 	unsigned char * pSymLUT;
 	unsigned short * pFreq;
+	unsigned int count;
 
-	void update_code(sHuffSym * sym);
+	void init(const sHuffRL * pInitTable);
+	void update_code(void);
 
-	static void print(sHuffSym * sym, int n, int print_type, int offset);
 	static void make_codes(sHuffSym * sym, int n);
 	static void make_len(sHuffSym * sym, int n);
 
 	static int comp_freq(const sHuffSym * sym1, const sHuffSym * sym2);
 	static int comp_sym(const sHuffSym * sym1, const sHuffSym * sym2);
+	static int comp_len(const sHuffSym * sym1, const sHuffSym * sym2);
 
 	static void RL2len(const sHuffRL * pRL, sHuffSym * pHuff, int n);
 	static int len2RL(sHuffRL * pRL, const sHuffSym * pHuff, int n);
 	static int enc2dec(sHuffSym * sym, sHuffSym * outSym, unsigned char * pSymLUT, int n);
+
+public:
+
+	inline void code(unsigned int sym, CMuxCodec * codec)
+	{
+		if (count >= UPDATE_THRES)
+			update_code();
+		unsigned int tmp = MIN(sym, nbSym - 1);
+		codec->bitsCode(pSym[tmp].code, pSym[tmp].len);
+		pFreq[tmp] += UPDATE_STEP;
+		count += UPDATE_STEP;
+
+		if (sym >= nbSym - 1)
+			codec->golombLinCode(sym - tmp, 5, 0);
+	}
+
+	inline unsigned int decode(CMuxCodec * codec)
+	{
+		if (count >= UPDATE_THRES)
+			update_code();
+		unsigned int sym = pSymLUT[codec->huffDecode(pSym)];
+		pFreq[sym] += UPDATE_STEP;
+		count += UPDATE_STEP;
+		if (sym == nbSym - 1)
+			sym = codec->golombLinDecode(5, 0) + nbSym - 1;
+		return sym;
+	}
 };
 
 }

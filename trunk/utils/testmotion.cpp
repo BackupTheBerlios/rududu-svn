@@ -45,6 +45,7 @@ int main( int argc, char *argv[] )
 	unsigned char * pStream = new unsigned char[WIDTH * HEIGHT];
 	CMuxCodec Codec(pStream, 0);
 	unsigned char * pEnd;
+	unsigned int total_mv_size = 0;
 
 	while(! cin.eof()) {
 		cin.read((char*)tmp, WIDTH * HEIGHT * CMPNT);
@@ -56,20 +57,22 @@ int main( int argc, char *argv[] )
 		Codec.initCoder(0, pStream);
 		obme.encode(& Codec);
 		pEnd = Codec.endCoding();
-// 		cerr << "mv size : " << (int)(pEnd - pStream) << endl;
+ 		cerr << "mv size : " << (int)(pEnd - pStream) << endl;
+		total_mv_size += (unsigned int)(pEnd - pStream);
 
-		Codec.initDecoder(pStream);
-		obmc.decode(& Codec);
+// 		Codec.initDecoder(pStream);
+// 		obmc.decode(& Codec);
 
-		obmc.apply_mv(inImages[1-cur_image], outImage);
-		outImage -= *inImages[cur_image];
-		outImage.outputYV12<char, false>((char*)tmp, WIDTH, -128);
-		cout.write((char*)tmp, WIDTH * HEIGHT * CMPNT / 2);
+// 		obmc.apply_mv(inImages[1-cur_image], outImage);
+// 		outImage -= *inImages[cur_image];
+// 		outImage.outputYV12<char, false>((char*)tmp, WIDTH, -128);
+// 		cout.write((char*)tmp, WIDTH * HEIGHT * CMPNT / 2);
 		cur_image = 1-cur_image;
 	}
 
 // 	CHuffCodec::make_huffman(hufftable, sizeof(hufftable) / sizeof(sHuffSym));
 
+	cerr << "total : " << total_mv_size << endl;
 	cout.flush();
 
 	return 0;
