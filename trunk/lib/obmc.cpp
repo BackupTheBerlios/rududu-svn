@@ -262,12 +262,13 @@ const sHuffRL huff_mv_y_rl[] = {
 	{1, 1}, {1, 1}, {2, 2}, {2, 3}, {1, 4}, {1, 3}, {-1, 1}, {2, 6}, {1, 5}, {1, 1}, {-1, 1}, {1, 6}, {1, 6}, {1, 1}, {-1, 1}, {1, 11}, {1, 1}, {-1, 2}, {1, 14}, {1, 5}, {1, 1}, {-1, 2}, {1, 4}, {-1, 1}, {1, 1}, {-1, 3}, {1, 29}, {-1, 1}, {1, 9}, {-6, 1}
 };
 
-void COBMC::encode(CMuxCodec * outCodec)
+void COBMC::encode(CMuxCodec * codec)
 {
 	sMotionVector * pCurMV = pMV;
-	CBitCodec intraCodec(outCodec), zeroCodec(outCodec);
-	CHuffCodec huff_x(rududu::encode, huff_mv_x_rl, MV_TABLE_SIZE);
-	CHuffCodec huff_y(rududu::encode, huff_mv_y_rl, MV_TABLE_SIZE);
+	CBitCodec intraCodec(codec), zeroCodec(codec);
+	CHuffCodec huff_x(rududu::encode, 0, 128);
+	CHuffCodec huff_y(rududu::encode, 0, 128);
+	CHuffCodec huff(rududu::encode, 0, 255);
 
 	for( unsigned int j = 0; j < dimY; j++) {
 		for( unsigned int i = 0; i < dimX; i++) {
@@ -285,33 +286,41 @@ void COBMC::encode(CMuxCodec * outCodec)
 					else
 						MVPred = median_mv(pCurMV[i - 1], pCurMV[i - dimX], pCurMV[i - dimX + 1]);
 				}
-				if (pCurMV[i].x == MVPred.x)
+				if (pCurMV[i].x == MVPred.x && pCurMV[i].y == MVPred.y)
 					zeroCodec.code0(0);
 				else {
 					zeroCodec.code1(0);
-					int tmp = s2u(pCurMV[i].x - MVPred.x) - 1;
-					huff_x.code(tmp, outCodec);
-				}
-
-				if (pCurMV[i].y == MVPred.y)
-					zeroCodec.code0(1);
-				else {
-					zeroCodec.code1(1);
-					int tmp = s2u(pCurMV[i].y - MVPred.y) - 1;
-					huff_y.code(tmp, outCodec);
+					int x = s2u(pCurMV[i].x - MVPred.x);
+					int y = s2u(pCurMV[i].y - MVPred.y);
+					int tmp = (MIN(x, 15) | (MIN(y, 15) << 4)) - 1;
+					huff.code(tmp, codec);
+					if (x >= 15) {
+						huff_x.code(MIN(x - 15, 127), codec);
+						if (x >= 127 + 15)
+							codec->golombLinCode(x - 127 - 15, 5, 0);
+					}
+					if (y >= 15) {
+						huff_y.code(MIN(y - 15, 127), codec);
+						if (y >= 127 + 15)
+							codec->golombLinCode(y - 127 - 15, 5, 0);
+					}
 				}
 			}
 		}
 		pCurMV += dimX;
 	}
+	huff.print(2);
+	huff_x.print(2);
+	huff_y.print(2);
 }
 
-void COBMC::decode(CMuxCodec * inCodec)
+void COBMC::decode(CMuxCodec * codec)
 {
 	sMotionVector * pCurMV = pMV;
-	CBitCodec intraCodec(inCodec), zeroCodec(inCodec);
-	CHuffCodec huff_x(rududu::decode, huff_mv_x_rl, MV_TABLE_SIZE);
-	CHuffCodec huff_y(rududu::decode, huff_mv_y_rl, MV_TABLE_SIZE);
+	CBitCodec intraCodec(codec), zeroCodec(codec);
+	CHuffCodec huff_x(rududu::decode, 0, 128);
+	CHuffCodec huff_y(rududu::decode, 0, 128);
+	CHuffCodec huff(rududu::decode, 0, 255);
 
 	for( unsigned int j = 0; j < dimY; j++) {
 		for( unsigned int i = 0; i < dimX; i++) {
@@ -329,14 +338,25 @@ void COBMC::decode(CMuxCodec * inCodec)
 						MVPred = median_mv(pCurMV[i - 1], pCurMV[i - dimX], pCurMV[i - dimX + 1]);
 				}
 				if (zeroCodec.decode(0)) {
-					pCurMV[i].x = u2s(huff_x.decode(inCodec) + 1) + MVPred.x;
-				} else
+					int tmp = huff.decode(codec) + 1;
+					int x = tmp & 0xF;
+					int y = tmp >> 4;
+					if (x == 15) {
+						x += huff_x.decode(codec);
+						if (x == 127 + 15)
+							x += codec->golombLinDecode(5, 0);
+					}
+					pCurMV[i].x = u2s(x) + MVPred.x;
+					if (y == 15) {
+						y += huff_y.decode(codec);
+						if (y == 127 + 15)
+							y += codec->golombLinDecode(5, 0);
+					}
+					pCurMV[i].y = u2s(y) + MVPred.y;
+				} else {
 					pCurMV[i].x = MVPred.x;
-
-				if (zeroCodec.decode(1)) {
-					pCurMV[i].y = u2s(huff_y.decode(inCodec) + 1) + MVPred.y;
-				} else
 					pCurMV[i].y = MVPred.y;
+				}
 			}
 		}
 		pCurMV += dimX;

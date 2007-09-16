@@ -28,7 +28,8 @@ namespace rududu {
 
 CHuffCodec::CHuffCodec(cmode mode, const sHuffRL * pInitTable, unsigned int n) :
 	nbSym(n),
-	count(0)
+	count(0),
+	update_step(UPDATE_STEP_MAX)
 {
 	if (mode == encode) {
 		pData = new char[(sizeof(sHuffSym) + sizeof(unsigned short)) * n];
@@ -42,7 +43,10 @@ CHuffCodec::CHuffCodec(cmode mode, const sHuffRL * pInitTable, unsigned int n) :
 		pFreq = (unsigned short *) (pSymLUT + n);
 	}
 	for (unsigned int i = 0; i < n; i++) pFreq[i] = 8;
-	init(pInitTable);
+	if (pInitTable != 0)
+		init(pInitTable);
+	else
+		update_code();
 }
 
 
@@ -67,6 +71,7 @@ void CHuffCodec::init(const sHuffRL * pInitTable)
 	} else {
 		enc2dec(TmpHuff, pSym, pSymLUT, nbSym);
 	}
+	update_step = UPDATE_STEP_MIN;
 }
 
 /**
@@ -224,6 +229,8 @@ void CHuffCodec::update_code(void)
 		enc2dec(sym, pSym, pSymLUT, nbSym);
 	}
 	count = 0;
+	update_step >>= 1;
+	update_step = MAX(update_step, UPDATE_STEP_MIN);
 }
 
 void CHuffCodec::make_huffman(sHuffSym * sym, int n)
@@ -233,8 +240,8 @@ void CHuffCodec::make_huffman(sHuffSym * sym, int n)
 
 	make_len(sym, n);
 	make_codes(sym, n);
-	print(sym, n, 2, 0);
-	print(sym, n, 0, 0);
+	print(sym, n, 2);
+	print(sym, n, 0);
 }
 
 /**
@@ -247,9 +254,8 @@ void CHuffCodec::make_huffman(sHuffSym * sym, int n)
  * @param sym
  * @param n
  * @param print_type
- * @param offset
  */
-void CHuffCodec::print(sHuffSym * sym, int n, int print_type, int offset)
+void CHuffCodec::print(sHuffSym * sym, int n, int print_type)
 {
 	unsigned int bits, cnt;
 	switch( print_type ) {
@@ -265,33 +271,37 @@ void CHuffCodec::print(sHuffSym * sym, int n, int print_type, int offset)
 		printf("\n}\n");
 		break;
 	case 1:
+		qsort(sym, n, sizeof(sHuffSym),
+		      (int (*)(const void *, const void *)) comp_len);
 		printf("{\n	");
 		for( int i = 0; i < n; i++) {
-			printf("{0x%.4x, %u, %i}", sym[i].code << (16 - sym[i].len), sym[i].len, sym[i].value - offset);
+			printf("{0x%.4x, %u, %u}", sym[i].code << (16 - sym[i].len), sym[i].len, sym[i].value);
 			if (i != 0)
 				printf(", ");
 		}
 		printf("\n}\n");
 		break;
 	case 2:
+		qsort(sym, n, sizeof(sHuffSym),
+		      (int (*)(const void *, const void *)) comp_len);
 		printf("{\n	");
 		bits = sym[0].len;
 		cnt = 1;
 		for ( int i = 1; i < n; i++ ) {
 			if (sym[i].len != bits) {
 				bits = sym[i].len;
-				printf("{0x%x, %i, %i}", sym[i-1].code << (16 - sym[i-1].len),
-				       sym[i-1].len, (char)(sym[i-1].code + i - 1));
+				printf("{0x%x, %u, %u}", sym[i-1].code << (16 - sym[i-1].len),
+				       sym[i-1].len, (unsigned char)(sym[i-1].code + i - 1));
 				printf(", ");
 				cnt++;
 			}
 		}
-		printf("{0x%x, %i, %i}", sym[n-1].code << (16 - sym[n-1].len),
-		       sym[n-1].len, (char)(sym[n-1].code + n - 1));
+		printf("{0x%x, %u, %u}", sym[n-1].code << (16 - sym[n-1].len),
+		       sym[n-1].len, (unsigned char)(sym[n-1].code + n - 1));
 		printf("\n}; // %i\n", cnt);
 		printf("{ ");
 		for ( int i = 0; i < n; i++ ) {
-			printf("%i", sym[i].value - offset);
+			printf("%u", sym[i].value);
 			if (i != n - 1)
 				printf(", ");
 		}
@@ -312,6 +322,12 @@ void CHuffCodec::print(sHuffSym * sym, int n, int print_type, int offset)
 		printf("\n}\n");
 	}
 	fflush(0);
+}
+
+void CHuffCodec::print(int print_type)
+{
+	if (pSymLUT == 0)
+		print(pSym, nbSym, print_type);
 }
 
 }

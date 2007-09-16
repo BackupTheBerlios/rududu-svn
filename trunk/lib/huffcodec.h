@@ -26,7 +26,8 @@
 namespace rududu {
 
 #define MAX_HUFF_SYM	256 // maximum huffman table size
-#define UPDATE_STEP		64u
+#define UPDATE_STEP_MIN	64u
+#define UPDATE_STEP_MAX	2048u
 #define UPDATE_THRES	(1u << 14)
 
 typedef struct {
@@ -42,7 +43,8 @@ public:
 
 	static void make_huffman(sHuffSym * sym, int n);
 
-	static void print(sHuffSym * sym, int n, int print_type, int offset);
+	static void print(sHuffSym * sym, int n, int print_type);
+	void print(int print_type);
 
 private:
 
@@ -52,6 +54,7 @@ private:
 	unsigned char * pSymLUT;
 	unsigned short * pFreq;
 	unsigned int count;
+	unsigned int update_step;
 
 	void init(const sHuffRL * pInitTable);
 	void update_code(void);
@@ -73,13 +76,9 @@ public:
 	{
 		if (count >= UPDATE_THRES)
 			update_code();
-		unsigned int tmp = MIN(sym, nbSym - 1);
-		codec->bitsCode(pSym[tmp].code, pSym[tmp].len);
-		pFreq[tmp] += UPDATE_STEP;
-		count += UPDATE_STEP;
-
-		if (sym >= nbSym - 1)
-			codec->golombLinCode(sym - tmp, 5, 0);
+		codec->bitsCode(pSym[sym].code, pSym[sym].len);
+		pFreq[sym] += update_step;
+		count += update_step;
 	}
 
 	inline unsigned int decode(CMuxCodec * codec)
@@ -87,10 +86,8 @@ public:
 		if (count >= UPDATE_THRES)
 			update_code();
 		unsigned int sym = pSymLUT[codec->huffDecode(pSym)];
-		pFreq[sym] += UPDATE_STEP;
-		count += UPDATE_STEP;
-		if (sym == nbSym - 1)
-			sym = codec->golombLinDecode(5, 0) + nbSym - 1;
+		pFreq[sym] += update_step;
+		count += update_step;
 		return sym;
 	}
 };
