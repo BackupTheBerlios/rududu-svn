@@ -51,8 +51,10 @@ private:
 	static void DCT8_V(short * pBlock, int stride);
 	static void iDCT8_V(short * pBlock, int stride);
 
-	template <bool pre> static void Proc_H(short * pBlock, int stride);
-	template <bool pre> static void Proc_V(short * pBlock, int stride);
+	template <bool pre, int rescale>
+		static void Proc_H(short * pBlock, int stride);
+	template <bool pre, int rescale>
+		static void Proc_V(short * pBlock, int stride);
 };
 
 }
