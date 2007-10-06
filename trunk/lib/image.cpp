@@ -50,6 +50,7 @@ void CImage::Init(unsigned int x, unsigned int y, int cmpnt, int Align)
 		pImage[0] = (short*)(((intptr_t)pData + Align - 1) & (-Align));
 		pImage[0] += BORDER * dimXAlign + BORDER;
 		for( int i = 1; i < component; i++){
+			// FIXME = pImage should be aligned too
 			pImage[i] = pImage[i - 1] + (dimXAlign * (dimY + 2 * BORDER));
 		}
 	}
@@ -178,22 +179,24 @@ template void CImage::outputYV12<char, true>(char*, int, short);
 void CImage::extend(void)
 {
 	for( int j = 0; j < component; j++) {
-		for( short * s1 = pImage[j] - BORDER, * s2 = s1 + dimX, * end = pImage[j] + dimXAlign * dimY; s2 < end; ) {
+		for( short * s1 = pImage[j] - BORDER, * s2 = pImage[j] + dimX, * end = pImage[j] + dimXAlign * dimY; s2 < end;) {
 			for( int i = 0; i < BORDER; i++) {
 				s1[i] = s1[BORDER];
 				s2[i] = s2[-1];
 			}
+			s1 += dimXAlign;
+			s2 += dimXAlign;
 		}
 
 		short * dest = pImage[j] - BORDER;
 		for( int i = 0; i < BORDER; i++) {
-			memcpy(dest - dimXAlign, dest, (dimX + 2 * BORDER) * sizeof(short));
+			memcpy(dest - dimXAlign, dest, dimXAlign * sizeof(short));
 			dest -= dimXAlign;
 		}
 
-		dest = pImage[j] - BORDER + dimXAlign * dimY;
+		dest = pImage[j] - BORDER + dimXAlign * (dimY - 1);
 		for( int i = 0; i < BORDER; i++) {
-			memcpy(dest + dimXAlign, dest, (dimX + 2 * BORDER) * sizeof(short));
+			memcpy(dest + dimXAlign, dest, dimXAlign * sizeof(short));
 			dest += dimXAlign;
 		}
 	}
