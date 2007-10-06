@@ -107,9 +107,10 @@ void COBME::DiamondSearch(int cur_x, int cur_y, int im_x, int im_y, int stride,
 	}while(LastMove);
 }
 
-#define THRES_A	256
+#define THRES_A	1024
 #define THRES_B (thres + (thres >> 2))
 #define THRES_C (thres + (thres >> 2))
+#define THRES_D 32768
 
 sFullMV COBME::EPZS(int cur_x, int cur_y, int im_x, int im_y, int stride,
                  short ** pIm, sFullMV * MVPred, int setB, int setC, int thres)
@@ -117,18 +118,22 @@ sFullMV COBME::EPZS(int cur_x, int cur_y, int im_x, int im_y, int stride,
 	short * pCur = pIm[0] + cur_x + cur_y * stride;
 	// test predictors
 	sFullMV MVBest = MVPred[0];
+	if (MVBest.MV.all == MV_INTRA)
+		MVBest.MV.all = 0;
 	BEST_MV(MVBest, MVBest);
 	if (MVBest.dist < THRES_A)
 		return MVBest;
 
 	for( int i = 1; i < setB + 1; i++){
-		BEST_MV(MVBest, MVPred[i]);
+		if (MVPred[i].MV.all != MV_INTRA)
+			BEST_MV(MVBest, MVPred[i]);
 	}
 	if (MVBest.dist < THRES_B)
 		return MVBest;
 
 	for( int i = setB + 1; i < setB + 1 + setC; i++){
-		BEST_MV(MVBest, MVPred[i]);
+		if (MVPred[i].MV.all != MV_INTRA)
+			BEST_MV(MVBest, MVPred[i]);
 	}
 	if (MVBest.dist < THRES_C)
 		return MVBest;
@@ -174,7 +179,10 @@ void COBME::EPZS(int im_x, int im_y, int stride, short ** pIm)
 			}
 
 			sFullMV MVBest = EPZS(8 * i, 8 * j, im_x, im_y, stride, pIm, MVPred, n - 1, 0, 0);
-			pCurMV[i] = MVBest.MV;
+			if (MVBest.dist < THRES_D)
+				pCurMV[i] = MVBest.MV;
+			else
+				pCurMV[i].all = MV_INTRA;
 			pCurRef[i] = MVBest.ref;
 			pCurDist[i] = MVBest.dist;
 		}

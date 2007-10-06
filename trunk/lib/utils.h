@@ -132,5 +132,20 @@ int inline bitlen(unsigned int v)
 	return r + log[v];
 }
 
+template <class a, int x, int y, bool add>
+	void inline copy(a * src, a * dst, const int src_stride, const int dst_stride)
+{
+	for (int j = 0; j < y; j++) {
+		for (int i = 0; i < x; i++) {
+			if (add)
+				dst[i] += src[i];
+			else
+				dst[i] = src[i];
+		}
+		src += src_stride;
+		dst += dst_stride;
+	}
+}
+
 }
 

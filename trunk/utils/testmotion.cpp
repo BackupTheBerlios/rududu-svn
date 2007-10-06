@@ -42,37 +42,38 @@ int main( int argc, char *argv[] )
 	int cur_image = 0;
 	short * pIm[2];
 
-	unsigned char * pStream = new unsigned char[WIDTH * HEIGHT];
-	CMuxCodec Codec(pStream, 0);
-	unsigned char * pEnd;
-	unsigned int total_mv_size = 0;
+// 	unsigned char * pStream = new unsigned char[WIDTH * HEIGHT];
+// 	CMuxCodec Codec(pStream, 0);
+// 	unsigned char * pEnd;
+// 	unsigned int total_mv_size = 0;
 
 	while(! cin.eof()) {
 		cin.read((char*)tmp, WIDTH * HEIGHT * CMPNT);
 		inImages[cur_image]->inputSGI(tmp, WIDTH, -128);
 		pIm[0] = inImages[cur_image]->get_pImage(0);
 		pIm[1] = inImages[1-cur_image]->get_pImage(0);
+		inImages[1-cur_image]->extend();
 		obme.EPZS(WIDTH, HEIGHT, inImage.get_dimXAlign(), pIm);
 
-		Codec.initCoder(0, pStream);
-		obme.encode(& Codec);
-		pEnd = Codec.endCoding();
- 		cerr << "mv size : " << (int)(pEnd - pStream) << endl;
-		total_mv_size += (unsigned int)(pEnd - pStream);
+// 		Codec.initCoder(0, pStream);
+// 		obme.encode(& Codec);
+// 		pEnd = Codec.endCoding();
+//  		cerr << "mv size : " << (int)(pEnd - pStream) << endl;
+// 		total_mv_size += (unsigned int)(pEnd - pStream);
 
 // 		Codec.initDecoder(pStream);
 // 		obmc.decode(& Codec);
 
-// 		obmc.apply_mv(inImages[1-cur_image], outImage);
+		obme.apply_mv(inImages[1-cur_image], outImage);
 // 		outImage -= *inImages[cur_image];
-// 		outImage.outputYV12<char, false>((char*)tmp, WIDTH, -128);
-// 		cout.write((char*)tmp, WIDTH * HEIGHT * CMPNT / 2);
+		outImage.outputYV12<char, false>((char*)tmp, WIDTH, -128);
+		cout.write((char*)tmp, WIDTH * HEIGHT * CMPNT / 2);
 		cur_image = 1-cur_image;
 	}
 
 // 	CHuffCodec::make_huffman(hufftable, sizeof(hufftable) / sizeof(sHuffSym));
 
-	cerr << "total : " << total_mv_size << endl;
+// 	cerr << "total : " << total_mv_size << endl;
 	cout.flush();
 
 	return 0;
