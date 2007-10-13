@@ -33,7 +33,9 @@ CDCT2D::~CDCT2D()
 {
 }
 
-#define BFLY(a,b)	tmp = a; a += b; b = tmp - b;
+#define BFLY(a,b)	{short tmp = a; a += b; b = tmp - b;}
+#define BFLY_FWD(a,b)	b = a - b; a -= b >> 1;
+#define BFLY_INV(a,b)	a += b >> 1; b = a - b;
 
 // DCT from
 // http://thanglong.ece.jhu.edu/Tran/Pub/binDCT.pdf
@@ -83,8 +85,6 @@ void CDCT2D::DCT8_H(short * pBlock, int stride)
 	short * x = pBlock;
 
 	for( int j = 0; j < 8; j++){
-		short tmp;
-
 		BFLY(x[0], x[7]);
 		BFLY(x[1], x[6]);
 		BFLY(x[2], x[5]);
@@ -125,8 +125,6 @@ void CDCT2D::DCT8_V(short * pBlock, int stride)
 		x[i] = x[i - 1] + stride;
 
 	for( int j = 0; j < 8; j++){
-		short tmp;
-
 		BFLY(x[0][j], x[7][j]);
 		BFLY(x[1][j], x[6][j]);
 		BFLY(x[2][j], x[5][j]);
@@ -162,8 +160,6 @@ void CDCT2D::iDCT8_H(short * pBlock, int stride)
 	short * x = pBlock;
 
 	for( int j = 0; j < 8; j++){
-		short tmp;
-
 		x[4] += x[7] >> 1;
 		x[7] -= x[4];
 
@@ -204,8 +200,6 @@ void CDCT2D::iDCT8_V(short * pBlock, int stride)
 		x[i] = x[i - 1] + stride;
 
 	for( int j = 0; j < 8; j++){
-		short tmp;
-
 		x[4][j] += x[7][j] >> 1;
 		x[7][j] -= x[4][j];
 
@@ -276,18 +270,16 @@ template void CDCT2D::Transform<false>(short *, int);
 
 // pre / post filters from
 // http://thanglong.ece.jhu.edu/Tran/Pub/prepost.pdf
-template <bool pre, int rescale>
+template <bool pre>
 void CDCT2D::Proc_H(short * pBlock, int stride)
 {
 	short * x = pBlock;
 
 	for( int j = 0; j < 8; j++){
-		short tmp;
-
-		BFLY(x[0], x[7]);
-		BFLY(x[1], x[6]);
-		BFLY(x[2], x[5]);
-		BFLY(x[3], x[4]);
+		BFLY_FWD(x[0], x[7]);
+		BFLY_FWD(x[1], x[6]);
+		BFLY_FWD(x[2], x[5]);
+		BFLY_FWD(x[3], x[4]);
 
 		if (pre) {
 			x[7] -= x[6] >> 1;
@@ -301,19 +293,16 @@ void CDCT2D::Proc_H(short * pBlock, int stride)
 			x[7] += x[6] >> 1;
 		}
 
-		BFLY(x[0], x[7]);
-		BFLY(x[1], x[6]);
-		BFLY(x[2], x[5]);
-		BFLY(x[3], x[4]);
-
-		if (rescale != 0)
-			for( int i = 0; i < 8; i++) x[i] >>= rescale;
+		BFLY_INV(x[0], x[7]);
+		BFLY_INV(x[1], x[6]);
+		BFLY_INV(x[2], x[5]);
+		BFLY_INV(x[3], x[4]);
 
 		x += stride;
 	}
 }
 
-template <bool pre, int rescale>
+template <bool pre>
 void CDCT2D::Proc_V(short * pBlock, int stride)
 {
 	short * x[8];
@@ -322,12 +311,10 @@ void CDCT2D::Proc_V(short * pBlock, int stride)
 		x[i] = x[i - 1] + stride;
 
 	for( int j = 0; j < 8; j++){
-		short tmp;
-
-		BFLY(x[0][j], x[7][j]);
-		BFLY(x[1][j], x[6][j]);
-		BFLY(x[2][j], x[5][j]);
-		BFLY(x[3][j], x[4][j]);
+		BFLY_FWD(x[0][j], x[7][j]);
+		BFLY_FWD(x[1][j], x[6][j]);
+		BFLY_FWD(x[2][j], x[5][j]);
+		BFLY_FWD(x[3][j], x[4][j]);
 
 		if (pre) {
 			x[7][j] -= x[6][j] >> 1;
@@ -341,13 +328,10 @@ void CDCT2D::Proc_V(short * pBlock, int stride)
 			x[7][j] += x[6][j] >> 1;
 		}
 
-		BFLY(x[0][j], x[7][j]);
-		BFLY(x[1][j], x[6][j]);
-		BFLY(x[2][j], x[5][j]);
-		BFLY(x[3][j], x[4][j]);
-
-		if (rescale != 0)
-			for( int i = 0; i < 8; i++) x[i][j] >>= rescale;
+		BFLY_INV(x[0][j], x[7][j]);
+		BFLY_INV(x[1][j], x[6][j]);
+		BFLY_INV(x[2][j], x[5][j]);
+		BFLY_INV(x[3][j], x[4][j]);
 	}
 }
 
@@ -360,12 +344,12 @@ void CDCT2D::Proc(short * pImage, int stride)
 		i = pImage + 4 * stride;
 		iend = i + DimX;
 		for( ; i < iend; i += 8){
-			Proc_V<pre, 1>(i, stride);
+			Proc_V<pre>(i, stride);
 		}
 		i = pImage + 4;
 		iend = i + DimX - 8;
 		for( ; i < iend; i += 8){
-			Proc_H<pre, 1>(i, stride);
+			Proc_H<pre>(i, stride);
 		}
 		pImage += stride * 8;
 	}
@@ -373,7 +357,7 @@ void CDCT2D::Proc(short * pImage, int stride)
 	i = pImage + 4;
 	iend = i + DimX - 8;
 	for( ; i < iend; i += 8){
-		Proc_H<pre, 1>(i, stride);
+		Proc_H<pre>(i, stride);
 	}
 }
 
