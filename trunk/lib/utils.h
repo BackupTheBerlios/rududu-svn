@@ -46,6 +46,8 @@ typedef enum trans {cdf97, cdf53, haar};
 #define DOWN	2
 #define LEFT	4
 #define RIGHT	8
+#define TOP_LEFT	16
+#define TOP_RIGHT	32
 
 #define UNSIGN_CLIP(NbToClip,Value)	\
 	((NbToClip) > (Value) ? (Value) : (NbToClip))

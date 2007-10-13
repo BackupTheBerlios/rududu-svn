@@ -10,7 +10,7 @@ namespace rududu {
 #define D1_BAND		3	// diag direction = "\"
 #define D2_BAND		4	// diag direction = "/"
 
-#define ALIGN	16
+#define ALIGN	32
 
 class CBand
 {

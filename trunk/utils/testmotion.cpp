@@ -4,6 +4,7 @@
 
 #include "obme.h"
 #include "huffcodec.h"
+#include "dct2d.h"
 
 using namespace std;
 using namespace rududu;
@@ -11,8 +12,6 @@ using namespace rududu;
 #define WIDTH	1280
 #define HEIGHT	720
 #define CMPNT	3
-
-#define ALIGN	32
 
 sHuffSym hufftable[] = {
 	{12, 0, 0},
@@ -39,6 +38,7 @@ int main( int argc, char *argv[] )
 	CImage outImage(WIDTH, HEIGHT, CMPNT, ALIGN);
 	unsigned char * tmp = new unsigned char[WIDTH * HEIGHT * CMPNT];
 	CImage * inImages[2] = {&inImage, & tmpImage};
+	CDCT2D DCT(WIDTH, HEIGHT, ALIGN);
 	int cur_image = 0;
 	short * pIm[2];
 
@@ -65,9 +65,11 @@ int main( int argc, char *argv[] )
 // 		obmc.decode(& Codec);
 
 		obme.apply_mv(inImages[1-cur_image], outImage);
+		obme.apply_intra<true>(*inImages[cur_image], outImage);
+		obme.apply_intra<false>(*inImages[cur_image], outImage);
 // 		outImage -= *inImages[cur_image];
 		outImage.outputYV12<char, false>((char*)tmp, WIDTH, -128);
-		cout.write((char*)tmp, WIDTH * HEIGHT * CMPNT / 2);
+ 		cout.write((char*)tmp, WIDTH * HEIGHT * CMPNT / 2);
 		cur_image = 1-cur_image;
 	}
 

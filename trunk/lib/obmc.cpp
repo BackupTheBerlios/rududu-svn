@@ -26,6 +26,7 @@
 #include "bitcodec.h"
 #include "huffcodec.h"
 #include "obmc.h"
+#include "dct2d.h"
 
 using namespace std;
 
@@ -335,6 +336,41 @@ void COBMC::intra_block(sMotionVector * pCurMV, unsigned char * pCurRef,
 	}
 }
 
+template <bool pre, int pos_flags>
+	void COBMC::intra_proc(int flags, short * pSrc, short * pDst, int stride)
+{
+	if (!(flags & (TOP | TOP_LEFT | LEFT) || pos_flags & (TOP | LEFT))) {
+		CDCT2D::Proc_V<pre>(pSrc - stride * 4 - 4, stride);
+		CDCT2D::Proc_V<pre>(pDst - stride * 4 - 4, stride);
+	}
+	if (!(flags & (TOP | TOP_RIGHT) || pos_flags & (TOP | RIGHT))) {
+		CDCT2D::Proc_V<pre>(pSrc - stride * 4 + 4, stride);
+		CDCT2D::Proc_V<pre>(pDst - stride * 4 + 4, stride);
+	}
+	if (!(flags & LEFT)) {
+		if (!(pos_flags & (BOTTOM | LEFT))) {
+			CDCT2D::Proc_V<pre>(pSrc + stride * 4 - 4, stride);
+			CDCT2D::Proc_V<pre>(pDst + stride * 4 - 4, stride);
+		}
+		if (!(pos_flags & LEFT)) {
+			CDCT2D::Proc_H<pre>(pSrc - 4, stride);
+			CDCT2D::Proc_H<pre>(pDst - 4, stride);
+		}
+	}
+
+	if (!(pos_flags & (BOTTOM | RIGHT))) {
+		CDCT2D::Proc_V<pre>(pSrc + stride * 4 + 4, stride);
+		CDCT2D::Proc_V<pre>(pDst + stride * 4 + 4, stride);
+	}
+	if (!(pos_flags & RIGHT)) {
+		CDCT2D::Proc_H<pre>(pSrc + 4, stride);
+		CDCT2D::Proc_H<pre>(pDst + 4, stride);
+	}
+
+	if (pre)
+		copy<short,8,8,false>(pSrc, pDst, stride, stride);
+}
+
 
 #define OBMC(flags)	\
 	{ \
@@ -420,6 +456,101 @@ void COBMC::apply_mv(CImage * pRefFrames, CImage & dstImage)
 	} else
 		intra_block<BOTTOM | RIGHT>(pCurMV + i, pCurRef + i, pRefFrames, dstImage, i, j);
 }
+
+template <int pos_flags>
+int COBMC::get_intra_flags(sMotionVector * pCurMV, unsigned int dimX)
+{
+	int flags = 0;
+	if (!(pos_flags & LEFT) && pCurMV[-1].all == MV_INTRA)
+		flags |= LEFT;
+	if (!(pos_flags & TOP) && pCurMV[-dimX].all == MV_INTRA)
+		flags |= TOP;
+	if (!(pos_flags & TOP | RIGHT) && pCurMV[-dimX+1].all == MV_INTRA)
+		flags |= TOP_RIGHT;
+	if (!(pos_flags & TOP | LEFT) && pCurMV[-dimX-1].all == MV_INTRA)
+		flags |= TOP_LEFT;
+	return flags;
+}
+
+template <bool pre>
+void COBMC::apply_intra(CImage & srcImage, CImage & dstImage)
+{
+	const int stride = dstImage.dimXAlign;
+	const int diff = dstImage.dimXAlign * 8 - dimX * 8 + 8;
+	sMotionVector * pCurMV = pMV;
+	int pos = 0, component = dstImage.component;
+	unsigned int i = 0;
+
+	if (pCurMV[i].all == MV_INTRA) {
+		int flags = get_intra_flags<TOP | LEFT>(pCurMV + i, dimX);
+		for( int c = 0; c < component; c++)
+			intra_proc<pre,TOP | LEFT>(flags, srcImage.pImage[c] + pos, dstImage.pImage[c] + pos, stride);
+	}
+	pos += 8;
+	for( i = 1; i < dimX - 1; i++){
+		if (pCurMV[i].all == MV_INTRA) {
+			int flags = get_intra_flags<TOP>(pCurMV + i, dimX);
+			for( int c = 0; c < component; c++)
+				intra_proc<pre,TOP>(flags, srcImage.pImage[c] + pos, dstImage.pImage[c] + pos, stride);
+		}
+		pos += 8;
+	}
+	if (pCurMV[i].all == MV_INTRA) {
+		int flags = get_intra_flags<TOP | RIGHT>(pCurMV + i, dimX);
+		for( int c = 0; c < component; c++)
+			intra_proc<pre,TOP | RIGHT>(flags, srcImage.pImage[c] + pos, dstImage.pImage[c] + pos, stride);
+	}
+	pCurMV += dimX;
+	pos += diff;
+	for( unsigned int j = 2; j < dimY; j++) {
+		i = 0;
+		if (pCurMV[i].all == MV_INTRA) {
+			int flags = get_intra_flags<LEFT>(pCurMV + i, dimX);
+			for( int c = 0; c < component; c++)
+				intra_proc<pre,LEFT>(flags, srcImage.pImage[c] + pos, dstImage.pImage[c] + pos, stride);
+		}
+		pos += 8;
+		for( i = 1; i < dimX - 1; i++){
+			if (pCurMV[i].all == MV_INTRA) {
+				int flags = get_intra_flags<0>(pCurMV + i, dimX);
+				for( int c = 0; c < component; c++)
+					intra_proc<pre,0>(flags, srcImage.pImage[c] + pos, dstImage.pImage[c] + pos, stride);
+			}
+			pos += 8;
+		}
+		if (pCurMV[i].all == MV_INTRA) {
+			int flags = get_intra_flags<RIGHT>(pCurMV + i, dimX);
+			for( int c = 0; c < component; c++)
+				intra_proc<pre,RIGHT>(flags, srcImage.pImage[c] + pos, dstImage.pImage[c] + pos, stride);
+		}
+		pCurMV += dimX;
+		pos += diff;
+	}
+
+	i = 0;
+	if (pCurMV[i].all == MV_INTRA) {
+		int flags = get_intra_flags<BOTTOM | LEFT>(pCurMV + i, dimX);
+		for( int c = 0; c < component; c++)
+			intra_proc<pre,BOTTOM | LEFT>(flags, srcImage.pImage[c] + pos, dstImage.pImage[c] + pos, stride);
+	}
+	pos += 8;
+	for( i = 1; i < dimX - 1; i++){
+		if (pCurMV[i].all == MV_INTRA) {
+			int flags = get_intra_flags<BOTTOM>(pCurMV + i, dimX);
+			for( int c = 0; c < component; c++)
+				intra_proc<pre,BOTTOM>(flags, srcImage.pImage[c] + pos, dstImage.pImage[c] + pos, stride);
+		}
+		pos += 8;
+	}
+	if (pCurMV[i].all == MV_INTRA) {
+		int flags = get_intra_flags<BOTTOM | RIGHT>(pCurMV + i, dimX);
+		for( int c = 0; c < component; c++)
+			intra_proc<pre,BOTTOM | RIGHT>(flags, srcImage.pImage[c] + pos, dstImage.pImage[c] + pos, stride);
+	}
+}
+
+template void COBMC::apply_intra<true>(CImage &, CImage &);
+template void COBMC::apply_intra<false>(CImage &, CImage &);
 
 #define MV_TABLE_SIZE 127u
 
