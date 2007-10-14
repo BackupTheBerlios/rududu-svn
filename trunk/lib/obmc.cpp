@@ -374,10 +374,13 @@ template <bool pre, int pos_flags>
 
 #define OBMC(flags)	\
 	{ \
-		int src_pos = get_pos(pCurMV[i], i, j, im_x, im_y, stride); \
-		for( int c = 0; c < component; c++) \
-			obmc_block<flags>(pRefFrames[pCurRef[i]].pImage[c] + src_pos, \
-				dstImage.pImage[c] + dst_pos, stride, stride); \
+		if (pCurMV[i].all != MV_INTRA) { \
+			int src_pos = get_pos(pCurMV[i], i, j, im_x, im_y, stride); \
+			for( int c = 0; c < component; c++) \
+				obmc_block<flags>(pRefFrames[pCurRef[i]].pImage[c] + src_pos, \
+					dstImage.pImage[c] + dst_pos, stride, stride); \
+		} else \
+			intra_block<flags>(pCurMV + i, pCurRef + i, pRefFrames, dstImage, i, j); \
 	}
 
 void COBMC::apply_mv(CImage * pRefFrames, CImage & dstImage)
@@ -391,22 +394,13 @@ void COBMC::apply_mv(CImage * pRefFrames, CImage & dstImage)
 
 	unsigned int j = 0, i = 0;
 
-	if (pCurMV[i].all != MV_INTRA) {
-		OBMC(TOP | LEFT);
-	} else
-		intra_block<TOP | LEFT>(pCurMV + i, pCurRef + i, pRefFrames, dstImage, i, j);
+	OBMC(TOP | LEFT);
 	dst_pos += 8;
 	for( i = 1; i < dimX - 1; i++) {
-		if (pCurMV[i].all != MV_INTRA) {
-			OBMC(TOP);
-		} else
-			intra_block<TOP>(pCurMV + i, pCurRef + i, pRefFrames, dstImage, i, j);
+		OBMC(TOP);
 		dst_pos += 8;
 	}
-	if (pCurMV[i].all != MV_INTRA) {
-		OBMC(TOP | RIGHT);
-	} else
-		intra_block<TOP | RIGHT>(pCurMV + i, pCurRef + i, pRefFrames, dstImage, i, j);
+	OBMC(TOP | RIGHT);
 
 	pCurMV += dimX;
 	pCurRef += dimX;
@@ -414,10 +408,7 @@ void COBMC::apply_mv(CImage * pRefFrames, CImage & dstImage)
 
 	for( j = 1; j < dimY - 1; j++) {
 		i = 0;
-		if (pCurMV[i].all != MV_INTRA) {
-			OBMC(LEFT);
-		} else
-			intra_block<LEFT>(pCurMV + i, pCurRef + i, pRefFrames, dstImage, i, j);
+		OBMC(LEFT);
 		dst_pos += 8;
 		for( i = 1; i < dimX - 1; i++) {
 			if (pCurMV[i].all != MV_INTRA) {
@@ -428,10 +419,7 @@ void COBMC::apply_mv(CImage * pRefFrames, CImage & dstImage)
 				intra_block<0>(pCurMV + i, pCurRef + i, pRefFrames, dstImage, i, j);
 			dst_pos += 8;
 		}
-		if (pCurMV[i].all != MV_INTRA) {
-			OBMC(RIGHT);
-		} else
-			intra_block<RIGHT>(pCurMV + i, pCurRef + i, pRefFrames, dstImage, i, j);
+		OBMC(RIGHT);
 
 		pCurMV += dimX;
 		pCurRef += dimX;
@@ -439,22 +427,13 @@ void COBMC::apply_mv(CImage * pRefFrames, CImage & dstImage)
 	}
 
 	i = 0;
-	if (pCurMV[i].all != MV_INTRA) {
-		OBMC(BOTTOM | LEFT);
-	} else
-		intra_block<BOTTOM | LEFT>(pCurMV + i, pCurRef + i, pRefFrames, dstImage, i, j);
+	OBMC(BOTTOM | LEFT);
 	dst_pos += 8;
 	for( i = 1; i < dimX - 1; i++) {
-		if (pCurMV[i].all != MV_INTRA) {
-			OBMC(BOTTOM);
-		} else
-			intra_block<BOTTOM>(pCurMV + i, pCurRef + i, pRefFrames, dstImage, i, j);
+		OBMC(BOTTOM);
 		dst_pos += 8;
 	}
-	if (pCurMV[i].all != MV_INTRA) {
-		OBMC(BOTTOM | RIGHT);
-	} else
-		intra_block<BOTTOM | RIGHT>(pCurMV + i, pCurRef + i, pRefFrames, dstImage, i, j);
+	OBMC(BOTTOM | RIGHT);
 }
 
 template <int pos_flags>
