@@ -29,6 +29,8 @@ typedef enum cspace {rvb, yuv, yog, yv12, i420};
 
 class CImage{
 	friend class COBMC;
+	friend class COBME;
+	friend class CRududuCodec;
 public:
 	CImage(unsigned int x, unsigned int y, int cmpnt, int Align);
 
@@ -42,14 +44,14 @@ public:
 	template <class output_t, bool i420> void outputYV12(output_t * pOut, int stride, short offset);
 
 	CImage & operator-= (const CImage & In);
+	CImage & operator+= (const CImage & In);
+	void psnr(const CImage & In, float * ret);
+	void copy(const CImage & In);
 
 	template <int pos> void interH(const CImage & In);
 	template <int pos> void interV(const CImage & In);
 
 	void extend(void);
-
-	int get_dimXAlign(){ return dimXAlign; }
-	short * get_pImage(int cmp){ return pImage[cmp]; }
 
 private:
 	unsigned int dimX;

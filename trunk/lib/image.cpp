@@ -20,6 +20,7 @@
 
 #include <stdint.h>
 #include <string.h>
+#include <math.h>
 
 #include "image.h"
 #include "utils.h"
@@ -216,6 +217,54 @@ CImage & CImage::operator-= (const CImage & In)
 		}
 	}
 	return *this;
+}
+
+CImage & CImage::operator+= (const CImage & In)
+{
+	for (int c = 0; c < component; c++) {
+		short * out = pImage[c];
+		short * in = In.pImage[c];
+		for (unsigned int j = 0; j < dimY; j++) {
+			for (unsigned int i = 0; i < dimX; i++) {
+				out[i] += in[i];
+			}
+			out += dimXAlign;
+			in += In.dimXAlign;
+		}
+	}
+	return *this;
+}
+
+void CImage::psnr(const CImage & In, float * ret)
+{
+	for (int c = 0; c < component; c++) {
+		short * out = pImage[c];
+		short * in = In.pImage[c];
+		long long sum = 0;
+		for (unsigned int j = 0; j < dimY; j++) {
+			for (unsigned int i = 0; i < dimX; i++) {
+				int tmp = in[i] - out[i];
+				tmp *= tmp;
+				sum += tmp;
+			}
+			out += dimXAlign;
+			in += In.dimXAlign;
+		}
+		ret[c] = (float)(10. * (log(1 << (12 * 2)) - log((double)sum / (dimX * dimY))) / log(10.));
+	}
+}
+
+void CImage::copy(const CImage & In)
+{
+	for (int c = 0; c < component; c++) {
+		short * out = pImage[c];
+		short * in = In.pImage[c];
+		for (unsigned int j = 0; j < dimY; j++) {
+			memcpy(out, in, sizeof(short) * dimX);
+			out += dimXAlign;
+			in += In.dimXAlign;
+		}
+	}
 }
 
 template <int pos>
