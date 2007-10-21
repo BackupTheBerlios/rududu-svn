@@ -71,6 +71,7 @@ public:
 	void initCoder(unsigned short firstWord, unsigned char *pStream);
 	void initDecoder(unsigned char *pStream);
 	unsigned char * endCoding(void);
+	unsigned int getSize(void);
 
 	void golombCode(unsigned int nb, const int k);
 	unsigned int golombDecode(const int k);

@@ -65,7 +65,8 @@ void CMuxCodec::normalize_dec(void){
 	} while (range <= MIN_RANGE);
 }
 
-unsigned char * CMuxCodec::endCoding(void){
+unsigned char * CMuxCodec::endCoding(void)
+{
 	flushBuffer<true>();
 
 	if (range <= MIN_RANGE)
@@ -83,6 +84,11 @@ unsigned char * CMuxCodec::endCoding(void){
 	*pLast[(outCount + 3) & ROT_BUF_MASK] = low;
 
 	return pStream;
+}
+
+unsigned int CMuxCodec::getSize(void)
+{
+	return pStream - pInitStream;
 }
 
 void CMuxCodec::initTaboo(unsigned int k)
