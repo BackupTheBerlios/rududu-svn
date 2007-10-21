@@ -176,6 +176,79 @@ void COBMC::obmc_block(const short * pSrc, short * pDst,
 	}
 }
 
+template <int flags>
+void COBMC::obmc_block_intra(short * pDst, const int dst_stride, const short value)
+{
+	int is = 0, ie = 8, js = 0, je = 0;
+
+	if (flags & TOP) {
+		js = 4;
+		pDst += 4 * dst_stride;
+	}
+	if (flags & BOTTOM)
+		je = 4;
+	if (flags & LEFT)
+		is = 4;
+	if (flags & RIGHT)
+		ie = 4;
+
+	for( int j = js; j < 8; j++) {
+		for( int i = is; i < 8; i++) {
+			if (flags & TOP)
+				if (flags & LEFT)
+					pDst[i] = value;
+			else
+				pDst[i] = (pDst[i] + value * (window[j][i] + window[7-j][i]) + 8) >> 4;
+			else
+				if (flags & LEFT)
+					pDst[i] = (pDst[i] + value * (window[j][i] + window[j][7-i]) + 8) >> 4;
+			else
+				pDst[i] = (pDst[i] + value * window[j][i] + 8) >> 4;
+		}
+		for( int i = 0; i < ie; i++) {
+			if (flags & TOP)
+				if (flags & RIGHT)
+					pDst[i+8] = value;
+			else
+				pDst[i+8] = value * (window[j][7-i] + window[7-j][7-i]);
+			else
+				if (flags & RIGHT)
+					pDst[i+8] = (pDst[i+8] + value * (window[j][7-i] + window[j][i]) + 8) >> 4;
+			else
+				pDst[i+8] += value * window[j][7-i];
+		}
+		pDst += dst_stride;
+	}
+
+	for( int j = 7; j >= je; j--) {
+		for( int i = is; i < 8; i++) {
+			if (flags & BOTTOM)
+				if (flags & LEFT)
+					pDst[i] = value;
+			else
+				pDst[i] = (pDst[i] + value * (window[j][i] + window[7-j][i]) + 8) >> 4;
+			else
+				if (flags & LEFT)
+					pDst[i] += value * (window[j][i] + window[j][7-i]);
+			else
+				pDst[i] += value * window[j][i];
+		}
+		for( int i = 0; i < ie; i++) {
+			if (flags & BOTTOM)
+				if (flags & RIGHT)
+					pDst[i+8] = value;
+			else
+				pDst[i+8] = value * (window[j][7-i] + window[7-j][7-i]);
+			else
+				if (flags & RIGHT)
+					pDst[i+8] = value * (window[j][7-i] + window[j][i]);
+			else
+				pDst[i+8] = value * window[j][7-i];
+		}
+		pDst += dst_stride;
+	}
+}
+
 // [0][1][2]
 // [3][ ][4]
 // [5][6][7]
@@ -380,7 +453,8 @@ template <bool pre, int pos_flags>
 				obmc_block<flags>(pRefFrames[pCurRef[i]].pImage[c] + src_pos, \
 					dstImage.pImage[c] + dst_pos, stride, stride); \
 		} else \
-			intra_block<flags>(pCurMV + i, pCurRef + i, pRefFrames, dstImage, i, j); \
+			for( int c = 0; c < component; c++) \
+				obmc_block_intra<flags>(dstImage.pImage[c] + dst_pos, stride, 0); \
 	}
 
 void COBMC::apply_mv(CImage * pRefFrames, CImage & dstImage)
@@ -416,7 +490,8 @@ void COBMC::apply_mv(CImage * pRefFrames, CImage & dstImage)
 				for( int c = 0; c < component; c++)
 					obmc_block(pRefFrames[pCurRef[i]].pImage[c] + src_pos, dstImage.pImage[c] + dst_pos, stride, stride);
 			} else
-				intra_block<0>(pCurMV + i, pCurRef + i, pRefFrames, dstImage, i, j);
+				for( int c = 0; c < component; c++)
+					obmc_block_intra<0>(dstImage.pImage[c] + dst_pos, stride, 0);
 			dst_pos += 8;
 		}
 		OBMC(RIGHT);
@@ -588,9 +663,9 @@ void COBMC::encode(CMuxCodec * codec)
 		}
 		pCurMV += dimX;
 	}
-	huff.print(2);
-	huff_x.print(2);
-	huff_y.print(2);
+// 	huff.print(2);
+// 	huff_x.print(2);
+// 	huff_y.print(2);
 }
 
 void COBMC::decode(CMuxCodec * codec)

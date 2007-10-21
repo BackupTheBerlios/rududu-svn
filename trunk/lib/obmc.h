@@ -72,6 +72,8 @@ private:
 		static void obmc_block(const short * pSrc, short * pDst,
 		                       const int src_stride, const int dst_stride);
 	template <int flags>
+		static void obmc_block_intra(short * pDst, const int dst_stride, const short value);
+	template <int flags>
 		static void intra_block(short * block[8], short * pDst,const int stride);
 	template <int flags>
 		void intra_block(sMotionVector * pCurMV, unsigned char * pCurRef,
