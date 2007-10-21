@@ -2,9 +2,7 @@
 #include <fstream>
 #include <iostream>
 
-#include "obme.h"
-#include "huffcodec.h"
-#include "dct2d.h"
+#include "rududucodec.h"
 
 using namespace std;
 using namespace rududu;
@@ -12,6 +10,7 @@ using namespace rududu;
 #define WIDTH	1280
 #define HEIGHT	720
 #define CMPNT	3
+#define ALIGN	32
 
 sHuffSym hufftable[] = {
 	{12, 0, 0},
@@ -31,51 +30,39 @@ sHuffSym hufftable[] = {
 int main( int argc, char *argv[] )
 {
 	string progname = argv[0];
-	COBME obme(WIDTH >> 3, HEIGHT >> 3);
-	COBMC obmc(WIDTH >> 3, HEIGHT >> 3);
-	CImage inImage(WIDTH, HEIGHT, CMPNT,  ALIGN);
-	CImage tmpImage(WIDTH, HEIGHT, CMPNT, ALIGN);
-	CImage outImage(WIDTH, HEIGHT, CMPNT, ALIGN);
 	unsigned char * tmp = new unsigned char[WIDTH * HEIGHT * CMPNT];
-	CImage * inImages[2] = {&inImage, & tmpImage};
-	CDCT2D DCT(WIDTH, HEIGHT, ALIGN);
-	int cur_image = 0;
-	short * pIm[2];
+ 	unsigned char * pStream = new unsigned char[WIDTH * HEIGHT * CMPNT];
+	CImage origin(WIDTH, HEIGHT, CMPNT, ALIGN);
+	CRududuCodec encoder(rududu::encode, WIDTH, HEIGHT, CMPNT);
+	CRududuCodec decoder(rududu::decode, WIDTH, HEIGHT, CMPNT);
 
-// 	unsigned char * pStream = new unsigned char[WIDTH * HEIGHT];
-// 	CMuxCodec Codec(pStream, 0);
-// 	unsigned char * pEnd;
-// 	unsigned int total_mv_size = 0;
+	encoder.quant = 20;
+	decoder.quant = 20;
 
 	while(! cin.eof()) {
 		cin.read((char*)tmp, WIDTH * HEIGHT * CMPNT);
-		inImages[cur_image]->inputSGI(tmp, WIDTH, -128);
-		pIm[0] = inImages[cur_image]->get_pImage(0);
-		pIm[1] = inImages[1-cur_image]->get_pImage(0);
-		inImages[1-cur_image]->extend();
-		obme.EPZS(WIDTH, HEIGHT, inImage.get_dimXAlign(), pIm);
+		origin.inputSGI(tmp, WIDTH, -128);
+		CImage * encOutImage = 0;
+		int size_enc = encoder.encode(tmp, WIDTH, pStream, &encOutImage);
+		CImage * outImage = 0;
+		int size_dec = decoder.decode(pStream, &outImage);
 
-// 		Codec.initCoder(0, pStream);
-// 		obme.encode(& Codec);
-// 		pEnd = Codec.endCoding();
-//  		cerr << "mv size : " << (int)(pEnd - pStream) << endl;
-// 		total_mv_size += (unsigned int)(pEnd - pStream);
+		cerr << size_enc << "	" << size_dec << "	";
+		float psnr[CMPNT];
+		origin.psnr(*encOutImage, psnr);
+		for( int c = 0; c < CMPNT; c++){
+			cerr << psnr[c] << "	";
+		}
+		origin.psnr(*outImage, psnr);
+		for( int c = 0; c < CMPNT; c++){
+			cerr << psnr[c] << "	";
+		}
+		cerr << endl;
 
-// 		Codec.initDecoder(pStream);
-// 		obmc.decode(& Codec);
-
-		obme.apply_mv(inImages[1-cur_image], outImage);
-		obme.apply_intra<true>(*inImages[cur_image], outImage);
-		obme.apply_intra<false>(*inImages[cur_image], outImage);
-// 		outImage -= *inImages[cur_image];
-		outImage.outputYV12<char, false>((char*)tmp, WIDTH, -128);
+		encOutImage->outputYV12<char, false>((char*)tmp, WIDTH, -128);
  		cout.write((char*)tmp, WIDTH * HEIGHT * CMPNT / 2);
-		cur_image = 1-cur_image;
 	}
 
-// 	CHuffCodec::make_huffman(hufftable, sizeof(hufftable) / sizeof(sHuffSym));
-
-// 	cerr << "total : " << total_mv_size << endl;
 	cout.flush();
 
 	return 0;
