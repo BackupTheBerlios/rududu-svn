@@ -121,7 +121,7 @@ int inline bitcnt(int v)
 	return ((v + (v >> 4) & 0xF0F0F0F) * 0x1010101) >> 24;
 }
 
-static const char log[32] =
+static const char log_int[32] =
 {0,1,2,2,3,3,3,3,4,4,4,4,4,4,4,4,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5};
 
 int inline bitlen(unsigned int v)
@@ -131,7 +131,7 @@ int inline bitlen(unsigned int v)
 		r += 5;
 		v >>= 5;
 	}
-	return r + log[v];
+	return r + log_int[v];
 }
 
 template <class a, int x, int y, bool add>
