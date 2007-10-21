@@ -144,12 +144,14 @@ sFullMV COBME::EPZS(int cur_x, int cur_y, int im_x, int im_y, int stride,
 
 #define MAX_PREDS	16
 
-void COBME::EPZS(int im_x, int im_y, int stride, short ** pIm)
+void COBME::EPZS(CImage ** pImages)
 {
 	sFullMV MVPred[MAX_PREDS];
 	sMotionVector * pCurMV = pMV;
 	unsigned char * pCurRef = pRef;
 	unsigned short * pCurDist = pDist;
+	int im_x = pImages[0]->dimX, im_y = pImages[0]->dimY, stride = pImages[0]->dimXAlign;
+	short * pIm[2] = {pImages[0]->pImage[0], pImages[1]->pImage[0]};
 
 	for( unsigned int j = 0; j < dimY; j++){
 		for( unsigned int i = 0; i < dimX; i++){

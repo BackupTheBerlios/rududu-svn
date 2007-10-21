@@ -38,7 +38,7 @@ public:
 
 	~COBME();
 
-	void EPZS(int im_x, int im_y, int stride, short ** pIm);
+	void EPZS(CImage ** pImages);
 
 protected:
 	unsigned short * pDist;
