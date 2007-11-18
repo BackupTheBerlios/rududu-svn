@@ -32,19 +32,29 @@ namespace rududu {
 CImage::CImage(unsigned int x, unsigned int y, int cmpnt, int Align):
 		pData(0)
 {
-	Init(x, y, cmpnt, Align);
+	dimX = x;
+	dimY = y;
+	component = cmpnt;
+	Init(Align);
 }
+
+CImage::CImage(CImage * pImg, int Align):
+	pData(0)
+{
+	dimX = pImg->dimX;
+	dimY = pImg->dimY;
+	component = pImg->component;
+	Init(Align);
+}
+
 
 CImage::~CImage()
 {
 	delete[] pData;
 }
 
-void CImage::Init(unsigned int x, unsigned int y, int cmpnt, int Align)
+void CImage::Init(int Align)
 {
-	dimX = x;
-	dimY = y;
-	component = cmpnt;
 	dimXAlign = ( dimX + 2 * BORDER + Align - 1 ) & ( -Align );
 	if ( (dimXAlign * dimY) != 0){
 		pData = new char[(dimXAlign * (dimY + 2 * BORDER)) * sizeof(short) * component + Align];

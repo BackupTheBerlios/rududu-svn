@@ -18,23 +18,25 @@
  *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.             *
  ***************************************************************************/
 
+#include <iostream>
+using namespace std;
+
 #include "rududucodec.h"
 
-#define ALIGN	32
 #define WAV_LEVELS	3
 #define TRANSFORM	cdf97
 #define THRES_RATIO	.7f
+#define BUFFER_SIZE (SUB_IMAGE_CNT + 1)
 
 namespace rududu {
 
 CRududuCodec::CRududuCodec(cmode mode, int width, int height, int component):
 	quant(0),
+	images(width, height, component, BUFFER_SIZE),
 	predImage(0),
 	codec(0, 0),
 	key_count(0)
 {
-	images[0] = new CImage(width, height, component, ALIGN);
-	images[1] = new CImage(width, height, component, ALIGN);
 	wavelet = new CWavelet2D(width, height, WAV_LEVELS);
 	wavelet->SetWeight(TRANSFORM);
 	if (mode == rududu::encode) {
@@ -89,30 +91,31 @@ int CRududuCodec::encode(unsigned char * pImage, int stride, unsigned char * pBu
 {
 	codec.initCoder(0, pBuffer);
 
-	images[0]->inputSGI(pImage, stride, -128);
+	images.insert(0);
+	images[0][0]->inputSGI(pImage, stride, -128);
 
 	if (key_count != 0) {
 		COBME * obme = (COBME *) obmc;
-		images[1]->extend();
+		images.calc_sub(1);
 		obme->EPZS(images);
 		obme->encode(& codec);
-		obme->apply_mv(images[1], *predImage);
-		*images[0] -= *predImage;
-		encodeImage(images[0]);
-		*images[0] += *predImage;
+		cerr << codec.getSize() << endl;
+		obme->apply_mv(images, *predImage);
+		*images[0][0] -= *predImage;
+		encodeImage(images[0][0]);
+		*images[0][0] += *predImage;
 
 		pBuffer[0] |= 0x80;
 	} else {
-		encodeImage(images[0]);
+		encodeImage(images[0][0]);
 	}
 
 	key_count++;
 	if (key_count == 10)
 		key_count = 0;
 
-	*outImage = images[0];
-	images[0] = images[1];
-	images[1] = *outImage;
+	*outImage = images[0][0];
+	images.remove(1);
 
 	return codec.endCoding() - pBuffer - 2;
 }
@@ -121,19 +124,20 @@ int CRududuCodec::decode(unsigned char * pBuffer, CImage ** outImage)
 {
 	codec.initDecoder(pBuffer);
 
+	images.insert(0);
+
 	if (pBuffer[0] & 0x80) {
-		images[1]->extend();
+		images.calc_sub(1);
 		obmc->decode(& codec);
-		obmc->apply_mv(images[1], *predImage);
-		decodeImage(images[0]);
-		*images[0] += *predImage;
+		obmc->apply_mv(images, *predImage);
+		decodeImage(images[0][0]);
+		*images[0][0] += *predImage;
 	} else {
-		decodeImage(images[0]);
+		decodeImage(images[0][0]);
 	}
 
-	*outImage = images[0];
-	images[0] = images[1];
-	images[1] = *outImage;
+	*outImage = images[0][0];
+	images.remove(1);
 
 	return codec.getSize();
 }

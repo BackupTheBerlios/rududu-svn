@@ -350,8 +350,8 @@ int COBMC::get_pos(const sMotionVector mv, const unsigned int i,
                     const unsigned int j, const unsigned int im_x,
                     const unsigned int im_y, const int stride)
 {
-	int x = i * 8 + mv.x - 4;
-	int y = j * 8 + mv.y - 4;
+	int x = i * 8 + (mv.x >> 2) - 4;
+	int y = j * 8 + (mv.y >> 2) - 4;
 	if (x < -15) x = -15;
 	if (x >= (int)im_x) x = im_x - 1;
 	if (y < -15) y = -15;
@@ -449,15 +449,16 @@ template <bool pre, int pos_flags>
 	{ \
 		if (pCurMV[i].all != MV_INTRA) { \
 			int src_pos = get_pos(pCurMV[i], i, j, im_x, im_y, stride); \
+			int pic = ((pCurMV[i].x & 3) << 2) | (pCurMV[i].y & 3); \
 			for( int c = 0; c < component; c++) \
-				obmc_block<flags>(pRefFrames[pCurRef[i]].pImage[c] + src_pos, \
+				obmc_block<flags>(RefFrames[pCurRef[i] + 1][pic]->pImage[c] + src_pos, \
 					dstImage.pImage[c] + dst_pos, stride, stride); \
 		} else \
 			for( int c = 0; c < component; c++) \
 				obmc_block_intra<flags>(dstImage.pImage[c] + dst_pos, stride, 0); \
 	}
 
-void COBMC::apply_mv(CImage * pRefFrames, CImage & dstImage)
+void COBMC::apply_mv(CImageBuffer & RefFrames, CImage & dstImage)
 {
 	const int stride = dstImage.dimXAlign;
 	const int diff = dstImage.dimXAlign * 8 - dimX * 8 + 8;
@@ -487,8 +488,10 @@ void COBMC::apply_mv(CImage * pRefFrames, CImage & dstImage)
 		for( i = 1; i < dimX - 1; i++) {
 			if (pCurMV[i].all != MV_INTRA) {
 				int src_pos = get_pos(pCurMV[i], i, j, im_x, im_y, stride);
+				int pic = ((pCurMV[i].x & 3) << 2) | (pCurMV[i].y & 3);
 				for( int c = 0; c < component; c++)
-					obmc_block(pRefFrames[pCurRef[i]].pImage[c] + src_pos, dstImage.pImage[c] + dst_pos, stride, stride);
+					obmc_block(RefFrames[pCurRef[i] + 1][pic]->pImage[c] + src_pos,
+					           dstImage.pImage[c] + dst_pos, stride, stride);
 			} else
 				for( int c = 0; c < component; c++)
 					obmc_block_intra<0>(dstImage.pImage[c] + dst_pos, stride, 0);

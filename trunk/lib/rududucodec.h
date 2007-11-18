@@ -22,7 +22,7 @@
 
 #include "utils.h"
 #include "muxcodec.h"
-#include "image.h"
+#include "imagebuffer.h"
 #include "obme.h"
 #include "wavelet2d.h"
 
@@ -40,7 +40,7 @@ public:
 	int decode(unsigned char * pBuffer, CImage ** outImage);
 
 private :
-	CImage * images[2];
+	CImageBuffer images;
 	CImage * predImage;
 	COBMC * obmc;
 	CWavelet2D * wavelet;

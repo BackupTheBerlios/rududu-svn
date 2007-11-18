@@ -107,6 +107,30 @@ void COBME::DiamondSearch(int cur_x, int cur_y, int im_x, int im_y, int stride,
 	}while(LastMove);
 }
 
+template <int level>
+void COBME::subpxl(int cur_x, int cur_y, int im_x, int im_y, int stride,
+                   short * pRef, short ** pSub, sFullMV & MVBest)
+{
+	short * pCur = pRef + cur_x + cur_y * stride;
+	static const short x_mov[8] = {0 , 1, 0, 0,-1,-1, 0, 0};
+	static const short y_mov[8] = {-1, 0,-1,-1, 0, 0, 1, 1};
+
+	sFullMV MVTemp = MVBest;
+	for (int i = 0; i < 8; i++) {
+		MVTemp.MV.x += x_mov[i] << level;
+		MVTemp.MV.y += y_mov[i] << level;
+
+		int src_pos;
+		int pic = ((MVTemp.MV.x & 3) << 2) | (MVTemp.MV.y & 3);
+		sMotionVector tmp;
+		tmp.x = MVTemp.MV.x >> 2;
+		tmp.y = MVTemp.MV.y >> 2;
+		CHECK_MV(tmp);
+		MVTemp.dist = SAD<8>(pSub[pic] + src_pos, pCur, stride);
+		if (MVBest.dist > MVTemp.dist) MVBest = MVTemp;
+	}
+}
+
 #define THRES_A	1024
 #define THRES_B (thres + (thres >> 2))
 #define THRES_C (thres + (thres >> 2))
@@ -144,14 +168,19 @@ sFullMV COBME::EPZS(int cur_x, int cur_y, int im_x, int im_y, int stride,
 
 #define MAX_PREDS	16
 
-void COBME::EPZS(CImage ** pImages)
+void COBME::EPZS(CImageBuffer & Images)
 {
 	sFullMV MVPred[MAX_PREDS];
 	sMotionVector * pCurMV = pMV;
 	unsigned char * pCurRef = pRef;
 	unsigned short * pCurDist = pDist;
-	int im_x = pImages[0]->dimX, im_y = pImages[0]->dimY, stride = pImages[0]->dimXAlign;
-	short * pIm[2] = {pImages[0]->pImage[0], pImages[1]->pImage[0]};
+	int im_x = Images[0][0]->dimX, im_y = Images[0][0]->dimY,
+		stride = Images[0][0]->dimXAlign;
+	short * pIm[2] = {Images[0][0]->pImage[0], Images[1][0]->pImage[0]};
+	short * pSub[SUB_IMAGE_CNT];
+	for( int i = 0; i < SUB_IMAGE_CNT; i++){
+		pSub[i] = Images[1][i]->pImage[0];
+	}
 
 	for( unsigned int j = 0; j < dimY; j++){
 		for( unsigned int i = 0; i < dimX; i++){
@@ -192,6 +221,27 @@ void COBME::EPZS(CImage ** pImages)
 		pCurRef += dimX;
 		pCurDist += dimX;
 	}
+
+	pCurMV = pMV;
+	pCurRef = pRef;
+	pCurDist = pDist;
+	for( unsigned int j = 0; j < dimY; j++){
+		for( unsigned int i = 0; i < dimX; i++){
+			if (pCurMV[i].all != MV_INTRA) {
+				sFullMV MVBest = {pCurMV[i], pCurRef[i], 0, pCurDist[i]};
+				MVBest.MV.x <<= 2;
+				MVBest.MV.y <<= 2;
+				subpxl<1>(8 * i, 8 * j, im_x, im_y, stride, pIm[0], pSub, MVBest);
+				subpxl<0>(8 * i, 8 * j, im_x, im_y, stride, pIm[0], pSub, MVBest);
+				pCurMV[i] = MVBest.MV;
+				pCurDist[i] = MVBest.dist;
+			}
+		}
+		pCurMV += dimX;
+		pCurRef += dimX;
+		pCurDist += dimX;
+	}
+
 }
 
 }

@@ -21,7 +21,7 @@
 #pragma once
 
 #include "muxcodec.h"
-#include "image.h"
+#include "imagebuffer.h"
 #include "utils.h"
 
 namespace rududu {
@@ -42,7 +42,7 @@ public:
 
     ~COBMC();
 
-	void apply_mv(CImage * pRefFrames, CImage & dstImage);
+	void apply_mv(CImageBuffer & RefFrames, CImage & dstImage);
 	template <bool pre>
 		void apply_intra(CImage & srcImage, CImage & dstImage);
 	void encode(CMuxCodec * inCodec);
