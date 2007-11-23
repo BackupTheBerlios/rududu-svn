@@ -51,8 +51,6 @@ CRududuCodec::CRududuCodec(cmode mode, int width, int height, int component):
 
 CRududuCodec::~CRududuCodec()
 {
-	delete images[0];
-	delete images[1];
 	delete predImage;
 	delete obmc;
 	delete wavelet;
@@ -73,6 +71,7 @@ void CRududuCodec::encodeImage(CImage * pImage)
 		wavelet->Transform<TRANSFORM>(pImage->pImage[c], pImage->dimXAlign);
 		wavelet->TSUQ(quants(quant), THRES_RATIO);
 		wavelet->CodeBand(&codec, 1);
+		cerr << codec.getSize() << endl;
 		wavelet->TSUQi(quants(quant));
 		wavelet->TransformI<TRANSFORM>(pImage->pImage[c], pImage->dimXAlign);
 	}
@@ -115,6 +114,7 @@ int CRududuCodec::encode(unsigned char * pImage, int stride, unsigned char * pBu
 		key_count = 0;
 
 	*outImage = images[0][0];
+// 	*outImage = predImage;
 	images.remove(1);
 
 	return codec.endCoding() - pBuffer - 2;
