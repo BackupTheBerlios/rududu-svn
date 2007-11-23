@@ -24,7 +24,7 @@
 namespace rududu {
 
 CImageBuffer::CImageBuffer(unsigned int x, unsigned int y, int cmpnt, unsigned int size):
-	max_size(size)
+	images_left(size - 1)
 {
 	CImage * Img = new CImage(x, y, cmpnt, ALIGN);
 	free_stack.push(Img);
@@ -32,6 +32,8 @@ CImageBuffer::CImageBuffer(unsigned int x, unsigned int y, int cmpnt, unsigned i
 
 CImageBuffer::~CImageBuffer()
 {
+	while (image_list.size() != 0)
+		remove(image_list.size() - 1);
 	while( free_stack.size() != 0 ){
 		delete free_stack.top();
 		free_stack.pop();
@@ -45,12 +47,13 @@ CImage * CImageBuffer::getFree(void)
 		free_stack.pop();
 		return ret;
 	}
-	if (free_stack.size() + image_list.size() < max_size) {
+	if (images_left > 0) {
 		CImage * ex = 0;
 		if (free_stack.size() != 0)
 			ex = free_stack.top();
 		else
 			ex = image_list[0].sub[0];
+		images_left--;
 		return new CImage(ex, ALIGN);
 	}
 	return 0;
@@ -73,7 +76,7 @@ CImage ** CImageBuffer::insert(int index)
 	return 0;
 }
 
-void CImageBuffer::remove(int index)
+void CImageBuffer::remove(unsigned int index)
 {
 	if (index >= image_list.size()) return;
 	for( int i = 0; i < SUB_IMAGE_CNT; i++) {

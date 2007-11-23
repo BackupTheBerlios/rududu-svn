@@ -40,14 +40,14 @@ public:
     ~CImageBuffer();
 
 	CImage ** insert(int index);
-	void remove(int index);
+	void remove(unsigned int index);
 	CImage ** operator[](int index);
 	void calc_sub(int index);
 
 private:
 	std::vector<sSubImage> image_list;
 	std::stack<CImage*> free_stack;
-	unsigned int max_size;
+	unsigned int images_left;
 
 	CImage * getFree();
 };

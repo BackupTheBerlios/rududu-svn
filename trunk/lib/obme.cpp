@@ -112,8 +112,8 @@ void COBME::subpxl(int cur_x, int cur_y, int im_x, int im_y, int stride,
                    short * pRef, short ** pSub, sFullMV & MVBest)
 {
 	short * pCur = pRef + cur_x + cur_y * stride;
-	static const short x_mov[8] = {0 , 1, 0, 0,-1,-1, 0, 0};
-	static const short y_mov[8] = {-1, 0,-1,-1, 0, 0, 1, 1};
+	static const short x_mov[8] = {1,  0,-1,-1, 0, 0, 1, 1};
+	static const short y_mov[8] = {0, -1, 0, 0, 1, 1, 0, 0};
 
 	sFullMV MVTemp = MVBest;
 	for (int i = 0; i < 8; i++) {
@@ -134,7 +134,7 @@ void COBME::subpxl(int cur_x, int cur_y, int im_x, int im_y, int stride,
 #define THRES_A	1024
 #define THRES_B (thres + (thres >> 2))
 #define THRES_C (thres + (thres >> 2))
-#define THRES_D 32768
+#define THRES_D 65535
 
 sFullMV COBME::EPZS(int cur_x, int cur_y, int im_x, int im_y, int stride,
                  short ** pIm, sFullMV * MVPred, int setB, int setC, int thres)
@@ -187,14 +187,13 @@ void COBME::EPZS(CImageBuffer & Images)
 			int n = 1;
 			MVPred[0].MV.all = 0;
 			if (j == 0) {
-				if (i == 0)
-					MVPred[0].MV.all = 0;
-				else
+				if (i != 0)
 					MVPred[0].MV = pCurMV[i - 1];
 			} else {
 				if (i == 0 || i == dimX -1)
 					MVPred[0].MV = pCurMV[i - dimX];
 				else {
+					// TODO prédiction à droite en utilisant le bloc haut-gauche => même chose pour le codage
 					MVPred[0].MV = median_mv(pCurMV[i - 1], pCurMV[i - dimX], pCurMV[i - dimX + 1]);
 					MVPred[n++].MV = pCurMV[i - 1];
 					MVPred[n++].MV = pCurMV[i - dimX];
@@ -202,18 +201,18 @@ void COBME::EPZS(CImageBuffer & Images)
 				}
 			}
 
-			MVPred[n++].MV = pCurMV[i];
+			MVPred[n].MV.x = (pCurMV[i].x + 2) >> 2;
+			MVPred[n++].MV.y = (pCurMV[i].y + 2) >> 2;
+
+			MVPred[n++].MV.all = 0;
 
 			for( int k = 0; k < n; k++){
 				MVPred[k].ref = 0;
 				MVPred[k].dist = UINT16_MAX;
 			}
 
-			sFullMV MVBest = EPZS(8 * i, 8 * j, im_x, im_y, stride, pIm, MVPred, n - 1, 0, 0);
-			if (MVBest.dist < THRES_D)
-				pCurMV[i] = MVBest.MV;
-			else
-				pCurMV[i].all = MV_INTRA;
+			sFullMV MVBest = EPZS(8 * i, 8 * j, im_x, im_y, stride, pIm, MVPred, n - 2, 1, 0);
+			pCurMV[i] = MVBest.MV;
 			pCurRef[i] = MVBest.ref;
 			pCurDist[i] = MVBest.dist;
 		}
@@ -227,7 +226,7 @@ void COBME::EPZS(CImageBuffer & Images)
 	pCurDist = pDist;
 	for( unsigned int j = 0; j < dimY; j++){
 		for( unsigned int i = 0; i < dimX; i++){
-			if (pCurMV[i].all != MV_INTRA) {
+			if (pCurDist[i] < THRES_D) {
 				sFullMV MVBest = {pCurMV[i], pCurRef[i], 0, pCurDist[i]};
 				MVBest.MV.x <<= 2;
 				MVBest.MV.y <<= 2;
@@ -235,13 +234,13 @@ void COBME::EPZS(CImageBuffer & Images)
 				subpxl<0>(8 * i, 8 * j, im_x, im_y, stride, pIm[0], pSub, MVBest);
 				pCurMV[i] = MVBest.MV;
 				pCurDist[i] = MVBest.dist;
-			}
+			} else
+				pCurMV[i].all = MV_INTRA;
 		}
 		pCurMV += dimX;
 		pCurRef += dimX;
 		pCurDist += dimX;
 	}
-
 }
 
 }
