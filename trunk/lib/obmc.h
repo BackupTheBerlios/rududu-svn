@@ -73,16 +73,6 @@ private:
 		                       const int src_stride, const int dst_stride);
 	template <int flags>
 		static void obmc_block_intra(short * pDst, const int dst_stride, const short value);
-	template <int flags>
-		static void intra_block(short * block[8], short * pDst,const int stride);
-	template <int flags>
-		void intra_block(sMotionVector * pCurMV, unsigned char * pCurRef,
-		                 CImage * pRefFrames,  CImage & dstImage,
-		                 const unsigned int i, const unsigned int j);
-	template <bool pre, int pos_flags>
-		void intra_proc(int flags, short * pSrc, short * pDst, int stride);
-	template <int pos_flags>
-		int get_intra_flags(sMotionVector * pCurMV, unsigned int dimX);
 
 	static inline int get_pos(const sMotionVector mv, const unsigned int i,
 	                   const unsigned int j, const unsigned int im_x,
