@@ -42,10 +42,11 @@ private:
 	void LazyImage(short * pImage, int Stride);
 	void LazyImageI(short * pImage, int Stride);
 
-	void Transform97H(short * pImage, int Stride);
-	void Transform97HI(short * pImage, int Stride);
-	void Transform97V(short * pImage, int Stride);
-	void Transform97VI(short * pImage, int Stride);
+	// TODO : tester si inline c'est mieux
+	static void TransLine97H(short * i, int len);
+	static void TransLine97HI(short * i, int len);
+	void Transform97(short * pImage, int Stride);
+	void Transform97I(short * pImage, int Stride);
 
 	void Transform53H(short * pImage, int Stride);
 	void Transform53HI(short * pImage, int Stride);

@@ -60,7 +60,7 @@ void char2short(short * pOut, int size)
 }
 
 #define WAV_LEVELS	5
-#define TRANSFORM	cdf53
+#define TRANSFORM	cdf97
 
 typedef union {
 	struct  {
@@ -176,13 +176,9 @@ void Test(string & infile, int Quant)
 	for( unsigned int i = 0; i < imSize; i++)
 		ImgPixels[i] = ((short)(ImgPixels[i] + (1 << 15))) >> 6;
 
-	CDCT2D dct(img.columns(), img.rows());
-// 	dct.Proc<true>(ImgPixels, img.columns());
-	dct.Transform<true>(ImgPixels, img.columns());
- 	dct.TSUQ(Quants(Quant), .7f);
- 	dct.TSUQi(Quants(Quant));
-	dct.Transform<false>(ImgPixels, img.columns());
-// 	dct.Proc<false>(ImgPixels, img.columns());
+	CWavelet2D Wavelet(img.columns(), img.rows(), 1);
+	Wavelet.Transform<TRANSFORM>(ImgPixels, img.columns());
+	Wavelet.TransformI<TRANSFORM>(ImgPixels, img.columns());
 
 	for( unsigned int i = 0; i < imSize; i++) {
 		int tmp = (ImgPixels[i] << 6) + (1 << 15);

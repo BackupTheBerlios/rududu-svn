@@ -173,86 +173,79 @@ inline short CWavelet2D::mult08(short a)
 	return a + (a >> 8);
 }
 
-void CWavelet2D::Transform97H(short * pImage, int Stride)
+void CWavelet2D::TransLine97H(short * i, int len)
 {
-	for( int j = 0; j < DimY; j++){
-		short * i = pImage;
-		short * iend = pImage + DimX - 5;
+	short * iend = i + len - 5;
 
-		short tmp = i[0] + i[2];
-		i[1] -= tmp + (tmp >> 1);
-		i[0] -= i[1] >> 3;
+	short tmp = i[0] + i[2];
+	i[1] -= tmp + (tmp >> 1);
+	i[0] -= i[1] >> 3;
 
-		tmp = i[2] + i[4];
-		i[3] -= tmp + (tmp >> 1);
-		i[2] -= (i[1] + i[3]) >> 4;
-		i[1] += mult08(i[0] + i[2]);
-		i[0] += i[1] - (i[1] >> 4);
+	tmp = i[2] + i[4];
+	i[3] -= tmp + (tmp >> 1);
+	i[2] -= (i[1] + i[3]) >> 4;
+	i[1] += mult08(i[0] + i[2]);
+	i[0] += i[1] - (i[1] >> 4);
 
-		i++;
+	i++;
 
-		for( ; i < iend; i += 2) {
-			tmp = i[3] + i[5];
-			i[4] -= tmp + (tmp >> 1);
-			i[3] -= (i[2] + i[4]) >> 4;
-			i[2] += mult08(i[1] + i[3]);
-			tmp = i[0] + i[2];
-			i[1] += (tmp >> 1) - (tmp >> 5);
-		}
-
-		i[4] -= i[3] * 2 + i[3];
+	for( ; i < iend; i += 2) {
+		tmp = i[3] + i[5];
+		i[4] -= tmp + (tmp >> 1);
 		i[3] -= (i[2] + i[4]) >> 4;
 		i[2] += mult08(i[1] + i[3]);
 		tmp = i[0] + i[2];
 		i[1] += (tmp >> 1) - (tmp >> 5);
-
-		i[4] += 2 * mult08(i[3]);
-		tmp = i[2] + i[4];
-		i[3] += (tmp >> 1) - (tmp >> 5);
-
-		pImage += Stride;
 	}
+
+	i[4] -= i[3] * 2 + i[3];
+	i[3] -= (i[2] + i[4]) >> 4;
+	i[2] += mult08(i[1] + i[3]);
+	tmp = i[0] + i[2];
+	i[1] += (tmp >> 1) - (tmp >> 5);
+
+	i[4] += 2 * mult08(i[3]);
+	tmp = i[2] + i[4];
+	i[3] += (tmp >> 1) - (tmp >> 5);
 }
 
-void CWavelet2D::Transform97HI(short * pImage, int Stride)
+void CWavelet2D::TransLine97HI(short * i, int len)
 {
-	for( int j = 0; j < DimY; j++){
-		short * i = pImage;
-		short * iend = pImage + DimX - 5;
+	short * iend = i + len - 5;
 
-		i[0] -= i[1] - (i[1] >> 4);
+	i[0] -= i[1] - (i[1] >> 4);
 
-		short tmp = i[1] + i[3];
-		i[2] -= (tmp >> 1) - (tmp >> 5);
-		i[1] -= mult08(i[0] + i[2]);
-		i[0] += i[1] >> 3;
+	short tmp = i[1] + i[3];
+	i[2] -= (tmp >> 1) - (tmp >> 5);
+	i[1] -= mult08(i[0] + i[2]);
+	i[0] += i[1] >> 3;
 
-		for( ; i < iend; i += 2) {
-			tmp = i[3] + i[5];
-			i[4] -= (tmp >> 1) - (tmp >> 5);
-			i[3] -= mult08(i[2] + i[4]);
-			i[2] += (i[1] + i[3]) >> 4;
-			tmp = i[0] + i[2];
-			i[1] += tmp + (tmp >> 1);
-		}
-
-		i[3] -= 2 * mult08(i[2]);
+	for( ; i < iend; i += 2) {
+		tmp = i[3] + i[5];
+		i[4] -= (tmp >> 1) - (tmp >> 5);
+		i[3] -= mult08(i[2] + i[4]);
 		i[2] += (i[1] + i[3]) >> 4;
 		tmp = i[0] + i[2];
 		i[1] += tmp + (tmp >> 1);
-
-		i[3] += i[2] * 2 + i[2];
-
-		pImage += Stride;
 	}
+
+	i[3] -= 2 * mult08(i[2]);
+	i[2] += (i[1] + i[3]) >> 4;
+	tmp = i[0] + i[2];
+	i[1] += tmp + (tmp >> 1);
+
+	i[3] += i[2] * 2 + i[2];
 }
 
-void CWavelet2D::Transform97V(short * pImage, int Stride)
+void CWavelet2D::Transform97(short * pImage, int Stride)
 {
 	short * i[6];
 	i[0] = pImage;
 	for( int j = 1; j < 6; j++)
 		i[j] = i[j-1] + Stride;
+
+	for( int j = 0; j < 5; j++)
+		TransLine97H(i[j], DimX);
 
 	for(int k = 0 ; k < DimX; k++) {
 		short tmp = i[0][k] + i[2][k];
@@ -270,6 +263,10 @@ void CWavelet2D::Transform97V(short * pImage, int Stride)
 		i[j] += Stride;
 
 	for( int j = 6; j < DimY; j += 2 ) {
+
+		TransLine97H(i[4], DimX);
+		TransLine97H(i[5], DimX);
+
 		for(int k = 0 ; k < DimX; k++) {
 			short tmp = i[3][k] + i[5][k];
 			i[4][k] -= tmp + (tmp >> 1);
@@ -282,6 +279,8 @@ void CWavelet2D::Transform97V(short * pImage, int Stride)
 		for( int k = 0; k < 6; k++)
 			i[k] += 2 * Stride;
 	}
+
+	TransLine97H(i[4], DimX);
 
 	for(int k = 0 ; k < DimX; k++) {
 		i[4][k] -= i[3][k] * 2 + i[3][k];
@@ -296,7 +295,7 @@ void CWavelet2D::Transform97V(short * pImage, int Stride)
 	}
 }
 
-void CWavelet2D::Transform97VI(short * pImage, int Stride)
+void CWavelet2D::Transform97I(short * pImage, int Stride)
 {
 	short * i[6];
 	i[0] = pImage;
@@ -322,6 +321,9 @@ void CWavelet2D::Transform97VI(short * pImage, int Stride)
 			i[1][k] += tmp + (tmp >> 1);
 		}
 
+		TransLine97HI(i[0], DimX);
+		TransLine97HI(i[1], DimX);
+
 		for( int k = 0; k < 6; k++)
 			i[k] += 2 * Stride;
 	}
@@ -334,6 +336,11 @@ void CWavelet2D::Transform97VI(short * pImage, int Stride)
 
 		i[3][k] += i[2][k] * 2 + i[2][k];
 	}
+
+	TransLine97HI(i[0], DimX);
+	TransLine97HI(i[1], DimX);
+	TransLine97HI(i[2], DimX);
+	TransLine97HI(i[3], DimX);
 }
 
 void CWavelet2D::Transform53H(short * pImage, int Stride)
@@ -557,8 +564,7 @@ template <trans t>
 void CWavelet2D::Transform(short * pImage, int Stride)
 {
 	if (t == cdf97) {
-		Transform97H(pImage, Stride);
-		Transform97V(pImage, Stride);
+		Transform97(pImage, Stride);
 	} else if (t == cdf53) {
 		Transform53H(pImage, Stride);
 		Transform53V(pImage, Stride);
@@ -582,8 +588,7 @@ void CWavelet2D::TransformI(short * pImage, int Stride)
 	LazyImageI(pImage, Stride);
 
 	if (t == cdf97) {
-		Transform97VI(pImage, Stride);
-		Transform97HI(pImage, Stride);
+		Transform97I(pImage, Stride);
 	} else if (t == cdf53) {
 		Transform53VI(pImage, Stride);
 		Transform53HI(pImage, Stride);
