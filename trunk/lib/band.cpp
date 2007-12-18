@@ -29,7 +29,7 @@ void CBand::Init( unsigned int x, unsigned int y, int Align)
 {
 	DimX = x;
 	DimY = y;
-	DimXAlign = ( DimX + Align - 1 ) & ( -Align );
+	DimXAlign = (( DimX * sizeof(short) + Align - 1 ) & ( -Align )) / sizeof(short);
 	BandSize = DimXAlign * DimY;
 	Weight = 1;
 	Count = 0;
