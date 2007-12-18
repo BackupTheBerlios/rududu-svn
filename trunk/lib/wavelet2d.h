@@ -39,9 +39,6 @@ private:
 	CWavelet2D(int x, int y, int level, CWavelet2D * pHigh, int Align);
 	void Init(int level, int Align);
 
-	void LazyImage(short * pImage, int Stride);
-	void LazyImageI(short * pImage, int Stride);
-
 	// TODO : tester si inline c'est mieux
 	static void TransLine97H(short * i, int len);
 	static void TransLine97HI(short * i, int len);

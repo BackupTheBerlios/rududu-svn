@@ -8,10 +8,10 @@ using namespace std;
 namespace rududu {
 
 #define XI		1.149604398f
-#define ALPHA	(-3.f/2.f)
-#define BETA	(-1.f/16.f)
-#define GAMMA	(4.f/5.f)
-#define DELTA	(15.f/32.f)
+// #define ALPHA	(-3.f/2.f)
+// #define BETA	(-1.f/16.f)
+// #define GAMMA	(4.f/5.f)
+// #define DELTA	(15.f/32.f)
 
 #define SQRT2	1.414213562f
 
@@ -244,6 +244,13 @@ void CWavelet2D::Transform97(short * pImage, int Stride)
 	for( int j = 1; j < 6; j++)
 		i[j] = i[j-1] + Stride;
 
+	short * out[4] = {pImage, VBand.pBand, HBand.pBand, DBand.pBand};
+	int out_stride[4] = {Stride, VBand.DimXAlign, HBand.DimXAlign, DBand.DimXAlign};
+	if (pLow == 0){
+		out[0] = LBand.pBand;
+		out_stride[0] = LBand.DimXAlign;
+	}
+
 	for( int j = 0; j < 5; j++)
 		TransLine97H(i[j], DimX);
 
@@ -257,10 +264,14 @@ void CWavelet2D::Transform97(short * pImage, int Stride)
 		i[2][k] -= (i[1][k] + i[3][k]) >> 4;
 		i[1][k] += mult08(i[0][k] + i[2][k]);
 		i[0][k] += i[1][k] - (i[1][k] >> 4);
+		out[k & 1][k >> 1] = i[0][k];
 	}
 
 	for( int j = 0; j < 6; j++)
 		i[j] += Stride;
+
+	out[0] += out_stride[0];
+	out[1] += out_stride[1];
 
 	for( int j = 6; j < DimY; j += 2 ) {
 
@@ -274,10 +285,14 @@ void CWavelet2D::Transform97(short * pImage, int Stride)
 			i[2][k] += mult08(i[1][k] + i[3][k]);
 			tmp = i[0][k] + i[2][k];
 			i[1][k] += (tmp >> 1) - (tmp >> 5);
+			out[2 + (k & 1)][k >> 1] = i[0][k];
+			out[k & 1][k >> 1] = i[1][k];
 		}
 
 		for( int k = 0; k < 6; k++)
 			i[k] += 2 * Stride;
+		for( int k = 0; k < 4; k++)
+			out[k] += out_stride[k];
 	}
 
 	TransLine97H(i[4], DimX);
@@ -292,27 +307,56 @@ void CWavelet2D::Transform97(short * pImage, int Stride)
 		i[4][k] += 2 * mult08(i[3][k]);
 		tmp = i[2][k] + i[4][k];
 		i[3][k] += (tmp >> 1) - (tmp >> 5);
+
+		tmp = k & 1;
+		out[tmp][k >> 1] = i[1][k];
+		out[2 + tmp][k >> 1] = i[0][k];
+		out[tmp][out_stride[tmp] + (k >> 1)] = i[3][k];
+		out[2 + tmp][out_stride[2 + tmp] + (k >> 1)] = i[2][k];
+		out[2 + tmp][out_stride[2 + tmp] * 2 + (k >> 1)] = i[4][k];
 	}
 }
 
 void CWavelet2D::Transform97I(short * pImage, int Stride)
 {
+	short * in[4] = {pImage, VBand.pBand, HBand.pBand, DBand.pBand};
+	int in_stride[4] = {Stride, VBand.DimXAlign, HBand.DimXAlign, DBand.DimXAlign};
+	if (pLow == 0){
+		in[0] = LBand.pBand;
+		in_stride[0] = LBand.DimXAlign;
+	} else {
+		in[0] -= (pLow->DimY - 1) * Stride + pLow->DimX;
+	}
+
 	short * i[6];
-	i[0] = pImage;
+	i[0] = pImage - DimY * Stride;
+	if (pHigh != 0) i[0] += Stride - DimX;
 	for( int j = 1; j < 6; j++)
 		i[j] = i[j-1] + Stride;
 
 	for(int k = 0 ; k < DimX; k++) {
+		short tmp = k & 1;
+		i[3][k] = in[2 + tmp][in_stride[2 + tmp] + (k >> 1)];
+		i[2][k] = in[tmp][in_stride[tmp] + (k >> 1)];
+		i[1][k] = in[2 + tmp][k >> 1];
+		i[0][k] = in[tmp][k >> 1];
+
 		i[0][k] -= i[1][k] - (i[1][k] >> 4);
 
-		short tmp = i[1][k] + i[3][k];
+		tmp = i[1][k] + i[3][k];
 		i[2][k] -= (tmp >> 1) - (tmp >> 5);
 		i[1][k] -= mult08(i[0][k] + i[2][k]);
 		i[0][k] += i[1][k] >> 3;
 	}
 
+	for( int k = 0; k < 4; k++)
+		in[k] += 2 * in_stride[k];
+
 	for( int j = 5; j < DimY; j += 2 ){
 		for(int k = 0 ; k < DimX; k++) {
+			i[5][k] = in[2 + (k & 1)][k >> 1];
+			i[4][k] = in[k & 1][k >> 1];
+
 			short tmp = i[3][k] + i[5][k];
 			i[4][k] -= (tmp >> 1) - (tmp >> 5);
 			i[3][k] -= mult08(i[2][k] + i[4][k]);
@@ -326,6 +370,8 @@ void CWavelet2D::Transform97I(short * pImage, int Stride)
 
 		for( int k = 0; k < 6; k++)
 			i[k] += 2 * Stride;
+		for( int k = 0; k < 4; k++)
+			in[k] += in_stride[k];
 	}
 
 	for(int k = 0 ; k < DimX; k++) {
@@ -506,74 +552,20 @@ void CWavelet2D::TransformHaarVI(short * pImage, int Stride)
 	}
 }
 
-void CWavelet2D::LazyImage(short * pImage, int Stride)
-{
-	int DHVpos, Ipos1, Ipos2, LStride;
-	short * pLOut;
-	if (pLow == 0){
-		pLOut = LBand.pBand;
-		LStride = LBand.DimXAlign;
-	}else{
-		pLOut = pImage;
-		LStride = Stride;
-	}
-
-	for(int j = 0; j < DimY; j += 2){
-		DHVpos = (j >> 1) * HBand.DimX;
-		Ipos1 = j * Stride;
-		Ipos2 = (j >> 1) * LStride;
-		for(int pEnd = Ipos1 + DimX; Ipos1 < pEnd; Ipos1 += 2){
-			pLOut[Ipos2] = pImage[Ipos1];
-			VBand.pBand[DHVpos] = pImage[Ipos1 + 1];
-			HBand.pBand[DHVpos] = pImage[Ipos1 + Stride];
-			DBand.pBand[DHVpos] = pImage[Ipos1 + Stride + 1];
-			DHVpos++;
-			Ipos2++;
-		}
-	}
-}
-
-void CWavelet2D::LazyImageI(short * pImage, int Stride)
-{
-	int DHVpos, Ipos1, Ipos2, LStride;
-	short * pLIn;
-	if (pLow == 0){
-		pLIn = LBand.pBand;
-		LStride = LBand.DimXAlign;
-	}else{
-		pLIn = pImage;
-		LStride = Stride;
-	}
-
-	for(int j = DimY - 2; j >= 0; j -= 2){
-		DHVpos = ((j >> 1) + 1) * HBand.DimX - 1;
-		Ipos1 = j * Stride + DimX - 2;
-		Ipos2 = (j >> 1) * LStride + (DimX >> 1) - 1;
-		for(int pEnd = Ipos1 - DimX; Ipos1 > pEnd; Ipos1 -= 2){
-			pImage[Ipos1] = pLIn[Ipos2] ;
-			pImage[Ipos1 + 1] = VBand.pBand[DHVpos];
-			pImage[Ipos1 + Stride] = HBand.pBand[DHVpos];
-			pImage[Ipos1 + Stride + 1] = DBand.pBand[DHVpos];
-			DHVpos--;
-			Ipos2--;
-		}
-	}
-}
-
 template <trans t>
 void CWavelet2D::Transform(short * pImage, int Stride)
 {
 	if (t == cdf97) {
 		Transform97(pImage, Stride);
 	} else if (t == cdf53) {
+		// FIXME : convert as Transform97
 		Transform53H(pImage, Stride);
 		Transform53V(pImage, Stride);
 	} else if (t == haar) {
+		// FIXME : convert as Transform97
 		TransformHaarH(pImage, Stride);
 		TransformHaarV(pImage, Stride);
 	}
-
-	LazyImage(pImage, Stride);
 
 	if (pLow != 0)
 		pLow->Transform<t>(pImage, Stride);
@@ -585,14 +577,14 @@ void CWavelet2D::TransformI(short * pImage, int Stride)
 	if (pLow != 0)
 		pLow->TransformI<t>(pImage, Stride);
 
-	LazyImageI(pImage, Stride);
-
 	if (t == cdf97) {
 		Transform97I(pImage, Stride);
 	} else if (t == cdf53) {
+		// FIXME : convert as Transform97I
 		Transform53VI(pImage, Stride);
 		Transform53HI(pImage, Stride);
 	} else if (t == haar) {
+		// FIXME : convert as Transform97I
 		TransformHaarVI(pImage, Stride);
 		TransformHaarHI(pImage, Stride);
 	}
