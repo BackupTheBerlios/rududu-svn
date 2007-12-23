@@ -40,8 +40,8 @@ private:
 	void Init(int level, int Align);
 
 	// TODO : tester si inline c'est mieux
-	static void TransLine97H(short * i, int len);
-	static void TransLine97HI(short * i, int len);
+	static void TransLine97(short * i, int len);
+	static void TransLine97I(short * i, int len);
 	void Transform97(short * pImage, int Stride);
 	void Transform97I(short * pImage, int Stride);
 
