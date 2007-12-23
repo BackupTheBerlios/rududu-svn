@@ -31,7 +31,7 @@ short Quants(int idx)
 template <class Pxl>
 void BW2RGB(Pxl * pIn, int stride, Pxl offset = 0, Pxl scale = 1)
 {
-	for( int i = stride - 1, j = (stride - 1) * 3; i > 0 ; i--){
+	for( int i = stride - 1, j = (stride - 1) * 3; i >= 0 ; i--){
 		pIn[j] = pIn[j+1] = pIn[j+2] = pIn[i] * scale + offset;
 		j-=3;
 	}
@@ -172,24 +172,31 @@ void Test(string & infile, int Quant)
 	unsigned int imSize = img.columns() * img.rows();
 	short * ImgPixels = new short [imSize * 3];
 
-	img.write(0, 0, img.columns(), img.rows(), "R", ShortPixel, ImgPixels);
-	for( unsigned int i = 0; i < imSize; i++)
-		ImgPixels[i] = ((short)(ImgPixels[i] + (1 << 15))) >> 6;
+	img.write(0, 0, img.columns(), img.rows(), "R", CharPixel, ImgPixels);
+	for( int i = imSize - 1; i >= 0; i--)
+		ImgPixels[i] = (short)((((unsigned char*)ImgPixels)[i] << 4) - (1 << 11));
 
-	CWavelet2D Wavelet(img.columns(), img.rows(), 1);
+	CWavelet2D Wavelet(img.columns(), img.rows(), 2);
+	Wavelet.SetWeight(TRANSFORM);
 	Wavelet.Transform<TRANSFORM>(ImgPixels, img.columns());
-	Wavelet.TransformI<TRANSFORM>(ImgPixels, img.columns());
+// 	Wavelet.TSUQ(Quants(10), 0.75);
+// 	Wavelet.TSUQi(Quants(10));
+	Wavelet.TransformI<TRANSFORM>(ImgPixels + imSize, img.columns());
 
 	for( unsigned int i = 0; i < imSize; i++) {
-		int tmp = (ImgPixels[i] << 6) + (1 << 15);
-		if (tmp > ((1 << 16) - 1)) tmp = ((1 << 16) - 1);
+		int tmp = ((ImgPixels[i] + (1 << 3)) >> 4) + 128;
+		if (tmp > 255) tmp = 255;
 		if (tmp < 0) tmp = 0;
-		ImgPixels[i] = (short) tmp;
+		((unsigned char*)ImgPixels)[i] = (char) tmp;
 	}
 
-	BW2RGB(ImgPixels, imSize);
-	Image img2(img.columns(), img.rows(), "RGB", ShortPixel, ImgPixels);
+	BW2RGB((char*)ImgPixels, imSize);
+	Image img2(img.columns(), img.rows(), "RGB", CharPixel, ImgPixels);
+	img2.type( GrayscaleType );
+	img2.depth(8);
+	img2.compressType(UndefinedCompression);
 	img2.display();
+	img2.write("/home/nico/Documents/Images/Images test/lena_test.pgm");
 
 	delete[] ImgPixels;
 }
