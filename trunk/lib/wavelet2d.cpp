@@ -316,25 +316,41 @@ void CWavelet2D::Transform97(short * pImage, int Stride)
 			out[k] += out_stride[k];
 	}
 
-	TransLine97(i[4], DimX);
-
-	for(int k = 0 ; k < DimX; k++) {
-		i[4][k] -= i[3][k] * 2 + i[3][k];
-		i[3][k] -= (i[2][k] + i[4][k]) >> 4;
-		i[2][k] += mult08(i[1][k] + i[3][k]);
-		short tmp = i[0][k] + i[2][k];
-		i[1][k] += (tmp >> 1) - (tmp >> 5);
-
-		i[4][k] += 2 * mult08(i[3][k]);
-		tmp = i[2][k] + i[4][k];
-		i[3][k] += (tmp >> 1) - (tmp >> 5);
-
-		tmp = k & 1;
-		out[tmp][k >> 1] = i[1][k];
-		out[2 + tmp][k >> 1] = i[0][k];
-		out[tmp][out_stride[tmp] + (k >> 1)] = i[3][k];
-		out[2 + tmp][out_stride[2 + tmp] + (k >> 1)] = i[2][k];
-		out[2 + tmp][out_stride[2 + tmp] * 2 + (k >> 1)] = i[4][k];
+	if (DimY & 1) {
+		for(int k = 0 ; k < DimX; k++) {
+			i[3][k] -= i[2][k] >> 3;
+			i[2][k] += mult08(i[1][k] + i[3][k]);
+			short tmp = i[0][k] + i[2][k];
+			i[1][k] += (tmp >> 1) - (tmp >> 5);
+	
+			i[3][k] += i[2][k] - (i[2][k] >> 4);
+	
+			tmp = k & 1;
+			out[tmp][k >> 1] = i[1][k];
+			out[2 + tmp][k >> 1] = i[0][k];
+			out[tmp][out_stride[tmp] + (k >> 1)] = i[3][k];
+			out[2 + tmp][out_stride[2 + tmp] + (k >> 1)] = i[2][k];
+		}
+	} else {
+		TransLine97(i[4], DimX);
+		for(int k = 0 ; k < DimX; k++) {
+			i[4][k] -= i[3][k] * 2 + i[3][k];
+			i[3][k] -= (i[2][k] + i[4][k]) >> 4;
+			i[2][k] += mult08(i[1][k] + i[3][k]);
+			short tmp = i[0][k] + i[2][k];
+			i[1][k] += (tmp >> 1) - (tmp >> 5);
+	
+			i[4][k] += 2 * mult08(i[3][k]);
+			tmp = i[2][k] + i[4][k];
+			i[3][k] += (tmp >> 1) - (tmp >> 5);
+	
+			tmp = k & 1;
+			out[tmp][k >> 1] = i[1][k];
+			out[2 + tmp][k >> 1] = i[0][k];
+			out[tmp][out_stride[tmp] + (k >> 1)] = i[3][k];
+			out[2 + tmp][out_stride[2 + tmp] + (k >> 1)] = i[2][k];
+			out[2 + tmp][out_stride[2 + tmp] * 2 + (k >> 1)] = i[4][k];
+		}
 	}
 }
 
@@ -395,13 +411,30 @@ void CWavelet2D::Transform97I(short * pImage, int Stride)
 			in[k] += in_stride[k];
 	}
 
-	for(int k = 0 ; k < DimX; k++) {
-		i[3][k] -= 2 * mult08(i[2][k]);
-		i[2][k] += (i[1][k] + i[3][k]) >> 4;
-		short tmp = i[0][k] + i[2][k];
-		i[1][k] += tmp + (tmp >> 1);
+	if (DimY & 1) {		
+		for(int k = 0 ; k < DimX; k++) {
+			i[4][k] = in[k & 1][k >> 1];
+			
+			i[4][k] -= i[3][k] - (i[3][k] >> 4);
+			i[3][k] -= mult08(i[2][k] + i[4][k]);
+			i[2][k] += (i[1][k] + i[3][k]) >> 4;
+			short tmp = i[0][k] + i[2][k];
+			i[1][k] += tmp + (tmp >> 1);
 
-		i[3][k] += i[2][k] * 2 + i[2][k];
+			i[4][k] += i[3][k] >> 3;
+			tmp = i[2][k] + i[4][k];
+			i[3][k] += tmp + (tmp >> 1);
+		}
+		TransLine97I(i[4], DimX);
+	} else {
+		for(int k = 0 ; k < DimX; k++) {
+			i[3][k] -= 2 * mult08(i[2][k]);
+			i[2][k] += (i[1][k] + i[3][k]) >> 4;
+			short tmp = i[0][k] + i[2][k];
+			i[1][k] += tmp + (tmp >> 1);
+	
+			i[3][k] += i[2][k] * 2 + i[2][k];
+		}
 	}
 
 	TransLine97I(i[0], DimX);
