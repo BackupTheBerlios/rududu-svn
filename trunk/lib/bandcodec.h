@@ -34,9 +34,11 @@ public:
     ~CBandCodec();
 
 	template <cmode mode> void pred(CMuxCodec * pCodec);
+	
 	template <cmode mode> void tree(CMuxCodec * pCodec);
-	template <bool high_band> void buildTree(void);
-
+	template <bool high_band, int block_size> void buildTree(void);
+	
+	inline bool checkBlock(short ** pCur, int i, int block_x, int block_y);
 };
 
 }

@@ -84,45 +84,51 @@ template void CBandCodec::pred<decode>(CMuxCodec *);
 
 #define INSIGNIF_BLOCK -0x8000
 
-template <bool high_band>
+bool CBandCodec::checkBlock(short ** pCur, int i, int block_x, int block_y)
+{
+	short res = 0;
+	for (int l = 0; l < block_y; l++)
+		for (int k = i; k < i + block_x; k++)
+			res |= pCur[l][k];
+	return res == 0;
+}
+
+template <bool high_band, int block_size>
 		void CBandCodec::buildTree(void)
 {
-	short * pCur1 = pBand;
-	short * pCur2 = pBand + DimXAlign;
-	short * pChild1 = 0, * pChild2 = 0;
+	short * pCur[block_size] = {pBand};
+	short * pChild[2] = {0, 0};
 	unsigned int child_stride = 0;
+	
+	for (int i = 1; i < block_size; i++)
+		pCur[i] = pCur[i - 1] + DimXAlign;
 
-	if (this->pChild) {
-		pChild1 = this->pChild->pBand;
-		pChild2 = pChild1 + 2 * this->pChild->DimXAlign;
-		child_stride = this->pChild->DimXAlign * 4;
+	if (! high_band) {
+		pChild[0] = this->pChild->pBand;
+		pChild[1] = pChild[0] + block_size * this->pChild->DimXAlign;
+		child_stride = this->pChild->DimXAlign * 2 * block_size;
 	}
 
-	for( unsigned int j = 0; j < DimY; j += 2){
-		for( unsigned int i = 0; i < DimX; i += 2){
-			if (high_band) {
-				if (0 == (pCur1[i] | pCur1[i + 1] | pCur2[i] | pCur2[i + 1]))
-					pCur1[i] = INSIGNIF_BLOCK;
-			} else {
-				if (0 == (pCur1[i] | pCur1[i + 1] | pCur2[i] | pCur2[i + 1]) &&
-								INSIGNIF_BLOCK == pChild1[2*i] &&
-								INSIGNIF_BLOCK == pChild1[2*i + 2] &&
-								INSIGNIF_BLOCK == pChild2[2*i] &&
-								INSIGNIF_BLOCK == pChild2[2*i + 2])
-					pCur1[i] = INSIGNIF_BLOCK;
-			}
+	for( unsigned int j = 0; j < DimY; j += block_size){
+		for( unsigned int i = 0; i < DimX; i += block_size){
+			if (checkBlock(pCur, i, block_size, block_size) && (high_band ||
+							(INSIGNIF_BLOCK == pChild[0][2*i] &&
+							INSIGNIF_BLOCK == pChild[0][2*i + block_size] &&
+							INSIGNIF_BLOCK == pChild[1][2*i] &&
+							INSIGNIF_BLOCK == pChild[1][2*i + block_size])))
+				pCur[0][i] = INSIGNIF_BLOCK;
 		}
-		pCur1 += DimXAlign * 2;
-		pCur2 += DimXAlign * 2;
-		pChild1 += child_stride;
-		pChild2 += child_stride;
+		for (int k = 0; k < block_size; k++)
+			pCur[k] += DimXAlign * block_size;
+		pChild[0] += child_stride;
+		pChild[1] += child_stride;
 	}
 
 	if (pParent != 0)
-		((CBandCodec*)pParent)->buildTree<false>();
+		((CBandCodec*)pParent)->buildTree<false, block_size>();
 }
 
-template void CBandCodec::buildTree<true>(void);
+template void CBandCodec::buildTree<true, 2>(void);
 
 #define CODE_COEF(coef) { \
 		short tmp = s2u_(coef); \

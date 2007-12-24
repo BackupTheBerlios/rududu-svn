@@ -62,21 +62,10 @@ void CWavelet2D::CodeBand(CMuxCodec * pCodec, int method)
 	CWavelet2D * pCurWav = this;
 
 	switch( method ){
-		case 0 :
-// 			while( pCurWav != 0 ){
-// 				pCurWav->VBand.enu<encode>(pCodec);
-// 				pCurWav->HBand.enu<encode>(pCodec);
-// 				pCurWav->DBand.enu<encode>(pCodec);
-// 				if (pCurWav->pLow == 0){
-// 					pCurWav->LBand.pred<encode>(pCodec);
-// 				}
-// 				pCurWav = pCurWav->pLow;
-// 			}
-			break;
 		case 1 :
-			pCurWav->VBand.buildTree<true>();
-			pCurWav->HBand.buildTree<true>();
-			pCurWav->DBand.buildTree<true>();
+			pCurWav->VBand.buildTree<true, 2>();
+			pCurWav->HBand.buildTree<true, 2>();
+			pCurWav->DBand.buildTree<true, 2>();
 			while( pCurWav->pLow ) pCurWav = pCurWav->pLow;
 			pCurWav->LBand.pred<encode>(pCodec);
 			while( pCurWav ) {
@@ -93,16 +82,6 @@ void CWavelet2D::DecodeBand(CMuxCodec * pCodec, int method)
 	CWavelet2D * pCurWav = this;
 
 	switch( method ){
-		case 0 :
-// 			while( pCurWav != 0 ){
-// 				pCurWav->VBand.enu<decode>(pCodec);
-// 				pCurWav->HBand.enu<decode>(pCodec);
-// 				pCurWav->DBand.enu<decode>(pCodec);
-// 				if (pCurWav->pLow == 0)
-// 					pCurWav->LBand.pred<decode>(pCodec);
-// 				pCurWav = pCurWav->pLow;
-// 			}
-			break;
 		case 1 :
 			while( pCurWav->pLow ) pCurWav = pCurWav->pLow;
 			pCurWav->LBand.pred<decode>(pCodec);
