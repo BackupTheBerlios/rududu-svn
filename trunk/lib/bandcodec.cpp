@@ -130,21 +130,50 @@ template <bool high_band, int block_size>
 
 template void CBandCodec::buildTree<true, 2>(void);
 
-#define CODE_COEF(coef) { \
-		short tmp = s2u_(coef); \
-		int len = bitlen(tmp >> 1), k; \
-		for(k = 0; k < len; k++) lenCodec.code0(k); \
-		if (k < bits) lenCodec.code1(k); \
-		if (len != 0) pCodec->bitsCode(tmp & ((1 << len) - 1), len); \
+template <int block_size>
+	int CBandCodec::maxLen(short * pBlock, int stride)
+{
+	if (block_size == 1)
+		return bitlen(ABS(pBlock[0]));
+
+	short max = 0, min = 0;
+	for( int j = 0; j < block_size; j++){
+		for( int i = 0; i < block_size; i++){
+			max = MAX(max, pBlock[i]);
+			min = MIN(min, pBlock[i]);
+		}
+		pBlock += stride;
 	}
+	min = ABS(min);
+	max = MAX(max, min);
+	return bitlen(max);
+}
 
-#define DECODE_COEF(coef) \
-	len = 0; coef = 0; \
-	while( len < bits && lenCodec.decode(len) == 0 ) len++; \
-	if (len != 0) coef = u2s_(pCodec->bitsDecode(len) | (1 << len));
+template <cmode mode, int block_size>
+	void CBandCodec::block(short * pBlock, int stride, CMuxCodec * pCodec,
+	                       CBitCodec & lenCodec, int max_len)
+{
+	for( int j = 0; j < block_size; j++){
+		for( int i = 0; i < block_size; i++){
+			if (mode == encode) {
+				short tmp = s2u_(pBlock[i]);
+				int len = bitlen(tmp >> 1), k;
+				for(k = 0; k < len; k++) lenCodec.code0(k);
+				if (k < max_len) lenCodec.code1(k);
+				if (len != 0) pCodec->bitsCode(tmp & ((1 << len) - 1), len);
+			} else {
+				int len = 0;
+				pBlock[i] = 0;
+				while( len < max_len && lenCodec.decode(len) == 0 ) len++;
+				if (len != 0) pBlock[i] = u2s_(pCodec->bitsDecode(len) | (1 << len));
+			}
+		}
+		pBlock += stride;
+	}
+}
 
-template <cmode mode>
-		void CBandCodec::tree(CMuxCodec * pCodec)
+template <cmode mode, int block_size>
+	void CBandCodec::tree(CMuxCodec * pCodec)
 {
 	int bits;
 	if (mode == encode) {
@@ -155,52 +184,44 @@ template <cmode mode>
 		bits = pCodec->tabooDecode();
 
 	short * pCur1 = pBand;
-	short * pCur2 = pBand + DimXAlign;
+	short * pCur2 = pBand + DimXAlign * (block_size >> 1);
+	int diff = DimXAlign * block_size;
 	short * pPar = 0;
 	int diff_par = 0;
-	int diff = DimXAlign << 1;
 
 	if (pParent != 0) {
 		pPar = pParent->pBand;
-		diff_par = pParent->DimXAlign;
+		diff_par = pParent->DimXAlign * (block_size >> 1);
 	}
 
 	CBitCodec lenCodec(pCodec);
 	CBitCodec treeCodec(pCodec);
 
-	for( unsigned int j = 0; j < DimY; j += 2){
-		for( unsigned int i = 0; i < (DimX >> 1); i++){
+	for( unsigned int j = 0; j < DimY; j += block_size){
+		for( unsigned int i = 0, k = 0; i < DimX; i += block_size, k += block_size >> 1){
 			int context = 0;
-			if (pPar) context = pPar[i];
+			if (pPar) context = pPar[k];
 
 			if (context == INSIGNIF_BLOCK) {
-				pPar[i] = 0;
-				pCur1[2*i] = pCur1[2*i + 1] = pCur2[2*i] = pCur2[2*i + 1] = -(pChild != 0) & INSIGNIF_BLOCK;
+				pPar[k] = 0;
+				pCur1[i] = pCur1[i + (block_size >> 1)] = pCur2[i] = pCur2[i + (block_size >> 1)] = -(pChild != 0) & INSIGNIF_BLOCK;
 				continue;
 			}
 
+			if (pPar) context = maxLen<block_size >> 1>(&pPar[k], pParent->DimXAlign);
 			if (mode == encode) {
-				if (pCur1[i*2] == INSIGNIF_BLOCK) {
-					treeCodec.code1(bitlen(s2u_(context) >> 1));
-					pCur1[2*i] = pCur1[2*i + 1] = pCur2[2*i] = pCur2[2*i + 1] = -(pChild != 0) & INSIGNIF_BLOCK;
+				if (pCur1[i] == INSIGNIF_BLOCK) {
+					treeCodec.code1(context);
+					pCur1[i] = pCur1[i + (block_size >> 1)] = pCur2[i] = pCur2[i + (block_size >> 1)] = -(pChild != 0) & INSIGNIF_BLOCK;
 				} else {
-					treeCodec.code0(bitlen(s2u_(context) >> 1));
-					CODE_COEF(pCur1[i*2]);
-					CODE_COEF(pCur1[i*2 + 1]);
-					CODE_COEF(pCur2[i*2]);
-					CODE_COEF(pCur2[i*2 + 1]);
+					treeCodec.code0(context);
+					block<mode, block_size>(&pCur1[i], DimXAlign, pCodec, lenCodec, bits);
 				}
 			} else {
-				context = bitlen(s2u_(context) >> 1);
-				if (treeCodec.decode(context)) {
-					pCur1[2*i] = pCur1[2*i + 1] = pCur2[2*i] = pCur2[2*i + 1] = -(pChild != 0) & INSIGNIF_BLOCK;
-				} else {
-					int len;
-					DECODE_COEF(pCur1[i*2]);
-					DECODE_COEF(pCur1[i*2 + 1]);
-					DECODE_COEF(pCur2[i*2]);
-					DECODE_COEF(pCur2[i*2 + 1]);
-				}
+				if (treeCodec.decode(context))
+					pCur1[i] = pCur1[i + (block_size >> 1)] = pCur2[i] = pCur2[i + (block_size >> 1)] = -(pChild != 0) & INSIGNIF_BLOCK;
+				else
+					block<mode, block_size>(&pCur1[i], DimXAlign, pCodec, lenCodec, bits);
 			}
 		}
 		pCur1 += diff;
@@ -209,7 +230,7 @@ template <cmode mode>
 	}
 }
 
-template void CBandCodec::tree<encode>(CMuxCodec * );
-template void CBandCodec::tree<decode>(CMuxCodec * );
+template void CBandCodec::tree<encode, 2>(CMuxCodec * );
+template void CBandCodec::tree<decode, 2>(CMuxCodec * );
 
 }

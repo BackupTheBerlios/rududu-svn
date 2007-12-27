@@ -145,7 +145,7 @@ void DecompressImage(string & infile, string & outfile, int Dither)
 	Wavelet.SetWeight(TRANSFORM);
 	Wavelet.DecodeBand(&Codec, 1);
 	Wavelet.TSUQi(Quants(Head.Quant));
-	Wavelet.TransformI<TRANSFORM>(ImgPixels, width);
+	Wavelet.TransformI<TRANSFORM>(ImgPixels + width * heigth, width);
 
 	if (Head.Quant == 0)
 		short2char<0>(ImgPixels, width * heigth);
@@ -176,11 +176,11 @@ void Test(string & infile, int Quant)
 	for( int i = imSize - 1; i >= 0; i--)
 		ImgPixels[i] = (short)((((unsigned char*)ImgPixels)[i] << 4) - (1 << 11));
 
-	CWavelet2D Wavelet(img.columns(), img.rows(), 2);
+	CWavelet2D Wavelet(img.columns(), img.rows(), 5);
 	Wavelet.SetWeight(TRANSFORM);
 	Wavelet.Transform<TRANSFORM>(ImgPixels, img.columns());
-// 	Wavelet.TSUQ(Quants(10), 0.75);
-// 	Wavelet.TSUQi(Quants(10));
+	Wavelet.TSUQ(Quants(10), 0.75);
+	Wavelet.TSUQi(Quants(10));
 	Wavelet.TransformI<TRANSFORM>(ImgPixels + imSize, img.columns());
 
 	for( unsigned int i = 0; i < imSize; i++) {
@@ -245,7 +245,7 @@ int main( int argc, char *argv[] )
 	int mode = 0; // 0 = code , 1 = decode
 	size_t loc;
 	if ((loc = infile.rfind(".ric", string::npos, 4)) != string::npos){
-		// mode décodage
+		// mode dÃ©codage
 		mode = 1;
 		if (outfile.length() == 0) {
 			outfile = infile;
@@ -259,17 +259,16 @@ int main( int argc, char *argv[] )
 			outfile = infile;
 			loc = infile.find_last_of(".", string::npos, 5);
 			size_t loc2 = infile.find_last_of("/");
-			if (loc != string::npos && loc2 < loc) {
+			if (loc != string::npos && (loc2 < loc || loc2 == string::npos)) {
 				outfile.resize(loc);
 			}
 			outfile.append(".ric");
 		}
 	}
 
-
 	if (mode == 0) {
-// 		CompressImage(infile, outfile, Quant, ThresRatio);
-		Test(infile, Quant);
+		CompressImage(infile, outfile, Quant, ThresRatio);
+// 		Test(infile, Quant);
 	} else {
 		DecompressImage(infile, outfile, Dither);
 	}

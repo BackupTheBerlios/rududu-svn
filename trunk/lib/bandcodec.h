@@ -22,7 +22,7 @@
 
 #include <utils.h>
 #include <band.h>
-#include <muxcodec.h>
+#include <bitcodec.h>
 
 namespace rududu {
 
@@ -34,11 +34,16 @@ public:
     ~CBandCodec();
 
 	template <cmode mode> void pred(CMuxCodec * pCodec);
-	
-	template <cmode mode> void tree(CMuxCodec * pCodec);
 	template <bool high_band, int block_size> void buildTree(void);
-	
+	template <cmode mode, int block_size> void tree(CMuxCodec * pCodec);
+
+private :
 	inline bool checkBlock(short ** pCur, int i, int block_x, int block_y);
+	template <int block_size>
+		inline int maxLen(short * pBlock, int stride);
+	template <cmode mode, int block_size>
+		void block(short * pBlock, int stride, CMuxCodec * pCodec,
+		           CBitCodec & lenCodec, int max_len);
 };
 
 }
