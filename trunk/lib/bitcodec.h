@@ -26,36 +26,34 @@ namespace rududu {
 
 // TODO : faire une allocation dynamique pour toute la classe
 #define BIT_CONTEXT_NB	16
-
-#if FREQ_COUNT != 4096
-#error "mod values calculated for FREQ_COUNT = 4096"
-#endif
+#define SPEED	8
+#define DECAY	(FREQ_POWER - SPEED)
+#define ROUND	(1 << (DECAY - 1))
 
 class CBitCodec
 {
 public:
 	CBitCodec(CMuxCodec * RangeCodec = 0);
-	virtual ~CBitCodec();
 	void InitModel(void);
 
 	void inline code0(const unsigned int Context = 0){
-		pRange->code0(Freq[Context] >> FREQ_POWER);
-		Freq[Context] += mod[Freq[Context] >> (2*FREQ_POWER-6)][0];
+		pRange->code0(freq[Context]);
+		freq[Context] += (1 << SPEED) - ((freq[Context] + ROUND) >> DECAY);
 	}
 
 	void inline code1(const unsigned int Context = 0){
-		pRange->code1(Freq[Context] >> FREQ_POWER);
-		Freq[Context] += mod[Freq[Context] >> (2*FREQ_POWER-6)][1];
+		pRange->code1(freq[Context]);
+		freq[Context] -= ((freq[Context] + ROUND) >> DECAY);
 	}
 
-	void inline code(const unsigned short Symbol, const unsigned int Context = 0){
-		pRange->codeBin(Freq[Context] >> FREQ_POWER, Symbol);
-		Freq[Context] += mod[Freq[Context] >> (2*FREQ_POWER-6)][Symbol];
+	void inline code(const unsigned int Symbol, const unsigned int Context = 0){
+		pRange->codeBin(freq[Context], Symbol);
+		freq[Context] += ((Symbol ^ 1) << SPEED) - ((freq[Context] + ROUND) >> DECAY);
 	}
 
 	unsigned int inline decode(const unsigned int Context = 0){
-		const register unsigned int ret = pRange->getBit(Freq[Context] >> FREQ_POWER);
-		Freq[Context] += mod[Freq[Context] >> (2*FREQ_POWER-6)][ret];
+		const register unsigned int ret = pRange->getBit(freq[Context]);
+		freq[Context] += ((ret ^ 1) << SPEED) - ((freq[Context] + ROUND) >> DECAY);
 		return ret;
 	}
 
@@ -63,9 +61,8 @@ public:
 	CMuxCodec * getRange(void){ return pRange;}
 
 private:
-	unsigned int Freq[BIT_CONTEXT_NB];
+	unsigned short freq[BIT_CONTEXT_NB];
 	CMuxCodec *pRange;
-	static const int mod[][2];
 };
 
 }
