@@ -128,7 +128,7 @@ template <bool high_band, int block_size>
 		((CBandCodec*)pParent)->buildTree<false, block_size>();
 }
 
-template void CBandCodec::buildTree<true, 2>(void);
+template void CBandCodec::buildTree<true, BLK_SIZE>(void);
 
 template <int block_size>
 	int CBandCodec::maxLen(short * pBlock, int stride)
@@ -230,7 +230,7 @@ template <cmode mode, int block_size>
 	}
 }
 
-template void CBandCodec::tree<encode, 2>(CMuxCodec * );
-template void CBandCodec::tree<decode, 2>(CMuxCodec * );
+template void CBandCodec::tree<encode, BLK_SIZE>(CMuxCodec * );
+template void CBandCodec::tree<decode, BLK_SIZE>(CMuxCodec * );
 
 }

@@ -24,6 +24,8 @@
 #include <band.h>
 #include <bitcodec.h>
 
+#define BLK_SIZE	4
+
 namespace rududu {
 
 class CBandCodec : public CBand
