@@ -32,7 +32,13 @@ void CBitCodec::InitModel(void)
 {
 	for (int i = 0; i < BIT_CONTEXT_NB; i++){
 		freq[i] = HALF_FREQ_COUNT;
+		state[i].mps = 0;
+		state[i].shift = 0;
 	}
 }
+
+const unsigned short CBitCodec::thres[11] = {
+	2584, 1512, 745, 371, 185, 92, 46, 23, 12, 6, 3
+};
 
 }
