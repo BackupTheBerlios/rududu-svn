@@ -88,6 +88,9 @@ public:
 	void enum16Code(unsigned int bits, const unsigned int k);
 	unsigned int enum16Decode(unsigned int k);
 
+	void maxCode(unsigned int value, unsigned int max);
+	unsigned int maxDecode(unsigned int max);
+
 	void inline encode(const unsigned int lowFreq, const unsigned int topFreq)
 	{
 		if (range <= MIN_RANGE)

@@ -1,6 +1,7 @@
 
 
 #include "muxcodec.h"
+#include "utils.h"
 
 namespace rududu {
 
@@ -437,6 +438,26 @@ unsigned int CMuxCodec::golombLinDecode(int k, int m)
 
 	nb += (l << k) | bitsDecode(k);
 	return nb;
+}
+
+void CMuxCodec::maxCode(unsigned int value, unsigned int max)
+{
+	unsigned int len = bitlen(max);
+	unsigned int lost = (1 << len) - max - 1;
+	if (value < lost)
+		bitsCode(value, len - 1);
+	else
+		bitsCode(value + lost, len);
+}
+
+unsigned int CMuxCodec::maxDecode(unsigned int max)
+{
+	unsigned int value = 0;
+	unsigned int len = bitlen(max);
+	unsigned int lost = (1 << len) - max - 1;
+	if ( len > 1) value = bitsDecode(len - 1);
+	if (value >= lost) value = ((value << 1) | bitsDecode(1)) - lost;
+	return value;
 }
 
 void CMuxCodec::emptyBuffer(void)
