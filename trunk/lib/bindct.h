@@ -18,42 +18,49 @@
  *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.             *
  ***************************************************************************/
 
-#pragma once
+#define BFLY(a,b)	{short tmp = a; a += b; b = tmp - b;}
+#define BFLY_FWD(a,b)	b = a - b; a -= b >> 1;
+#define BFLY_INV(a,b)	a += b >> 1; b = a - b;
 
-#include "utils.h"
-#include "band.h"
+// DCT from
+// http://thanglong.ece.jhu.edu/Tran/Pub/binDCT.pdf
 
-namespace rududu {
+// binDCT L3
+#define P1(a)	((a >> 1) - (a >> 4))	// 7/16
+#define U1(a)	((a >> 1) - (a >> 3))	// 3/8
+#define P2(a)	(a >> 2)	// 1/4
+#define U2(a)	((a >> 1) + (a >> 4))	// 9/16
+#define P3(a)	((a >> 2) + (a >> 4))	// 5/16
+#define P4(a)	(a >> 3)	// 1/8
+#define U3(a)	((a >> 2) - (a >> 4))	// 3/16
+#define P5(a)	((a >> 3) - (a >> 5))	// 3/32
 
-class CDCT2D{
-public:
-	CDCT2D(int x, int y, int Align = ALIGN);
+// binDCT L4
+// #define P1(a)	((a >> 1) - (a >> 3))	// 3/8
+// #define U1(a)	(a >> 2)	// 1/4
+// #define P2(a)	(a >> 2)	// 1/4
+// #define U2(a)	(a >> 1)	// 1/2
+// #define P3(a)	(a >> 2)	// 1/4
+// #define P4(a)	(a >> 3)	// 1/8
+// #define U3(a)	((a >> 2) - (a >> 4))	// 3/16
+// #define P5(a)	((a >> 3) - (a >> 5))	// 3/32
 
-	template <bool forward> void Transform(short * pImage, int stride);
-	template <bool pre> void Proc(short * pImage, int stride);
-	void SetWeight(trans t, float baseWeight = 1.);
+// binDCT L5
+// #define P1(a)	(a >> 1)	// 1/2
+// #define U1(a)	(a >> 1)	// 1/2
+// #define P2(a)	(a >> 2)	// 1/4
+// #define U2(a)	(a >> 1)	// 1/2
+// #define P3(a)	(a >> 2)	// 1/4
+// #define P4(a)	(a >> 3)	// 1/8
+// #define U3(a)	(a >> 2)	// 1/4
+// #define P5(a)	(a >> 3)	// 1/8
 
-	unsigned int TSUQ(short Quant, float Thres);
-	void TSUQi(short Quant);
-
-	template <bool pre>
-		static void Proc_H(short * pBlock, int stride);
-	template <bool pre>
-		static void Proc_V(short * pBlock, int stride);
-
-private:
-
-	int DimX;
-	int DimY;
-	CBand DCTBand;
-
-	static const float norm[8];
-
-	static void DCT8_H(short * pBlock, int stride);
-	static void iDCT8_H(short * pBlock, int stride);
-	static void DCT8_V(short * pBlock, int stride);
-	static void iDCT8_V(short * pBlock, int stride);
-};
-
-}
-
+// binDCT L6
+// #define P1(a)	(a >> 1)	// 1/2
+// #define U1(a)	(a >> 1)	// 1/2
+// #define P2(a)	0
+// #define U2(a)	(a >> 1)	// 1/2
+// #define P3(a)	(a >> 2)	// 1/4
+// #define P4(a)	0
+// #define U3(a)	(a >> 2)	// 1/4
+// #define P5(a)	0
