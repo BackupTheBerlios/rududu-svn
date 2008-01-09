@@ -103,7 +103,8 @@ void CompressImage(string & infile, string & outfile, int Quant, float Thres)
 	CWavelet2D Wavelet(img.columns(), img.rows(), WAV_LEVELS);
 	Wavelet.SetWeight(TRANSFORM);
 	Wavelet.Transform<TRANSFORM>(ImgPixels, img.columns());
-	Wavelet.TSUQ(Quants(Quant), Thres);
+	Wavelet.DCT4<true>();
+	Wavelet.TSUQ<true>(Quants(Quant), Thres);
 	Wavelet.CodeBand(&Codec, 1);
 
 	pEnd = Codec.endCoding();
@@ -144,7 +145,8 @@ void DecompressImage(string & infile, string & outfile, int Dither)
 	CWavelet2D Wavelet(width, heigth, WAV_LEVELS);
 	Wavelet.SetWeight(TRANSFORM);
 	Wavelet.DecodeBand(&Codec, 1);
-	Wavelet.TSUQi(Quants(Head.Quant));
+	Wavelet.TSUQi<true>(Quants(Head.Quant));
+	Wavelet.DCT4<false>();
 	Wavelet.TransformI<TRANSFORM>(ImgPixels + width * heigth, width);
 
 	if (Head.Quant == 0)
@@ -179,8 +181,19 @@ void Test(string & infile, int Quant)
 	CWavelet2D Wavelet(img.columns(), img.rows(), 5);
 	Wavelet.SetWeight(TRANSFORM);
 	Wavelet.Transform<TRANSFORM>(ImgPixels, img.columns());
-	Wavelet.TSUQ(Quants(10), 0.75);
-	Wavelet.TSUQi(Quants(10));
+	Wavelet.DCT4<true>();
+	Wavelet.TSUQ<true>(Quants(9), 0.75);
+
+	Wavelet.HBand.GetBand((unsigned char *)ImgPixels);
+	BW2RGB((char*)ImgPixels, Wavelet.HBand.DimX * Wavelet.HBand.DimY);
+	Image band(Wavelet.HBand.DimXAlign, Wavelet.HBand.DimY, "RGB", CharPixel, ImgPixels);
+	band.type( GrayscaleType );
+	band.depth(8);
+	band.compressType(UndefinedCompression);
+	band.write("/home/nico/Documents/Images/Images test/lena_hband.pgm");
+
+	Wavelet.TSUQi<true>(Quants(9));
+	Wavelet.DCT4<false>();
 	Wavelet.TransformI<TRANSFORM>(ImgPixels + imSize, img.columns());
 
 	for( unsigned int i = 0; i < imSize; i++) {
@@ -195,7 +208,7 @@ void Test(string & infile, int Quant)
 	img2.type( GrayscaleType );
 	img2.depth(8);
 	img2.compressType(UndefinedCompression);
-	img2.display();
+// 	img2.display();
 	img2.write("/home/nico/Documents/Images/Images test/lena_test.pgm");
 
 	delete[] ImgPixels;

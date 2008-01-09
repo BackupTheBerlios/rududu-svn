@@ -14,13 +14,14 @@ public:
 
 	template <trans t> void Transform(short * pImage, int Stride);
 	template <trans t> void TransformI(short * pImage, int Stride);
+	template <bool forward> void DCT4(void);
 	void SetWeight(trans t, float baseWeight = 1.);
 
 	void DecodeBand(CMuxCodec * pCodec, int method);
 	void CodeBand(CMuxCodec * pCodec, int method);
 
-	unsigned int TSUQ(short Quant, float Thres);
-	void TSUQi(short Quant);
+	template <bool use_dct> unsigned int TSUQ(short Quant, float Thres);
+	template <bool use_dct> void TSUQi(short Quant);
 
 	void Stats(void);
 
@@ -54,6 +55,9 @@ private:
 	void TransformHaarHI(short * pImage, int Stride);
 	void TransformHaarV(short * pImage, int Stride);
 	void TransformHaarVI(short * pImage, int Stride);
+
+	template <bool forward> void DCT4H(void);
+	template <bool forward> void DCT4V(void);
 
 	static inline short mult08(short a);
 };

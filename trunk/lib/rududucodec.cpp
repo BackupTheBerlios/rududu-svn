@@ -69,10 +69,10 @@ void CRududuCodec::encodeImage(CImage * pImage)
 {
 	for( int c = 0; c < pImage->component; c++){
 		wavelet->Transform<TRANSFORM>(pImage->pImage[c], pImage->dimXAlign);
-		wavelet->TSUQ(quants(quant), THRES_RATIO);
+		wavelet->TSUQ<false>(quants(quant), THRES_RATIO);
 		wavelet->CodeBand(&codec, 1);
 		cerr << codec.getSize() << endl;
-		wavelet->TSUQi(quants(quant));
+		wavelet->TSUQi<false>(quants(quant));
 		wavelet->TransformI<TRANSFORM>(pImage->pImage[c], pImage->dimXAlign);
 	}
 }
@@ -81,7 +81,7 @@ void CRududuCodec::decodeImage(CImage * pImage)
 {
 	for( int c = 0; c < pImage->component; c++){
 		wavelet->DecodeBand(&codec, 1);
-		wavelet->TSUQi(quants(quant));
+		wavelet->TSUQi<false>(quants(quant));
 		wavelet->TransformI<TRANSFORM>(pImage->pImage[c], pImage->dimXAlign);
 	}
 }

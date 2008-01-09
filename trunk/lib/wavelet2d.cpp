@@ -2,6 +2,7 @@
 #include <iostream>
 
 #include "wavelet2d.h"
+#include "bindct.h"
 
 using namespace std;
 
@@ -86,41 +87,62 @@ void CWavelet2D::DecodeBand(CMuxCodec * pCodec, int method)
 			while( pCurWav->pLow ) pCurWav = pCurWav->pLow;
 			pCurWav->LBand.pred<decode>(pCodec);
 			while( pCurWav ) {
+				pCurWav->VBand.Clear(false);
 				pCurWav->VBand.tree<decode, BLK_SIZE>(pCodec);
+				pCurWav->HBand.Clear(false);
 				pCurWav->HBand.tree<decode, BLK_SIZE>(pCodec);
+				pCurWav->DBand.Clear(false);
 				pCurWav->DBand.tree<decode, BLK_SIZE>(pCodec);
 				pCurWav = pCurWav->pHigh;
 			}
 	}
 }
 
-unsigned int CWavelet2D::TSUQ(short Quant, float Thres)
+template <bool use_dct>
+	unsigned int CWavelet2D::TSUQ(short Quant, float Thres)
 {
 	unsigned int Count = 0;
 	Count += DBand.TSUQ(Quant, Thres);
-	Count += HBand.TSUQ(Quant, Thres);
-	Count += VBand.TSUQ(Quant, Thres);
+	if (use_dct) {
+		Count += HBand.TSUQ_DCTH(Quant, Thres);
+		Count += VBand.TSUQ_DCTV(Quant, Thres);
+	} else {
+		Count += HBand.TSUQ(Quant, Thres);
+		Count += VBand.TSUQ(Quant, Thres);
+	}
 
 	if (pLow != 0) {
-		Count += pLow->TSUQ(Quant, Thres);
+		Count += pLow->TSUQ<use_dct>(Quant, Thres);
 	} else {
 		Count += LBand.TSUQ(Quant, 0.5f);
 	}
 	return Count;
 }
 
-void CWavelet2D::TSUQi(short Quant)
+template unsigned int CWavelet2D::TSUQ<false>(short, float);
+template unsigned int CWavelet2D::TSUQ<true>(short, float);
+
+template <bool use_dct>
+	void CWavelet2D::TSUQi(short Quant)
 {
 	DBand.TSUQi(Quant);
-	HBand.TSUQi(Quant);
-	VBand.TSUQi(Quant);
+	if (use_dct) {
+		HBand.TSUQ_DCTHi(Quant);
+		VBand.TSUQ_DCTVi(Quant);
+	} else {
+		HBand.TSUQi(Quant);
+		VBand.TSUQi(Quant);
+	}
 
 	if (pLow != 0){
-		pLow->TSUQi(Quant);
+		pLow->TSUQi<use_dct>(Quant);
 	} else {
 		LBand.TSUQi(Quant);
 	}
 }
+
+template void CWavelet2D::TSUQi<false>(short Quant);
+template void CWavelet2D::TSUQi<true>(short Quant);
 
 #define PRINT_STAT(band) \
 	cout << band << " :\t"; \
@@ -585,6 +607,73 @@ void CWavelet2D::TransformHaarVI(short * pImage, int Stride)
 	}
 }
 
+template <bool forward>
+	void CWavelet2D::DCT4H(void)
+{
+	short * pCur = HBand.pBand;
+	for( unsigned int j = 0; j < HBand.DimY; j++) {
+		for( unsigned int i = 0; i < HBand.DimX; i += 4) {
+			short * x = pCur + i;
+
+			if (forward) {
+				BFLY_FWD(x[0], x[3]);
+				BFLY_FWD(x[1], x[2]);
+
+				x[0] += x[1];
+				x[1] -= x[0] >> 1;
+
+				x[2] -= P1(x[3]);
+				x[3] -= U1(x[2]);
+			} else {
+				x[3] += U1(x[2]);
+				x[2] += P1(x[3]);
+
+				x[1] += x[0] >> 1;
+				x[0] -= x[1];
+
+				BFLY_INV(x[0], x[3]);
+				BFLY_INV(x[1], x[2]);
+			}
+		}
+		pCur += HBand.DimXAlign;
+	}
+}
+
+template <bool forward>
+	void CWavelet2D::DCT4V(void)
+{
+	int stride = VBand.DimXAlign;
+	short * x[4] = {VBand.pBand, VBand.pBand + stride,
+			VBand.pBand + 2 * stride, VBand.pBand + 3 * stride};
+
+	for( unsigned int j = 0; j < VBand.DimY; j += 4) {
+		for( unsigned int i = 0; i < VBand.DimX; i++) {
+			if (forward) {
+				BFLY_FWD(x[0][i], x[3][i]);
+				BFLY_FWD(x[1][i], x[2][i]);
+
+				x[0][i] += x[1][i];
+				x[1][i] -= x[0][i] >> 1;
+
+				x[2][i] -= P1(x[3][i]);
+				x[3][i] -= U1(x[2][i]);
+			} else {
+				x[3][i] += U1(x[2][i]);
+				x[2][i] += P1(x[3][i]);
+
+				x[1][i] += x[0][i] >> 1;
+				x[0][i] -= x[1][i];
+
+				BFLY_INV(x[0][i], x[3][i]);
+				BFLY_INV(x[1][i], x[2][i]);
+			}
+		}
+		for( int i = 0; i < 4; i++){
+			x[i] += stride * 4;
+		}
+	}
+}
+
 template <trans t>
 void CWavelet2D::Transform(short * pImage, int Stride)
 {
@@ -629,6 +718,19 @@ template void CWavelet2D::Transform<haar>(short *, int);
 template void CWavelet2D::TransformI<cdf97>(short *, int);
 template void CWavelet2D::TransformI<cdf53>(short *, int);
 template void CWavelet2D::TransformI<haar>(short *, int);
+
+template <bool forward>
+	void CWavelet2D::DCT4(void)
+{
+	DCT4H<forward>();
+	DCT4V<forward>();
+
+	if (pLow != 0)
+		pLow->DCT4<forward>();
+}
+
+template void CWavelet2D::DCT4<true>(void);
+template void CWavelet2D::DCT4<false>(void);
 
 void CWavelet2D::SetWeight(trans t, float baseWeight)
 {

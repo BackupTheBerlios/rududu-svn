@@ -40,6 +40,10 @@ public:
 	// Quantification
 	unsigned int TSUQ(short Quant, float Thres);
 	void TSUQi(short Quant);
+	unsigned int TSUQ_DCTH(short Quant, float Thres);
+	unsigned int TSUQ_DCTV(short Quant, float Thres);
+	void TSUQ_DCTHi(short Quant);
+	void TSUQ_DCTVi(short Quant);
 
 	// Statistiques
 	void Mean(float & Mean, float & Var);
@@ -47,7 +51,7 @@ public:
 	// Utilitaires
 	void Add(short val);
 	void Clear(bool recurse = false);
-	void GetBand(short * pOut);
+	template <class T> void GetBand(T * pOut);
 
 private:
 	char * pData;

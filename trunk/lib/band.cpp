@@ -3,6 +3,7 @@
 #include <string.h>
 
 #include "band.h"
+#include "utils.h"
 
 // #include <math.h>
 // #include <string.h>
@@ -39,10 +40,21 @@ void CBand::Init( unsigned int x, unsigned int y, int Align)
 	}
 }
 
-void CBand::GetBand(short * pOut)
+template <class T>
+	void CBand::GetBand(T * pOut)
 {
-	memcpy(pOut, pBand, BandSize * sizeof(short));
+	short * pIn = pBand;
+	int add = 1 << (sizeof(T) * 8 - 1);
+	for( unsigned int j = 0; j < DimY; j++){
+		for( unsigned int i = 0; i < DimX; i++)
+			pOut[i] = (T)(pIn[i] + add);
+		pOut += DimX;
+		pIn += DimXAlign;
+	}
 }
+
+template void CBand::GetBand(unsigned char *);
+template void CBand::GetBand(unsigned short *);
 
 void CBand::Mean( float & Mean, float & Var )
 {
@@ -94,9 +106,100 @@ void CBand::TSUQi(short Quant)
 	if (Quant == 0) Quant = 1;
 	for ( unsigned int j = 0, n = 0; j < DimY ; j ++ ) {
 		for ( unsigned int nEnd = n + DimX; n < nEnd ; n++ ) {
-			pBand[n] = pBand[n] * Quant;
+			pBand[n] *= Quant;
 		}
 		n += Diff;
+	}
+}
+
+// {1/sqrt(2), sqrt(2), sin(3*pi/8)/2, 1/(2*sin(3*pi/8))}
+static const float dct_norm[4] = {0.7071067811865475244f, 1.414213562373095049f, 0.4619397662556433781f, 0.5411961001461969844f};
+
+unsigned int CBand::TSUQ_DCTH(short Quant, float Thres)
+{
+	short Q[4], T[4];
+	int iQ[4];
+	for( int i = 0; i < 4; i++) {
+		Q[i] = (short) (Quant / (Weight * dct_norm[i]));
+		if (Q[i] == 0) Q[i] = 1;
+		iQ[i] = (int) (1 << 16) / Q[i];
+		T[i] = (short) (Thres * Q[i]);
+	}
+	int Min = 0, Max = 0;
+	Count = 0;
+	short * pCur = pBand;
+	for ( unsigned int j = 0; j < DimY ; j++) {
+		for ( unsigned int i = 0; i < DimX; i++) {
+			if ( (unsigned short) (pCur[i] + T[i & 3]) <= (unsigned short) (2 * T[i & 3])) {
+				pCur[i] = 0;
+			} else {
+				Count++;
+				pCur[i] = (pCur[i] * iQ[i & 3] + (1 << 15)) >> 16;
+				Max = MAX(pCur[i], Max);
+				Min = MIN(pCur[i], Min);
+			}
+		}
+		pCur += DimXAlign;
+	}
+	this->Min = Min;
+	this->Max = Max;
+	return Count;
+}
+
+unsigned int CBand::TSUQ_DCTV(short Quant, float Thres)
+{
+	short Q[4], T[4];
+	int iQ[4];
+	for( int i = 0; i < 4; i++) {
+		Q[i] = (short) (Quant / (Weight * dct_norm[i]));
+		if (Q[i] == 0) Q[i] = 1;
+		iQ[i] = (int) (1 << 16) / Q[i];
+		T[i] = (short) (Thres * Q[i]);
+	}
+	int Min = 0, Max = 0;
+	Count = 0;
+	short * pCur = pBand;
+	for ( unsigned int j = 0; j < DimY ; j++) {
+		for ( unsigned int i = 0; i < DimX; i++) {
+			if ( (unsigned short) (pCur[i] + T[j & 3]) <= (unsigned short) (2 * T[j & 3])) {
+				pCur[i] = 0;
+			} else {
+				Count++;
+				pCur[i] = (pCur[i] * iQ[j & 3] + (1 << 15)) >> 16;
+				Max = MAX(pCur[i], Max);
+				Min = MIN(pCur[i], Min);
+			}
+		}
+		pCur += DimXAlign;
+	}
+	this->Min = Min;
+	this->Max = Max;
+	return Count;
+}
+
+void CBand::TSUQ_DCTHi(short Quant)
+{
+	short Q[4];
+	for( int i = 0; i < 4; i++)
+		Q[i] = (short) (Quant / (Weight * dct_norm[i]));
+	short * pCur = pBand;
+	for ( unsigned int j = 0; j < DimY ; j++) {
+		for ( unsigned int i = 0; i < DimX; i++)
+			pCur[i] *= Q[i & 3];
+		pCur += DimXAlign;
+	}
+}
+
+void CBand::TSUQ_DCTVi(short Quant)
+{
+	short Q[4];
+	for( int i = 0; i < 4; i++)
+		Q[i] = (short) (Quant / (Weight * dct_norm[i]));
+	short * pCur = pBand;
+	for ( unsigned int j = 0; j < DimY ; j++) {
+		for ( unsigned int i = 0; i < DimX; i++)
+			pCur[i] *= Q[j & 3];
+		pCur += DimXAlign;
 	}
 }
 
