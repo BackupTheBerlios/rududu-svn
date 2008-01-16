@@ -4,7 +4,7 @@
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
- *   the Free Software Foundation; either version 2 of the License, or     *
+ *   the Free Software Foundation; either version 3 of the License, or     *
  *   (at your option) any later version.                                   *
  *                                                                         *
  *   This program is distributed in the hope that it will be useful,       *
@@ -23,6 +23,7 @@
 #include <utils.h>
 #include <band.h>
 #include <bitcodec.h>
+#include <huffcodec.h>
 
 #define BLK_SIZE	4
 
@@ -33,19 +34,20 @@ class CBandCodec : public CBand
 public:
     CBandCodec();
 
-    ~CBandCodec();
-
 	template <cmode mode> void pred(CMuxCodec * pCodec);
 	template <bool high_band, int block_size> void buildTree(void);
 	template <cmode mode, int block_size> void tree(CMuxCodec * pCodec);
 
 private :
-	inline bool checkBlock(short ** pCur, int i, int block_x, int block_y);
+	static inline bool checkBlock(short ** pCur, int i, int block_x, int block_y);
 	template <int block_size>
-		inline int maxLen(short * pBlock, int stride);
+		static inline int maxLen(short * pBlock, int stride);
+	template <cmode mode>
+		static void block_enum(short * pBlock, int stride, CMuxCodec * pCodec,
+		                       CBitCodec & lenCodec, CHuffCodec & kCodec, int max_len);
 	template <cmode mode, int block_size>
-		void block(short * pBlock, int stride, CMuxCodec * pCodec,
-		           CBitCodec & lenCodec, int max_len);
+		static void block_arith(short * pBlock, int stride, CMuxCodec * pCodec,
+		                        CBitCodec & lenCodec, int max_len);
 };
 
 }

@@ -4,7 +4,7 @@
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
- *   the Free Software Foundation; either version 2 of the License, or     *
+ *   the Free Software Foundation; either version 3 of the License, or     *
  *   (at your option) any later version.                                   *
  *                                                                         *
  *   This program is distributed in the hope that it will be useful,       *
@@ -26,7 +26,7 @@
 namespace rududu {
 
 #define MAX_HUFF_SYM	256 // maximum huffman table size
-#define UPDATE_STEP_MIN	64u
+#define UPDATE_STEP_MIN	128u
 #define UPDATE_STEP_MAX	2048u
 #define UPDATE_THRES	(1u << 14)
 
@@ -45,11 +45,12 @@ public:
 
 	static void print(sHuffSym * sym, int n, int print_type);
 	void print(int print_type);
+	
+	unsigned int nbSym;
 
 private:
 
 	char * pData;
-	unsigned int nbSym;
 	sHuffSym * pSym;
 	unsigned char * pSymLUT;
 	unsigned short * pFreq;

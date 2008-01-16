@@ -4,7 +4,7 @@
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
- *   the Free Software Foundation; either version 2 of the License, or     *
+ *   the Free Software Foundation; either version 3 of the License, or     *
  *   (at your option) any later version.                                   *
  *                                                                         *
  *   This program is distributed in the hope that it will be useful,       *
@@ -25,11 +25,6 @@ namespace rududu {
 
 CBandCodec::CBandCodec()
  : CBand()
-{
-}
-
-
-CBandCodec::~CBandCodec()
 {
 }
 
@@ -99,7 +94,7 @@ template <bool high_band, int block_size>
 	short * pCur[block_size] = {pBand};
 	short * pChild[2] = {0, 0};
 	unsigned int child_stride = 0;
-	
+
 	for (int i = 1; i < block_size; i++)
 		pCur[i] = pCur[i - 1] + DimXAlign;
 
@@ -150,8 +145,8 @@ template <int block_size>
 }
 
 template <cmode mode, int block_size>
-	void CBandCodec::block(short * pBlock, int stride, CMuxCodec * pCodec,
-	                       CBitCodec & lenCodec, int max_len)
+	void CBandCodec::block_arith(short * pBlock, int stride, CMuxCodec * pCodec,
+	                             CBitCodec & lenCodec, int max_len)
 {
 	for( int j = 0; j < block_size; j++){
 		for( int i = 0; i < block_size; i++){
@@ -163,12 +158,67 @@ template <cmode mode, int block_size>
 				if (len != 0) pCodec->bitsCode(tmp & ((1 << len) - 1), len);
 			} else {
 				int len = 0;
-				pBlock[i] = 0;
 				while( len < max_len && lenCodec.decode(len) == 0 ) len++;
 				if (len != 0) pBlock[i] = u2s_(pCodec->bitsDecode(len) | (1 << len));
 			}
 		}
 		pBlock += stride;
+	}
+}
+
+template <cmode mode>
+	void CBandCodec::block_enum(short * pBlock, int stride, CMuxCodec * pCodec,
+	                            CBitCodec & lenCodec, CHuffCodec & kCodec, int max_len)
+{
+	if (mode == encode) {
+		unsigned int k = 0;
+		short tmp[16];
+		unsigned int signif = 0;
+
+		for( int j = 0; j < 4; j++){
+			for( short * pEnd = pBlock + 4; pBlock < pEnd; pBlock++){
+				signif <<= 1;
+				if (pBlock[0] != 0) {
+					tmp[k] = s2u_(pBlock[0]);
+					k++;
+					signif |= 1;
+				}
+			}
+			pBlock += stride - 4;
+		}
+
+		kCodec.code(k - (kCodec.nbSym == 16), pCodec);
+
+		if (k != 0) {
+			if (k != 16)
+				pCodec->enum16Code(signif, k);
+			for( unsigned int i = 0; i < k; i++){
+				int len = bitlen(tmp[i] >> 1), l;
+				for(l = 1; l < len; l++) lenCodec.code0(l - 1);
+				if (l < max_len) lenCodec.code1(l - 1);
+				pCodec->bitsCode(tmp[i] & ((1 << len) - 1), len);
+			}
+		}
+	} else {
+		unsigned int k = kCodec.decode(pCodec) + (kCodec.nbSym == 16);
+
+		if (k != 0) {
+			unsigned int signif = 0xFFFF;
+			if (k != 16)
+				signif = pCodec->enum16Decode(k);
+
+			for( int j = 0; j < 4; j++){
+				for( short * pEnd = pBlock + 4; pBlock < pEnd; pBlock++){
+					if (signif & (1 << 15)) {
+						int len = 1;
+						while( len < max_len && lenCodec.decode(len - 1) == 0 ) len++;
+						pBlock[0] = u2s_(pCodec->bitsDecode(len) | (1 << len));
+					}
+					signif <<= 1;
+				}
+				pBlock += stride - 4;
+			}
+		}
 	}
 }
 
@@ -196,6 +246,7 @@ template <cmode mode, int block_size>
 
 	CBitCodec lenCodec(pCodec);
 	CBitCodec treeCodec(pCodec);
+	CHuffCodec kCodec(mode, 0, 17 - (pChild == 0));
 
 	for( unsigned int j = 0; j < DimY; j += block_size){
 		for( unsigned int i = 0, k = 0; i < DimX; i += block_size, k += block_size >> 1){
@@ -215,13 +266,13 @@ template <cmode mode, int block_size>
 					pCur1[i] = pCur1[i + (block_size >> 1)] = pCur2[i] = pCur2[i + (block_size >> 1)] = -(pChild != 0) & INSIGNIF_BLOCK;
 				} else {
 					treeCodec.code0(context);
-					block<mode, block_size>(&pCur1[i], DimXAlign, pCodec, lenCodec, bits);
+					block_enum<mode>(&pCur1[i], DimXAlign, pCodec, lenCodec, kCodec, bits);
 				}
 			} else {
 				if (treeCodec.decode(context))
 					pCur1[i] = pCur1[i + (block_size >> 1)] = pCur2[i] = pCur2[i + (block_size >> 1)] = -(pChild != 0) & INSIGNIF_BLOCK;
 				else
-					block<mode, block_size>(&pCur1[i], DimXAlign, pCodec, lenCodec, bits);
+					block_enum<mode>(&pCur1[i], DimXAlign, pCodec, lenCodec, kCodec, bits);
 			}
 		}
 		pCur1 += diff;

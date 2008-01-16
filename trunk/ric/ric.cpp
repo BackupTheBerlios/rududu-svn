@@ -1,3 +1,22 @@
+/***************************************************************************
+ *   Copyright (C) 2007 by Nicolas Botti   *
+ *   rududu@laposte.net   *
+ *                                                                         *
+ *   This program is free software; you can redistribute it and/or modify  *
+ *   it under the terms of the GNU General Public License as published by  *
+ *   the Free Software Foundation; either version 3 of the License, or     *
+ *   (at your option) any later version.                                   *
+ *                                                                         *
+ *   This program is distributed in the hope that it will be useful,       *
+ *   but WITHOUT ANY WARRANTY; without even the implied warranty of        *
+ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         *
+ *   GNU General Public License for more details.                          *
+ *                                                                         *
+ *   You should have received a copy of the GNU General Public License     *
+ *   along with this program; if not, write to the                         *
+ *   Free Software Foundation, Inc.,                                       *
+ *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.             *
+ ***************************************************************************/
 
 #include <fstream>
 #include <iostream>
@@ -103,8 +122,7 @@ void CompressImage(string & infile, string & outfile, int Quant, float Thres)
 	CWavelet2D Wavelet(img.columns(), img.rows(), WAV_LEVELS);
 	Wavelet.SetWeight(TRANSFORM);
 	Wavelet.Transform<TRANSFORM>(ImgPixels, img.columns());
-	Wavelet.DCT4<true>();
-	Wavelet.TSUQ<true>(Quants(Quant), Thres);
+	Wavelet.TSUQ<false>(Quants(Quant), Thres);
 	Wavelet.CodeBand(&Codec, 1);
 
 	pEnd = Codec.endCoding();
@@ -145,8 +163,7 @@ void DecompressImage(string & infile, string & outfile, int Dither)
 	CWavelet2D Wavelet(width, heigth, WAV_LEVELS);
 	Wavelet.SetWeight(TRANSFORM);
 	Wavelet.DecodeBand(&Codec, 1);
-	Wavelet.TSUQi<true>(Quants(Head.Quant));
-	Wavelet.DCT4<false>();
+	Wavelet.TSUQi<false>(Quants(Head.Quant));
 	Wavelet.TransformI<TRANSFORM>(ImgPixels + width * heigth, width);
 
 	if (Head.Quant == 0)
@@ -222,11 +239,10 @@ int main( int argc, char *argv[] )
 	string outfile;
 	float ThresRatio = 0.7;
 	int Quant = 9;
-	float RecLevelRatio = 0;
 	int Type = 0;
 	int Dither = 0;
 
-	while ((c = getopt(argc , argv, "i:o:q:r:t:v:d")) != -1) {
+	while ((c = getopt(argc , argv, "i:o:q:t:v:d")) != -1) {
 		switch (c) {
 			case 'i':
 				infile = optarg;
@@ -236,9 +252,6 @@ int main( int argc, char *argv[] )
 				break;
 			case 'q':
 				Quant = atoi(optarg);
-				break;
-			case 'r':
-				RecLevelRatio = atof(optarg);
 				break;
 			case 't':
 				ThresRatio = atof(optarg);
@@ -258,7 +271,7 @@ int main( int argc, char *argv[] )
 	int mode = 0; // 0 = code , 1 = decode
 	size_t loc;
 	if ((loc = infile.rfind(".ric", string::npos, 4)) != string::npos){
-		// mode dÃ©codage
+		// mode décodage
 		mode = 1;
 		if (outfile.length() == 0) {
 			outfile = infile;
