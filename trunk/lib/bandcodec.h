@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2007 by Nicolas Botti                                   *
+ *   Copyright (C) 2007-2008 by Nicolas Botti                              *
  *   <rududu@laposte.net>                                                  *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
@@ -32,15 +32,18 @@ namespace rududu {
 class CBandCodec : public CBand
 {
 public:
-    CBandCodec();
+	CBandCodec();
+	virtual ~CBandCodec();
 
 	template <cmode mode> void pred(CMuxCodec * pCodec);
-	template <bool high_band, int block_size> void buildTree(void);
+	template <bool high_band, int block_size> void buildTree(short Quant, float Thres, int lambda);
 	template <cmode mode, int block_size> void tree(CMuxCodec * pCodec);
 
 private :
-	static inline bool checkBlock(short ** pCur, int i, int block_x, int block_y);
 	template <int block_size>
+			unsigned int tsuqBlock(short * pCur, int stride, short Quant, short iQuant, short T, int lambda);
+	
+	template <int block_size, cmode mode>
 		static inline int maxLen(short * pBlock, int stride);
 	template <cmode mode>
 		static void block_enum(short * pBlock, int stride, CMuxCodec * pCodec,
@@ -48,6 +51,7 @@ private :
 	template <cmode mode, int block_size>
 		static void block_arith(short * pBlock, int stride, CMuxCodec * pCodec,
 		                        CBitCodec & lenCodec, int max_len);
+	unsigned int * pRD;
 };
 
 }

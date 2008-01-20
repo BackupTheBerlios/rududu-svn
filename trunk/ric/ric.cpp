@@ -1,6 +1,6 @@
 /***************************************************************************
- *   Copyright (C) 2007 by Nicolas Botti   *
- *   rududu@laposte.net   *
+ *   Copyright (C) 2007-2008 by Nicolas Botti                              *
+ *   <rududu@laposte.net>                                                  *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
@@ -122,8 +122,7 @@ void CompressImage(string & infile, string & outfile, int Quant, float Thres)
 	CWavelet2D Wavelet(img.columns(), img.rows(), WAV_LEVELS);
 	Wavelet.SetWeight(TRANSFORM);
 	Wavelet.Transform<TRANSFORM>(ImgPixels, img.columns());
-	Wavelet.TSUQ<false>(Quants(Quant), Thres);
-	Wavelet.CodeBand(&Codec, 1);
+	Wavelet.CodeBand(&Codec, 1, Quants(Quant), Thres, 0);
 
 	pEnd = Codec.endCoding();
 

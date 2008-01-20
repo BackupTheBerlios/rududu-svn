@@ -1,10 +1,10 @@
 /***************************************************************************
- *   Copyright (C) 2007 by Nicolas Botti   *
- *   rududu@laposte.net   *
+ *   Copyright (C) 2007-2008 by Nicolas Botti                              *
+ *   <rududu@laposte.net>                                                  *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
- *   the Free Software Foundation; either version 2 of the License, or     *
+ *   the Free Software Foundation; either version 3 of the License, or     *
  *   (at your option) any later version.                                   *
  *                                                                         *
  *   This program is distributed in the hope that it will be useful,       *
@@ -69,8 +69,7 @@ void CRududuCodec::encodeImage(CImage * pImage)
 {
 	for( int c = 0; c < pImage->component; c++){
 		wavelet->Transform<TRANSFORM>(pImage->pImage[c], pImage->dimXAlign);
-		wavelet->TSUQ<false>(quants(quant), THRES_RATIO);
-		wavelet->CodeBand(&codec, 1);
+		wavelet->CodeBand(&codec, 1, quants(quant), THRES_RATIO, 0);
 		cerr << codec.getSize() << endl;
 		wavelet->TSUQi<false>(quants(quant));
 		wavelet->TransformI<TRANSFORM>(pImage->pImage[c], pImage->dimXAlign);

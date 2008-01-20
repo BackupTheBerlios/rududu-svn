@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2007 by Nicolas Botti                                   *
+ *   Copyright (C) 2007-2008 by Nicolas Botti                              *
  *   <rududu@laposte.net>                                                  *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
@@ -23,9 +23,15 @@
 
 namespace rududu {
 
-CBandCodec::CBandCodec()
- : CBand()
+CBandCodec::CBandCodec(void):
+		CBand(),
+		pRD(0)
 {
+}
+
+CBandCodec::~CBandCodec()
+{
+	delete[] pRD;
 }
 
 template <cmode mode>
@@ -79,53 +85,95 @@ template void CBandCodec::pred<decode>(CMuxCodec *);
 
 #define INSIGNIF_BLOCK -0x8000
 
-bool CBandCodec::checkBlock(short ** pCur, int i, int block_x, int block_y)
+template <int block_size>
+unsigned int CBandCodec::tsuqBlock(short * pCur, int stride, short Quant, short iQuant, short T, int lambda)
 {
-	short res = 0;
-	for (int l = 0; l < block_y; l++)
-		for (int k = i; k < i + block_x; k++)
-			res |= pCur[l][k];
-	return res == 0;
+	unsigned int dist = 0, cnt = 0, rate = 0;
+	short min = 0, max = 0;
+	static const unsigned char blen[block_size * block_size + 1] = {
+		0, 11, 17, 22, 26, 29, 31, 32, 32, 32, 31, 29, 26, 22, 17, 11, 0
+	};
+	for (int j = 0; j < block_size; j++) {
+		for ( int i = 0; i < block_size; i++ ) {
+			if ( (unsigned short) (pCur[i] + T) <= (unsigned short) (2 * T)) {
+				pCur[i] = 0;
+			} else {
+				cnt++;
+				short tmp = pCur[i];
+				dist += tmp * tmp;
+				pCur[i] = (pCur[i] * (int)iQuant + (1 << 15)) >> 16;
+				tmp -= pCur[i] * Quant;
+				dist -= tmp * tmp;
+				max = MAX(max, pCur[i]);
+				min = MIN(min, pCur[i]);
+				pCur[i] = s2u_(pCur[i]);
+				rate += bitlen(pCur[i]);
+			}
+		}
+		pCur += stride;
+	}
+	
+	rate = (rate + cnt) * 2 + blen[cnt];
+	
+	if (dist <= lambda * rate)
+		return 0;
+	
+	Max = MAX(Max, max);
+	Min = MIN(Min, min);
+	Count += cnt;
+	return dist - lambda * rate;
 }
 
 template <bool high_band, int block_size>
-		void CBandCodec::buildTree(void)
+		void CBandCodec::buildTree(const short Quant, const float Thres, const int lambda)
 {
-	short * pCur[block_size] = {pBand};
-	short * pChild[2] = {0, 0};
+	short Q = (short) (Quant / Weight);
+	if (Q == 0) Q = 1;
+	short iQuant = (1 << 16) / Q;
+	short T = (short) (Thres * Q);
+	Min = 0, Max = 0, Count = 0;
+	short * pCur = pBand;
+	unsigned int * pChild[2] = {0, 0};
 	unsigned int child_stride = 0;
-
-	for (int i = 1; i < block_size; i++)
-		pCur[i] = pCur[i - 1] + DimXAlign;
+	
+	if (this->pRD == 0)
+		this->pRD = new unsigned int [DimX * DimY / (block_size * block_size)];
+	unsigned int * pRD = this->pRD;
+	unsigned int rd_stride = DimX / block_size;
 
 	if (! high_band) {
-		pChild[0] = this->pChild->pBand;
-		pChild[1] = pChild[0] + block_size * this->pChild->DimXAlign;
-		child_stride = this->pChild->DimXAlign * 2 * block_size;
+		pChild[0] = ((CBandCodec*)this->pChild)->pRD;
+		pChild[1] = pChild[0] + this->pChild->DimX / block_size;
+		child_stride = this->pChild->DimX * 2 / block_size;
 	}
 
 	for( unsigned int j = 0; j < DimY; j += block_size){
-		for( unsigned int i = 0; i < DimX; i += block_size){
-			if (checkBlock(pCur, i, block_size, block_size) && (high_band ||
-							(INSIGNIF_BLOCK == pChild[0][2*i] &&
-							INSIGNIF_BLOCK == pChild[0][2*i + block_size] &&
-							INSIGNIF_BLOCK == pChild[1][2*i] &&
-							INSIGNIF_BLOCK == pChild[1][2*i + block_size])))
-				pCur[0][i] = INSIGNIF_BLOCK;
+		for( unsigned int i = 0, k = 0; i < DimX; i += block_size, k++){
+			unsigned int rate = 0;
+			unsigned long long dist = tsuqBlock<block_size>(pCur + i, DimXAlign, Q, iQuant, T, lambda);
+			if (! high_band) {
+				dist += pChild[0][2*k] + pChild[0][2*k + 1] + pChild[1][2*k] + pChild[1][2*k + 1];
+				rate += 4 * 2;
+			}
+			if (dist <= lambda * rate) {
+				pCur[i] = INSIGNIF_BLOCK;
+				pRD[k] = 0;
+			} else
+				pRD[k] = MIN(dist - lambda * rate, 0xFFFFFFFFu);
 		}
-		for (int k = 0; k < block_size; k++)
-			pCur[k] += DimXAlign * block_size;
+		pCur += DimXAlign * block_size;
+		pRD += rd_stride;
 		pChild[0] += child_stride;
 		pChild[1] += child_stride;
 	}
 
 	if (pParent != 0)
-		((CBandCodec*)pParent)->buildTree<false, block_size>();
+		((CBandCodec*)pParent)->buildTree<false, block_size>(Quant, Thres, lambda);
 }
 
-template void CBandCodec::buildTree<true, BLK_SIZE>(void);
+template void CBandCodec::buildTree<true, BLK_SIZE>(short, float, int);
 
-template <int block_size>
+template <int block_size, cmode mode>
 	int CBandCodec::maxLen(short * pBlock, int stride)
 {
 	if (block_size == 1)
@@ -135,10 +183,13 @@ template <int block_size>
 	for( int j = 0; j < block_size; j++){
 		for( int i = 0; i < block_size; i++){
 			max = MAX(max, pBlock[i]);
-			min = MIN(min, pBlock[i]);
+			if (mode == decode)
+				min = MIN(min, pBlock[i]);
 		}
 		pBlock += stride;
 	}
+	if (mode == encode)
+		return bitlen(max >> 1);
 	min = ABS(min);
 	max = MAX(max, min);
 	return bitlen(max);
@@ -179,7 +230,7 @@ template <cmode mode>
 			for( short * pEnd = pBlock + 4; pBlock < pEnd; pBlock++){
 				signif <<= 1;
 				if (pBlock[0] != 0) {
-					tmp[k] = s2u_(pBlock[0]);
+					tmp[k] = pBlock[0];
 					k++;
 					signif |= 1;
 				}
@@ -259,7 +310,7 @@ template <cmode mode, int block_size>
 				continue;
 			}
 
-			if (pPar) context = maxLen<block_size >> 1>(&pPar[k], pParent->DimXAlign);
+			if (pPar) context = maxLen<block_size >> 1, mode>(&pPar[k], pParent->DimXAlign);
 			if (mode == encode) {
 				if (pCur1[i] == INSIGNIF_BLOCK) {
 					treeCodec.code1(context);
