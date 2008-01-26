@@ -41,7 +41,7 @@ public:
 
 private :
 	template <int block_size>
-			unsigned int tsuqBlock(short * pCur, int stride, short Quant, short iQuant, short T, int lambda);
+			unsigned int tsuqBlock(short * pCur, int stride, short Quant, short iQuant, int lambda);
 	
 	template <int block_size, cmode mode>
 		static inline int maxLen(short * pBlock, int stride);

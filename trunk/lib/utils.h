@@ -113,6 +113,12 @@ int inline u2s_(int u)
 	return ((u >> 1) + m) ^ m;
 }
 
+int inline abs(int s)
+{
+	int const m = s >> sizeof(int) * 8 - 1;
+	return (s + m) ^ m;
+}
+
 // from http://graphics.stanford.edu/~seander/bithacks.html
 int inline bitcnt(int v)
 {
