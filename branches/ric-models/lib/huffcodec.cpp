@@ -136,6 +136,8 @@ int CHuffCodec::comp_freq(const sHuffSym * sym1, const sHuffSym * sym2)
 
 int CHuffCodec::comp_len(const sHuffSym * sym1, const sHuffSym * sym2)
 {
+	if (sym1->len == sym2->len)
+		return sym1->value - sym2->value;
 	return sym1->len - sym2->len;
 }
 

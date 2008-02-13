@@ -30,8 +30,8 @@
   </general>
   <kdevautoproject>
     <general>
-      <activetarget>utils/testmotion</activetarget>
-      <useconfiguration>debug</useconfiguration>
+      <activetarget>utils/huffgen</activetarget>
+      <useconfiguration>optimized</useconfiguration>
     </general>
     <run>
       <mainprogram>/home/nico/src/rududu/debug</mainprogram>
@@ -40,20 +40,25 @@
       <runarguments>
         <ric/>
         <rududu/>
-        <testmotion>&lt; /home/nico/films/video_test/ParkJoy.rgb | mplayer -demuxer rawvideo -rawvideo fps=25:w=1280:h=720:yv12 -</testmotion>
+        <testmotion>&lt; /home/nico/films/video_test/ParkJoy.rgb 2> /home/nico/testmotion | mplayer -demuxer rawvideo -rawvideo fps=25:w=1280:h=720:yv12 -</testmotion>
         <sgi2rgb>/home/nico/films/video_test/CrowdRun/0711*.sgi > /home/nico/films/video_test/test.rgb</sgi2rgb>
+        <huffgen/>
       </runarguments>
       <customdirectory>/</customdirectory>
       <programargs/>
       <autocompile>true</autocompile>
       <envvars/>
       <debugarguments>
-        <testmotion>&lt; /home/nico/films/video_test/ParkJoy.rgb >&amp;2 2> /home/nico/testmv.txt</testmotion>
+        <testmotion>&lt; /home/nico/films/video_test/ParkJoy.rgb 2> /home/nico/testmotion</testmotion>
         <sgi2rgb>/home/nico/films/video_test/CrowdRun/0711*.sgi > /home/nico/films/video_test/test.rgb</sgi2rgb>
+        <ric>-i &quot;/home/nico/Documents/Images/Images test/lena.pgm&quot; -o &quot;/home/nico/Documents/Images/Images test/lena.ric&quot;</ric>
+        <huffgen/>
       </debugarguments>
       <cwd>
         <testmotion>/home/nico/src/rududu/debug/./utils</testmotion>
         <sgi2rgb>/home/nico/src/rududu/debug/./utils</sgi2rgb>
+        <ric>/home/nico/src/rududu/debug/./ric</ric>
+        <huffgen>/home/nico/src/rududu/optimized/./utils</huffgen>
       </cwd>
       <globaldebugarguments/>
       <globalcwd>/home/nico/src/rududu/debug</globalcwd>
@@ -88,7 +93,7 @@
         <cxxflags>-O0 -g3</cxxflags>
         <envvars/>
         <topsourcedir/>
-        <cppflags/>
+        <cppflags>-DDEBUG</cppflags>
         <ldflags/>
         <ccompilerbinary/>
         <cxxcompilerbinary/>
@@ -221,6 +226,8 @@
       <usePermanentCaching>true</usePermanentCaching>
       <alwaysIncludeNamespaces>false</alwaysIncludeNamespaces>
       <includePaths>.;</includePaths>
+      <parseMissingHeadersExperimental>false</parseMissingHeadersExperimental>
+      <resolveIncludePathsUsingMakeExperimental>false</resolveIncludePathsUsingMakeExperimental>
     </codecompletion>
     <creategettersetter>
       <prefixGet/>
@@ -263,6 +270,7 @@
       <breakonloadinglibs>true</breakonloadinglibs>
       <separatetty>false</separatetty>
       <floatingtoolbar>false</floatingtoolbar>
+      <raiseGDBOnStart>false</raiseGDBOnStart>
     </general>
     <display>
       <staticmembers>false</staticmembers>
@@ -272,6 +280,7 @@
   </kdevdebugger>
   <ctagspart>
     <customArguments/>
-    <customTagfilePath/>
+    <customTagfilePath>/home/nico/src/rududu/tags</customTagfilePath>
+    <activeTagsFiles/>
   </ctagspart>
 </kdevelop>
