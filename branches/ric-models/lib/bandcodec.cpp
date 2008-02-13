@@ -19,7 +19,6 @@
  ***************************************************************************/
 
 #include "bandcodec.h"
-#include "bitcodec.h"
 
 namespace rududu {
 
@@ -91,7 +90,9 @@ unsigned int CBandCodec::tsuqBlock(short * pCur, int stride, short Quant, short 
 	unsigned int dist = 0, cnt = 0, rate = 0;
 	short min = 0, max = 0;
 	static const unsigned char blen[block_size * block_size + 1] = {
-		0, 11, 17, 22, 26, 29, 31, 32, 32, 32, 31, 29, 26, 22, 17, 11, 0
+// 		0, 11, 17, 22, 26, 29, 31, 32, 32, 32, 31, 29, 26, 22, 17, 11, 0 // theo
+// 		10, 15, 22, 27, 31, 34, 37, 39, 39, 39, 38, 37, 34, 30, 25, 19, 10 // @q=9 for all bands
+		8, 16, 22, 26, 30, 32, 34, 35, 35, 35, 34, 32, 30, 26, 22, 16, 8 // enum theo
 	};
 	for (int j = 0; j < block_size; j++) {
 		for ( int i = 0; i < block_size; i++ ) {
@@ -219,7 +220,7 @@ template <cmode mode, int block_size>
 
 template <cmode mode>
 	void CBandCodec::block_enum(short * pBlock, int stride, CMuxCodec * pCodec,
-	                            CBitCodec & lenCodec, CHuffCodec & kCodec, int max_len)
+	                            CGeomCodec & geoCodec, CHuffCodec & kCodec)
 {
 	if (mode == encode) {
 		unsigned int k = 0;
@@ -244,10 +245,8 @@ template <cmode mode>
 			if (k != 16)
 				pCodec->enum16Code(signif, k);
 			for( unsigned int i = 0; i < k; i++){
-				int len = bitlen(tmp[i] >> 1), l;
-				for(l = 1; l < len; l++) lenCodec.code0(l - 1);
-				if (l < max_len) lenCodec.code1(l - 1);
-				pCodec->bitsCode(tmp[i] & ((1 << len) - 1), len);
+				geoCodec.code((tmp[i] >> 1) - 1,  k - 1);
+				pCodec->bitsCode(tmp[i] & 1, 1);
 			}
 		}
 	} else {
@@ -261,9 +260,7 @@ template <cmode mode>
 			for( int j = 0; j < 4; j++){
 				for( short * pEnd = pBlock + 4; pBlock < pEnd; pBlock++){
 					if (signif & (1 << 15)) {
-						int len = 1;
-						while( len < max_len && lenCodec.decode(len - 1) == 0 ) len++;
-						pBlock[0] = u2s_(pCodec->bitsDecode(len) | (1 << len));
+						pBlock[0] = u2s_(((geoCodec.decode(k - 1) + 1) << 1) | pCodec->bitsDecode(1));
 					}
 					signif <<= 1;
 				}
@@ -276,13 +273,7 @@ template <cmode mode>
 template <cmode mode, int block_size>
 	void CBandCodec::tree(CMuxCodec * pCodec)
 {
-	int bits;
-	if (mode == encode) {
-		bits = MAX(Max, -Min);
-		bits = bitlen((unsigned int) bits);
-		pCodec->tabooCode(bits);
-	} else
-		bits = pCodec->tabooDecode();
+	static const unsigned char geo_init[GEO_CONTEXT_NB] = {5, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 10, 10, 10, 13};
 
 	short * pCur1 = pBand;
 	short * pCur2 = pBand + DimXAlign * (block_size >> 1);
@@ -295,7 +286,7 @@ template <cmode mode, int block_size>
 		diff_par = pParent->DimXAlign * (block_size >> 1);
 	}
 
-	CBitCodec lenCodec(pCodec);
+	CGeomCodec geoCodec(pCodec, geo_init);
 	CBitCodec treeCodec(pCodec);
 	CHuffCodec kCodec(mode, 0, 17 - (pChild == 0));
 
@@ -317,13 +308,13 @@ template <cmode mode, int block_size>
 					pCur1[i] = pCur1[i + (block_size >> 1)] = pCur2[i] = pCur2[i + (block_size >> 1)] = -(pChild != 0) & INSIGNIF_BLOCK;
 				} else {
 					treeCodec.code0(context);
-					block_enum<mode>(&pCur1[i], DimXAlign, pCodec, lenCodec, kCodec, bits);
+					block_enum<mode>(&pCur1[i], DimXAlign, pCodec, geoCodec, kCodec);
 				}
 			} else {
 				if (treeCodec.decode(context))
 					pCur1[i] = pCur1[i + (block_size >> 1)] = pCur2[i] = pCur2[i + (block_size >> 1)] = -(pChild != 0) & INSIGNIF_BLOCK;
 				else
-					block_enum<mode>(&pCur1[i], DimXAlign, pCodec, lenCodec, kCodec, bits);
+					block_enum<mode>(&pCur1[i], DimXAlign, pCodec, geoCodec, kCodec);
 			}
 		}
 		pCur1 += diff;

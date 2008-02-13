@@ -22,6 +22,7 @@
 
 #include <utils.h>
 #include <band.h>
+#include <geomcodec.h>
 #include <bitcodec.h>
 #include <huffcodec.h>
 
@@ -42,12 +43,12 @@ public:
 private :
 	template <int block_size>
 			unsigned int tsuqBlock(short * pCur, int stride, short Quant, short iQuant, short T, int lambda);
-	
+
 	template <int block_size, cmode mode>
 		static inline int maxLen(short * pBlock, int stride);
 	template <cmode mode>
 		static void block_enum(short * pBlock, int stride, CMuxCodec * pCodec,
-		                       CBitCodec & lenCodec, CHuffCodec & kCodec, int max_len);
+		                       CGeomCodec & geoCodec, CHuffCodec & kCodec);
 	template <cmode mode, int block_size>
 		static void block_arith(short * pBlock, int stride, CMuxCodec * pCodec,
 		                        CBitCodec & lenCodec, int max_len);
