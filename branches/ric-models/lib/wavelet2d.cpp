@@ -188,11 +188,17 @@ void CWavelet2D::Stats(void)
 	}
 }
 
+#define MUL_FASTER
+
 inline short CWavelet2D::mult08(short a)
 {
+#ifdef MUL_FASTER
+	return (a * 0xCCCCu) >> 16;
+#else
 	a -= a >> 2;
 	a += a >> 4;
 	return a + (a >> 8);
+#endif
 }
 
 void CWavelet2D::TransLine97(short * i, int len)
