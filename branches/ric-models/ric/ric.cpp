@@ -263,7 +263,7 @@ int main( int argc, char *argv[] )
 		}
 	}
 	if (infile.length() == 0) {
-		cout << "An input file name must be specified (option -i)" << endl;
+		cerr << "An input file name must be specified (option -i)" << endl;
 		exit(1);
 	}
 
