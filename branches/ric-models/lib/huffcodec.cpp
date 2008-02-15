@@ -137,7 +137,7 @@ int CHuffCodec::comp_freq(const sHuffSym * sym1, const sHuffSym * sym2)
 int CHuffCodec::comp_len(const sHuffSym * sym1, const sHuffSym * sym2)
 {
 	if (sym1->len == sym2->len)
-		return sym1->value - sym2->value;
+		return sym2->code - sym1->code;
 	return sym1->len - sym2->len;
 }
 
@@ -242,8 +242,6 @@ void CHuffCodec::make_huffman(sHuffSym * sym, int n)
 
 	make_len(sym, n);
 	make_codes(sym, n);
-	print(sym, n, 2);
-	print(sym, n, 0);
 }
 
 /**
@@ -257,20 +255,20 @@ void CHuffCodec::make_huffman(sHuffSym * sym, int n)
  * @param n
  * @param print_type
  */
-void CHuffCodec::print(sHuffSym * sym, int n, int print_type)
+void CHuffCodec::print(sHuffSym * sym, int n, int print_type, char * name)
 {
 	unsigned int bits, cnt;
 	switch( print_type ) {
 	case 0 :
 		qsort(sym, n, sizeof(sHuffSym),
 		      (int (*)(const void *, const void *)) comp_sym);
-		printf("{\n	");
+		printf("%s[%i] = { ", name, n);
 		for( int i = 0; i < n; i++) {
 			if (i != 0)
 				printf(", ");
 			printf("{%u, %u}", sym[i].code, sym[i].len);
 		}
-		printf("\n}\n");
+		printf(" };\n");
 		break;
 	case 1:
 		qsort(sym, n, sizeof(sHuffSym),
@@ -286,7 +284,7 @@ void CHuffCodec::print(sHuffSym * sym, int n, int print_type)
 	case 2:
 		qsort(sym, n, sizeof(sHuffSym),
 		      (int (*)(const void *, const void *)) comp_len);
-		printf("{\n	");
+		printf("%s[] = { ", name);
 		bits = sym[0].len;
 		cnt = 1;
 		for ( int i = 1; i < n; i++ ) {
@@ -300,8 +298,7 @@ void CHuffCodec::print(sHuffSym * sym, int n, int print_type)
 		}
 		printf("{0x%x, %u, %u}", sym[n-1].code << (16 - sym[n-1].len),
 		       sym[n-1].len, (unsigned char)(sym[n-1].code + n - 1));
-		printf("\n}; // %i\n", cnt);
-		printf("{ ");
+		printf(" };\nlut_%s[%i] = { ", name, n);
 		for ( int i = 0; i < n; i++ ) {
 			printf("%u", sym[i].value);
 			if (i != n - 1)
@@ -326,10 +323,10 @@ void CHuffCodec::print(sHuffSym * sym, int n, int print_type)
 	fflush(0);
 }
 
-void CHuffCodec::print(int print_type)
+void CHuffCodec::print(int print_type, char * name)
 {
 	if (pSymLUT == 0)
-		print(pSym, nbSym, print_type);
+		print(pSym, nbSym, print_type, name);
 }
 
 }

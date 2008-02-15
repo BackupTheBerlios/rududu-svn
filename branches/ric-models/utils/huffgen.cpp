@@ -35,30 +35,63 @@ int main( int argc, char *argv[] )
 {
 	string progname = argv[0];
 	sHuffSym input[MAX_HUFF_SYM];
-	unsigned short counts[MAX_HUFF_SYM];
-	int sym_cnt = 0;
+	unsigned int counts[MAX_HUFF_SYM], tab_idx = 0;
+	double huff_size = 0, theo_size = 0;
 
-	cin >> input[sym_cnt].code;
+	cin.peek();
 	while(! cin.eof()) {
-		counts[sym_cnt] = input[sym_cnt].code;
-		input[sym_cnt].value = sym_cnt;
-		sym_cnt++;
-		cin >> input[sym_cnt].code;
-	}
+		int sym_cnt = 0;
+		unsigned int sum = 0;
+		char c = cin.get();
+		while(c != '\n' && ! cin.eof()) {
+			cin.putback(c);
+			cin >> counts[sym_cnt];
+			sum += counts[sym_cnt];
+			sym_cnt++;
+			do c = cin.get();
+			while( c == ' ' or c == '\t' );
+		}
 
-	CHuffCodec::make_huffman(input, sym_cnt);
+		int max_len = bitlen(sum), shift = 0;
+		if (max_len > 16) shift = max_len - 16;
 
-	double total_cnt = 0, total_size = 0, optim_size = 0;
-	for( int i = 0; i < sym_cnt; i++) {
-		total_cnt += counts[i];
-		total_size += counts[i]* input[i].len;
-		optim_size += counts[i] * __builtin_log2(counts[i]);
+		for( int i = 0; i < sym_cnt; i++) {
+			counts[i] >>= shift;
+			input[i].code = counts[i];
+			input[i].value = i;
+		}
+
+		if (sym_cnt != 0) {
+			CHuffCodec::make_huffman(input, sym_cnt);
+			char name[16];
+			sprintf(name, "enc%02i", tab_idx);
+			CHuffCodec::print(input, sym_cnt, 0, name);
+			sprintf(name, "dec%02i", tab_idx);
+			CHuffCodec::print(input, sym_cnt, 2, name);
+
+			double total_cnt = 0, total_size = 0, optim_size = 0;
+			for( int i = 0; i < sym_cnt; i++) {
+				total_cnt += counts[i];
+				total_size += counts[i] * input[i].len;
+				if (counts[i] != 0)
+					optim_size += counts[i] * __builtin_log2(counts[i]);
+			}
+			optim_size = total_cnt * __builtin_log2(total_cnt) - optim_size;
+			cout << "count : " << total_cnt << endl;
+			if (total_cnt > 0) {
+				cout << "huff : " << total_size / total_cnt << " bps" << endl;
+				cout << "opt : " << optim_size / total_cnt << " bps" << endl;
+				cout << "loss : " << (total_size - optim_size) / total_cnt << " bps (" << (total_size - optim_size) * 100 / optim_size << "%)\n" << endl;
+				double mult = 1;
+				if (shift != 0) mult = (double) sum / total_cnt;
+				huff_size += total_size * mult;
+				theo_size += optim_size * mult;
+			}
+			tab_idx++;
+		} else tab_idx = 0;
 	}
-	optim_size = total_cnt * __builtin_log2(total_cnt) - optim_size;
-	cout << endl << "count : " << total_cnt << endl;
-	cout << "huff : " << total_size / total_cnt << " bps" << endl;
-	cout << "opt : " << optim_size / total_cnt << " bps" << endl;
-	cout << "loss : " << (total_size - optim_size) / total_cnt << " bps (" << (total_size - optim_size) * 100 / optim_size << "%)" << endl;
+	cout << "total size : " << huff_size << " bits" << endl;
+	cout << "loss : " << (huff_size - theo_size) * 100 / theo_size << "%" << endl;
 
 	return 0;
 }

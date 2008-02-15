@@ -43,9 +43,9 @@ public:
 
 	static void make_huffman(sHuffSym * sym, int n);
 
-	static void print(sHuffSym * sym, int n, int print_type);
-	void print(int print_type);
-	
+	static void print(sHuffSym * sym, int n, int print_type, char * name);
+	void print(int print_type, char * name);
+
 	unsigned int nbSym;
 
 private:
