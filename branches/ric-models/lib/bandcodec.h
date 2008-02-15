@@ -24,9 +24,9 @@
 #include <band.h>
 #include <geomcodec.h>
 #include <bitcodec.h>
-#include <huffcodec.h>
 
 #define BLK_SIZE	4
+// #define GENERATE_HUFF_STATS
 
 namespace rududu {
 
@@ -38,7 +38,12 @@ public:
 
 	template <cmode mode> void pred(CMuxCodec * pCodec);
 	template <bool high_band, int block_size> void buildTree(short Quant, float Thres, int lambda);
-	template <cmode mode, int block_size> void tree(CMuxCodec * pCodec);
+	template <cmode mode, bool high_band, int block_size> void tree(CMuxCodec * pCodec);
+
+#ifdef GENERATE_HUFF_STATS
+	static unsigned int histo_l[17][17];
+	static unsigned int histo_h[17][16];
+#endif
 
 private :
 	template <int block_size>
@@ -46,13 +51,15 @@ private :
 
 	template <int block_size, cmode mode>
 		static inline int maxLen(short * pBlock, int stride);
-	template <cmode mode>
-		static void block_enum(short * pBlock, int stride, CMuxCodec * pCodec,
-		                       CGeomCodec & geoCodec, CHuffCodec & kCodec);
-	template <cmode mode, int block_size>
-		static void block_arith(short * pBlock, int stride, CMuxCodec * pCodec,
-		                        CBitCodec & lenCodec, int max_len);
+	template <cmode mode, bool high_band>
+		static unsigned int block_enum(short * pBlock, int stride, CMuxCodec * pCodec,
+		                       CGeomCodec & geoCodec, int idx);
 	unsigned int * pRD;
+
+	static const sHuffSym * huff_lk_enc[17];
+	static const sHuffSym * huff_hk_enc[16];
+	static const sHuffCan huff_lk_dec[17];
+	static const sHuffCan huff_hk_dec[16];
 };
 
 }

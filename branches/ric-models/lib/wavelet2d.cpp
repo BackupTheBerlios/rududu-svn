@@ -84,18 +84,59 @@ void CWavelet2D::CodeBand(CMuxCodec * pCodec, int method,
 
 	switch( method ){
 		case 1 :
+#ifdef GENERATE_HUFF_STATS
+			cin.peek();
+			if (cin.eof()) {
+				for( int i = 0; i < 17; i++){
+					for( int j = 0; j < 17; j++){
+						CBandCodec::histo_l[i][j] = 0;
+						if (j != 16) CBandCodec::histo_h[i][j] = 0;
+					}
+				}
+			} else {
+				for( int i = 0; i < 17; i++){
+					for( int j = 0; j < 17; j++){
+						cin >> CBandCodec::histo_l[i][j];
+					}
+				}
+				for( int i = 0; i < 17; i++){
+					for( int j = 0; j < 16; j++){
+						cin >> CBandCodec::histo_h[i][j];
+					}
+				}
+			}
+#endif
 			pCurWav->DBand.buildTree<true, BLK_SIZE>(Quant, Thres, lambda);
 			pCurWav->HBand.buildTree<true, BLK_SIZE>(Quant, Thres, lambda);
 			pCurWav->VBand.buildTree<true, BLK_SIZE>(Quant, Thres, lambda);
 			while( pCurWav->pLow ) pCurWav = pCurWav->pLow;
 			pCurWav->LBand.TSUQ(Quant, 0.5f);
 			pCurWav->LBand.pred<encode>(pCodec);
-			while( pCurWav ) {
-				pCurWav->VBand.tree<encode, BLK_SIZE>(pCodec);
-				pCurWav->HBand.tree<encode, BLK_SIZE>(pCodec);
-				pCurWav->DBand.tree<encode, BLK_SIZE>(pCodec);
+			while( pCurWav->pHigh ) {
+				pCurWav->VBand.tree<encode, false, BLK_SIZE>(pCodec);
+				pCurWav->HBand.tree<encode, false, BLK_SIZE>(pCodec);
+				pCurWav->DBand.tree<encode, false, BLK_SIZE>(pCodec);
 				pCurWav = pCurWav->pHigh;
 			}
+			pCurWav->VBand.tree<encode, true, BLK_SIZE>(pCodec);
+			pCurWav->HBand.tree<encode, true, BLK_SIZE>(pCodec);
+			pCurWav->DBand.tree<encode, true, BLK_SIZE>(pCodec);
+#ifdef GENERATE_HUFF_STATS
+			for( int i = 0; i < 17; i++){
+				for( int j = 0; j < 17; j++){
+					cout << CBandCodec::histo_l[i][j] << " ";
+				}
+				cout << endl;
+			}
+			cout << endl;
+			for( int i = 0; i < 17; i++){
+				for( int j = 0; j < 16; j++){
+					cout << CBandCodec::histo_h[i][j] << " ";
+				}
+				cout << endl;
+			}
+			cout << endl;
+#endif
 	}
 }
 
@@ -107,15 +148,21 @@ void CWavelet2D::DecodeBand(CMuxCodec * pCodec, int method)
 		case 1 :
 			while( pCurWav->pLow ) pCurWav = pCurWav->pLow;
 			pCurWav->LBand.pred<decode>(pCodec);
-			while( pCurWav ) {
+			while( pCurWav->pHigh ) {
 				pCurWav->VBand.Clear(false);
-				pCurWav->VBand.tree<decode, BLK_SIZE>(pCodec);
+				pCurWav->VBand.tree<decode, false, BLK_SIZE>(pCodec);
 				pCurWav->HBand.Clear(false);
-				pCurWav->HBand.tree<decode, BLK_SIZE>(pCodec);
+				pCurWav->HBand.tree<decode, false, BLK_SIZE>(pCodec);
 				pCurWav->DBand.Clear(false);
-				pCurWav->DBand.tree<decode, BLK_SIZE>(pCodec);
+				pCurWav->DBand.tree<decode, false, BLK_SIZE>(pCodec);
 				pCurWav = pCurWav->pHigh;
 			}
+			pCurWav->VBand.Clear(false);
+			pCurWav->VBand.tree<decode, true, BLK_SIZE>(pCodec);
+			pCurWav->HBand.Clear(false);
+			pCurWav->HBand.tree<decode, true, BLK_SIZE>(pCodec);
+			pCurWav->DBand.Clear(false);
+			pCurWav->DBand.tree<decode, true, BLK_SIZE>(pCodec);
 	}
 }
 
