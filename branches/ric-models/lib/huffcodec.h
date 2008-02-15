@@ -25,7 +25,10 @@
 
 namespace rududu {
 
-#define MAX_HUFF_SYM	256 // maximum huffman table size
+// maximum size of a huffman code in bits
+#define MAX_HUFF_LEN	16
+// maximum huffman table size
+#define MAX_HUFF_SYM	256
 #define UPDATE_STEP_MIN	128u
 #define UPDATE_STEP_MAX	2048u
 #define UPDATE_THRES	(1u << 14)

@@ -1,4 +1,22 @@
-
+/***************************************************************************
+ *   Copyright (C) 2007-2008 by Nicolas Botti                              *
+ *   <rududu@laposte.net>                                                  *
+ *                                                                         *
+ *   This program is free software; you can redistribute it and/or modify  *
+ *   it under the terms of the GNU General Public License as published by  *
+ *   the Free Software Foundation; either version 3 of the License, or     *
+ *   (at your option) any later version.                                   *
+ *                                                                         *
+ *   This program is distributed in the hope that it will be useful,       *
+ *   but WITHOUT ANY WARRANTY; without even the implied warranty of        *
+ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         *
+ *   GNU General Public License for more details.                          *
+ *                                                                         *
+ *   You should have received a copy of the GNU General Public License     *
+ *   along with this program; if not, write to the                         *
+ *   Free Software Foundation, Inc.,                                       *
+ *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.             *
+ ***************************************************************************/
 
 #pragma once
 
@@ -17,13 +35,28 @@ namespace rududu {
 
 #define REG_SIZE (sizeof(unsigned int) * 8)
 
-#define MAX_HUFF_LEN	16 // maximum size of a huffman code in bits
+// LUT size parameter, LUT size is 1 << LUT_DEPTH
+#define LUT_DEPTH 4
 
+/// Huffman table entry.
 typedef struct {
 	unsigned short code;
 	unsigned char len;
 	unsigned char value;
 } sHuffSym;
+
+/// Huffman LUT entry.
+typedef struct {
+	unsigned char len;
+	unsigned char value;
+} sHuffLut;
+
+/// Type used for canonical huffman decoding
+typedef struct {
+	const sHuffSym * table;
+	const unsigned char * sym;
+	sHuffLut lut[1 << LUT_DEPTH];
+} sHuffCan;
 
 /**
  * This class is a carryless range coder whose output is multiplexed with the
@@ -201,21 +234,42 @@ public:
 		return (buffer >> nbBits) & ((1 << length) - 1);
 	}
 
+	// canonical huffman codes decoding
 	unsigned int inline huffDecode(const sHuffSym * huffTable)
 	{
-		unsigned short code;
-		code = (unsigned short)((((buffer << 16) | (pStream[0] << 8) | pStream[1]) >> nbBits) & 0xFFFF);
+		unsigned short code = (unsigned short)((((buffer << 16) | (pStream[0] << 8) | pStream[1]) >> nbBits) & 0xFFFF);
 
 		while (code < huffTable->code) huffTable++;
 
 		pStream -= (int)(nbBits - huffTable->len) >> 3;
-		if (nbBits < huffTable->len)
-			buffer = pStream[-1];
+		if (nbBits < huffTable->len) buffer = pStream[-1];
 		nbBits = (nbBits - huffTable->len) & 0x07;
 
 		return (huffTable->value - (code >> (16 - huffTable->len))) & 0xFF;
 	}
 
+	// canonical huffman codes decoding with LUT
+	unsigned int inline huffDecode(const sHuffCan * can)
+	{
+		unsigned short code = (unsigned short)((((buffer << 16) | (pStream[0] << 8) | pStream[1]) >> nbBits) & 0xFFFF);
+
+		sHuffLut tmp = can->lut[code >> (16 - LUT_DEPTH)];
+		if (tmp.len != 0) {
+			pStream -= (int)(nbBits - tmp.len) >> 3;
+			if (nbBits < tmp.len) buffer = pStream[-1];
+			nbBits = (nbBits - tmp.len) & 0x07;
+			return tmp.value;
+		}
+
+		const sHuffSym * huffTable = can->table + tmp.value;
+		while (code < huffTable->code) huffTable++;
+
+		pStream -= (int)(nbBits - huffTable->len) >> 3;
+		if (nbBits < huffTable->len) buffer = pStream[-1];
+		nbBits = (nbBits - huffTable->len) & 0x07;
+
+		return can->sym[(huffTable->value - (code >> (16 - huffTable->len))) & 0xFF];
+	}
 };
 
 }
