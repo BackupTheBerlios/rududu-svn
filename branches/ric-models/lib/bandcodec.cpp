@@ -19,6 +19,7 @@
  ***************************************************************************/
 
 #include "bandcodec.h"
+#include "huffcodec.h"
 
 #ifdef GENERATE_HUFF_STATS
 #include <iostream>
@@ -31,11 +32,26 @@ CBandCodec::CBandCodec(void):
 		CBand(),
 		pRD(0)
 {
+	init_lut();
 }
 
 CBandCodec::~CBandCodec()
 {
 	delete[] pRD;
+}
+
+void CBandCodec::init_lut(void)
+{
+	static bool init = false;
+	if (init)
+		return;
+	for( unsigned int i = 0; i < sizeof(huff_lk_dec) / sizeof(sHuffCan); i++){
+		CHuffCodec::init_lut(&huff_lk_dec[i], LUT_DEPTH);
+	}
+	for( unsigned int i = 0; i < sizeof(huff_hk_dec) / sizeof(sHuffCan); i++){
+		CHuffCodec::init_lut(&huff_hk_dec[i], LUT_DEPTH);
+	}
+	init = true;
 }
 
 #ifdef GENERATE_HUFF_STATS
@@ -475,7 +491,7 @@ static const unsigned char hdh_lut16[16] = { 15, 14, 13, 12, 11, 10, 8, 9, 5, 6,
 
 const sHuffSym * CBandCodec::huff_lk_enc[17] = { hcl00, hcl01, hcl02, hcl03, hcl04, hcl05, hcl06, hcl07, hcl08, hcl09, hcl10, hcl11, hcl12, hcl13, hcl14, hcl15, hcl16 };
 const sHuffSym * CBandCodec::huff_hk_enc[16] = { hch01, hch02, hch03, hch04, hch05, hch06, hch07, hch08, hch09, hch10, hch11, hch12, hch13, hch14, hch15, hch16 };
-const sHuffCan CBandCodec::huff_lk_dec[17] = { {hdl00, hdl_lut00}, {hdl01, hdl_lut01}, {hdl02, hdl_lut02}, {hdl03, hdl_lut03}, {hdl04, hdl_lut04}, {hdl05, hdl_lut05}, {hdl06, hdl_lut06}, {hdl07, hdl_lut07}, {hdl08, hdl_lut08}, {hdl09, hdl_lut09}, {hdl10, hdl_lut10}, {hdl11, hdl_lut11}, {hdl12, hdl_lut12}, {hdl13, hdl_lut13}, {hdl14, hdl_lut14}, {hdl15, hdl_lut15}, {hdl16, hdl_lut16} };
-const sHuffCan CBandCodec::huff_hk_dec[16] = { {hdh01, hdh_lut01}, {hdh02, hdh_lut02}, {hdh03, hdh_lut03}, {hdh04, hdh_lut04}, {hdh05, hdh_lut05}, {hdh06, hdh_lut06}, {hdh07, hdh_lut07}, {hdh08, hdh_lut08}, {hdh09, hdh_lut09}, {hdh10, hdh_lut10}, {hdh11, hdh_lut11}, {hdh12, hdh_lut12}, {hdh13, hdh_lut13}, {hdh14, hdh_lut14}, {hdh15, hdh_lut15}, {hdh16, hdh_lut16} };
+sHuffCan CBandCodec::huff_lk_dec[17] = { {hdl00, hdl_lut00}, {hdl01, hdl_lut01}, {hdl02, hdl_lut02}, {hdl03, hdl_lut03}, {hdl04, hdl_lut04}, {hdl05, hdl_lut05}, {hdl06, hdl_lut06}, {hdl07, hdl_lut07}, {hdl08, hdl_lut08}, {hdl09, hdl_lut09}, {hdl10, hdl_lut10}, {hdl11, hdl_lut11}, {hdl12, hdl_lut12}, {hdl13, hdl_lut13}, {hdl14, hdl_lut14}, {hdl15, hdl_lut15}, {hdl16, hdl_lut16} };
+sHuffCan CBandCodec::huff_hk_dec[16] = { {hdh01, hdh_lut01}, {hdh02, hdh_lut02}, {hdh03, hdh_lut03}, {hdh04, hdh_lut04}, {hdh05, hdh_lut05}, {hdh06, hdh_lut06}, {hdh07, hdh_lut07}, {hdh08, hdh_lut08}, {hdh09, hdh_lut09}, {hdh10, hdh_lut10}, {hdh11, hdh_lut11}, {hdh12, hdh_lut12}, {hdh13, hdh_lut13}, {hdh14, hdh_lut14}, {hdh15, hdh_lut15}, {hdh16, hdh_lut16} };
 
 }

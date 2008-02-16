@@ -329,4 +329,36 @@ void CHuffCodec::print(int print_type, char * name)
 		print(pSym, nbSym, print_type, name);
 }
 
+void CHuffCodec::init_lut(sHuffCan * data, const int bits)
+{
+	int i, idx = 0;
+	const int shift = 16 - bits;
+	const sHuffSym * table = data->table;
+	const unsigned char * sym = data->sym;
+	sHuffLut * lut = data->lut;
+	for (i = (1 << bits) - 1; i >= 0 ; i--) {
+		if ((table[idx].code >> shift) < i) {
+			if (table[idx].len <= bits) {
+				lut[i].len = table[idx].len;
+				lut[i].value = sym[(table[idx].value - (i >> (bits - table[idx].len))) & 0xFF];
+			} else {
+				lut[i].len = 0;
+				lut[i].value = idx;
+			}
+		} else {
+			if (table[idx].len <= bits) {
+				lut[i].len = table[idx].len;
+				lut[i].value = sym[(table[idx].value - (i >> (bits - table[idx].len))) & 0xFF];
+			} else {
+				lut[i].len = 0;
+				lut[i].value = idx;
+			}
+			if (i != 0)
+				do {
+					idx++;
+				} while ((table[idx].code >> shift) == i);
+		}
+	}
+}
+
 }

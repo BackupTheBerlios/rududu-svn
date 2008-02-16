@@ -35,6 +35,7 @@ class CBandCodec : public CBand
 public:
 	CBandCodec();
 	virtual ~CBandCodec();
+	static void init_lut(void);
 
 	template <cmode mode> void pred(CMuxCodec * pCodec);
 	template <bool high_band, int block_size> void buildTree(short Quant, float Thres, int lambda);
@@ -58,8 +59,8 @@ private :
 
 	static const sHuffSym * huff_lk_enc[17];
 	static const sHuffSym * huff_hk_enc[16];
-	static const sHuffCan huff_lk_dec[17];
-	static const sHuffCan huff_hk_dec[16];
+	static sHuffCan huff_lk_dec[17];
+	static sHuffCan huff_hk_dec[16];
 };
 
 }
