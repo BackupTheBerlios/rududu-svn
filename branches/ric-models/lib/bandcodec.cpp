@@ -272,7 +272,7 @@ template <cmode mode, bool high_band>
 template <cmode mode, bool high_band, int block_size>
 	void CBandCodec::tree(CMuxCodec * pCodec)
 {
-	static const unsigned char geo_init[GEO_CONTEXT_NB] = {5, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 10, 10, 10, 13};
+	static const unsigned char geo_init[GEO_CONTEXT_NB] = {5, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 10, 10, 10, 11};
 	unsigned short k_mean[16] = {2 << K_SHIFT, 3 << K_SHIFT, 4 << K_SHIFT, 5 << K_SHIFT, 8 << K_SHIFT,
 			11 << K_SHIFT, 13 << K_SHIFT, 14 << K_SHIFT, 15 << K_SHIFT, 15 << K_SHIFT, 15 << K_SHIFT,
 			15 << K_SHIFT, 15 << K_SHIFT, 15 << K_SHIFT, 15 << K_SHIFT, 15 << K_SHIFT};

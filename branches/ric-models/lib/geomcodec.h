@@ -36,18 +36,19 @@ public:
 	CGeomCodec(CMuxCodec * RangeCodec = 0, const unsigned char * k_init = 0);
 	void setCtx(const unsigned char * k_init);
 
+	// FIXME : most probable path is freq[ctx] += (FREQ_COUNT - freq[ctx]) >> GEO_DECAY;
+	// must be changed to freq[ctx] -= freq[ctx] >> GEO_DECAY;
 	void inline code(unsigned int sym, const unsigned int ctx = 0){
-		unsigned int sum, k, f = freq[ctx];
+		unsigned int k = K[idx[ctx]], f = freq[ctx];
 		unsigned char s = shift[idx[ctx]];
-		sum = k = K[idx[ctx]];
 
-		while( sym >= sum ){
+		unsigned int l = sym >> k;
+		for( ; l > 0; l--){
 			pRange->codeBin(f, 1);
 			freq[ctx] -= freq[ctx] >> GEO_DECAY;
-			sum += k;
 		}
 		pRange->codeBin(f, 0);
-		if (k > 1) pRange->maxCode(sym - sum + k, k - 1);
+		if (k > 0) pRange->bitsCode(sym & ((1 << k) - 1), k);
 
 		freq[ctx] += (FREQ_COUNT - freq[ctx]) >> GEO_DECAY;
 
@@ -56,21 +57,21 @@ public:
 	}
 
 	unsigned int inline decode(const unsigned int ctx = 0){
-		unsigned int sum = 0, k = K[idx[ctx]], f = freq[ctx];
+		unsigned int k = K[idx[ctx]], f = freq[ctx];
 		unsigned char s = shift[idx[ctx]];
 
+		unsigned int l = 0;
 		while( pRange->getBit(f) ){
 			freq[ctx] -= freq[ctx] >> GEO_DECAY;
-			sum += k;
+			l++;
 		}
-		// TODO : use a LUT for log(k) = log[idx[ctx]]
-		if (k > 1) sum += pRange->maxDecode(k - 1);
+		if (k > 0) l = (l << k) | pRange->bitsDecode(k);
 
 		freq[ctx] += (FREQ_COUNT - freq[ctx]) >> GEO_DECAY;
 
 		if ((unsigned short)(freq[ctx] - thres[s - 1]) > thres[s] - thres[s - 1])
 			shift_adj(ctx);
-		return sum;
+		return l;
 	}
 
 	void setRange(CMuxCodec * RangeCodec){ pRange = RangeCodec;}
@@ -81,8 +82,8 @@ private:
 	unsigned char idx[GEO_CONTEXT_NB];
 	CMuxCodec *pRange;
 	static const unsigned short thres[11];
-	static const unsigned short K[39];
-	static const unsigned char shift[39];
+	static const unsigned char K[24];
+	static const unsigned char shift[24];
 
 	void inline shift_adj(const unsigned int ctx)
 	{
