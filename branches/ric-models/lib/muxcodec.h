@@ -90,7 +90,7 @@ private:
 	unsigned int nTaboo;
 
 	static const unsigned int nbFibo[32];
-	static const unsigned int Cnk[16][16];
+	static const unsigned int Cnk[8][16];
 	static const unsigned int enumLenth[];
 	static const unsigned int enumLost[];
 
@@ -118,7 +118,7 @@ public:
 	void tabooCode(unsigned int nb);
 	unsigned int tabooDecode(void);
 
-	void enum16Code(unsigned int bits, const unsigned int k);
+	void enum16Code(unsigned int bits, unsigned int k);
 	unsigned int enum16Decode(unsigned int k);
 
 	void maxCode(unsigned int value, unsigned int max);

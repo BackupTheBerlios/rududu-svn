@@ -1,4 +1,22 @@
-
+/***************************************************************************
+ *   Copyright (C) 2007-2008 by Nicolas Botti                              *
+ *   <rududu@laposte.net>                                                  *
+ *                                                                         *
+ *   This program is free software; you can redistribute it and/or modify  *
+ *   it under the terms of the GNU General Public License as published by  *
+ *   the Free Software Foundation; either version 3 of the License, or     *
+ *   (at your option) any later version.                                   *
+ *                                                                         *
+ *   This program is distributed in the hope that it will be useful,       *
+ *   but WITHOUT ANY WARRANTY; without even the implied warranty of        *
+ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the         *
+ *   GNU General Public License for more details.                          *
+ *                                                                         *
+ *   You should have received a copy of the GNU General Public License     *
+ *   along with this program; if not, write to the                         *
+ *   Free Software Foundation, Inc.,                                       *
+ *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.             *
+ ***************************************************************************/
 
 #include "muxcodec.h"
 #include "utils.h"
@@ -261,7 +279,7 @@ unsigned int CMuxCodec::tabooDecode(void)
 	return nb;
 }
 
-const unsigned int CMuxCodec::Cnk[16][16] =
+const unsigned int CMuxCodec::Cnk[8][16] =
 {
 	{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15},
 	{0, 0, 1, 3, 6, 10, 15, 21, 28, 36, 45, 55, 66, 78, 91, 105},
@@ -270,32 +288,30 @@ const unsigned int CMuxCodec::Cnk[16][16] =
 	{0, 0, 0, 0, 0, 1, 6, 21, 56, 126, 252, 462, 792, 1287, 2002, 3003},
 	{0, 0, 0, 0, 0, 0, 1, 7, 28, 84, 210, 462, 924, 1716, 3003, 5005},
 	{0, 0, 0, 0, 0, 0, 0, 1, 8, 36, 120, 330, 792, 1716, 3432, 6435},
-	{0, 0, 0, 0, 0, 0, 0, 0, 1, 9, 45, 165, 495, 1287, 3003, 6435},
-	{0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 10, 55, 220, 715, 2002, 5005},
-	{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 11, 66, 286, 1001, 3003},
-	{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 12, 78, 364, 1365},
-	{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 13, 91, 455},
-	{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 14, 105},
-	{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 15},
-	{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
-	{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}
+	{0, 0, 0, 0, 0, 0, 0, 0, 1, 9, 45, 165, 495, 1287, 3003, 6435}
 };
 
 const unsigned int CMuxCodec::enumLenth[] =
-{0, 4, 7, 10, 11, 13, 13, 14, 14, 14, 13, 13, 11, 10, 7, 4, 0};
+{0, 4, 7, 10, 11, 13, 13, 14, 14};
 
 const unsigned int CMuxCodec::enumLost[] =
-{0, 0, 8, 464, 228, 3824, 184, 4944, 3514, 4944, 184, 3824, 228, 464, 8, 0, 0};
+{0, 0, 8, 464, 228, 3824, 184, 4944, 3514};
 
 /**
  * Attention : il n'est pas possible de coder 0
  * @param bits
  */
-void CMuxCodec::enum16Code(unsigned int bits, const unsigned int k)
+void CMuxCodec::enum16Code(unsigned int bits, unsigned int k)
 {
 	unsigned int code = 0;
 	const unsigned int * C = Cnk[0];
 	unsigned int n = 0;
+
+	if (k > 8) {
+		k = 16 - k;
+		bits ^= 0xFFFFu;
+	}
+
 	do {
 		if (bits & 1) {
 			code += C[n];
@@ -306,7 +322,7 @@ void CMuxCodec::enum16Code(unsigned int bits, const unsigned int k)
 	} while(bits != 0);
 
 	if (code < enumLost[k])
-		bitsCode(code, enumLenth[k]-1);
+		bitsCode(code, enumLenth[k] - 1);
 	else
 		bitsCode(code + enumLost[k], enumLenth[k]);
 }
@@ -318,23 +334,27 @@ void CMuxCodec::enum16Code(unsigned int bits, const unsigned int k)
  */
 unsigned int CMuxCodec::enum16Decode(unsigned int k)
 {
-	unsigned int n = 15;
+	unsigned int n = 15, bits = 0;
+
+	if (k > 8) {
+		k = 16 - k;
+		bits = 0xFFFFu;
+	}
+
 	unsigned int code = bitsDecode(enumLenth[k] - 1);
 	const unsigned int * C = Cnk[k-1];
-	unsigned int bits = 0;
 
 	if (code >= enumLost[k])
 		code = ((code << 1) | bitsDecode(1)) - enumLost[k];
 
 	do {
 		if (code >= C[n]) {
-			bits |= 1 << n;
+			bits ^= 1 << n;
 			code -= C[n];
 			C -= 16;
-			k--;
 		}
 		n--;
-	} while(k > 0);
+	} while(C >= Cnk[0]);
 
 	return bits;
 }
