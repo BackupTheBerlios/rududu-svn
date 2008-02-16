@@ -63,8 +63,10 @@ template <cmode mode>
 		void CBandCodec::pred(CMuxCodec * pCodec)
 {
 	short * pCur = pBand;
-	int k = 6;
 	const int stride = DimXAlign;
+	static const unsigned char geo_init[GEO_CONTEXT_NB]
+		= { 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 15 };
+	CGeomCodec geoCodec(pCodec, geo_init);
 
 	if (mode == encode)
 		pCodec->tabooCode(s2u(pCur[0]));
@@ -73,33 +75,29 @@ template <cmode mode>
 
 	for( unsigned int i = 1; i < DimX; i++){
 		if (mode == encode)
-			pCodec->golombCode(s2u(pCur[i] - pCur[i - 1]), k);
+			geoCodec.code(s2u(pCur[i] - pCur[i - 1]), 15);
 		else
-			pCur[i] = pCur[i - 1] + u2s(pCodec->golombDecode(k));
+			pCur[i] = pCur[i - 1] + u2s(geoCodec.decode(15));
 	}
 	pCur += stride;
 
 	for( unsigned int j = 1; j < DimY; j++){
 		if (mode == encode)
-			pCodec->golombCode(s2u(pCur[0] - pCur[-stride]), k);
+			geoCodec.code(s2u(pCur[0] - pCur[-stride]), 15);
 		else
-			pCur[0] = pCur[-stride] + u2s(pCodec->golombDecode(k));
+			pCur[0] = pCur[-stride] + u2s(geoCodec.decode(15));
 
 		for( unsigned int i = 1; i < DimX; i++){
 			int var = ABS(pCur[i - 1] - pCur[i - 1 - stride]) +
 					ABS(pCur[i - stride] - pCur[i - 1 - stride]);
-			var -= var >> 2;
-			if (var >= 32)
-				var = k;
-			else
-				var = log_int[var];
+			var = bitlen(var);
 			if (mode == encode) {
 				int pred = pCur[i] - pCur[i - 1] - pCur[i - stride] +
 						pCur[i - 1 - stride];
-				pCodec->golombCode(s2u(pred), var);
+				geoCodec.code(s2u(pred), var);
 			} else
 				pCur[i] = pCur[i - 1] + pCur[i - stride] -
-						pCur[i - 1 - stride] + u2s(pCodec->golombDecode(var));
+						pCur[i - 1 - stride] + u2s(geoCodec.decode(var));
 		}
 		pCur += stride;
 	}
