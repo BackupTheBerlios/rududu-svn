@@ -172,10 +172,8 @@ void DecompressImage(string & infile, string & outfile, int Dither)
 
 	BW2RGB((unsigned char *)ImgPixels, width * heigth);
 	Image img(width, heigth, "RGB", CharPixel, ImgPixels);
-	img.type( GrayscaleType );
 	img.depth(8);
 	img.compressType(UndefinedCompression);
-	// img.display();
 
 	img.write(outfile);
 
