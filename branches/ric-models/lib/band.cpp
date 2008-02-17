@@ -112,8 +112,8 @@ void CBand::TSUQi(short Quant)
 	}
 }
 
-// {1/sqrt(2), sqrt(2), sin(3*pi/8)/2, 1/(2*sin(3*pi/8))}
-static const float dct_norm[4] = {0.7071067811865475244f, 1.414213562373095049f, 0.4619397662556433781f, 0.5411961001461969844f};
+// {1, 2, sin(3*pi/8)/sqrt(2), 1/(sqrt(2)*sin(3*pi/8))}
+static const float dct_norm[4] = {1.f, 2.f, 0.6532814824381882515f, 0.7653668647301795581f};
 
 unsigned int CBand::TSUQ_DCTH(short Quant, float Thres)
 {
