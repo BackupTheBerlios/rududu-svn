@@ -279,7 +279,7 @@ unsigned int CMuxCodec::tabooDecode(void)
 	return nb;
 }
 
-const unsigned int CMuxCodec::Cnk[8][16] =
+const unsigned short CMuxCodec::Cnk[8][16] =
 {
 	{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15},
 	{0, 0, 1, 3, 6, 10, 15, 21, 28, 36, 45, 55, 66, 78, 91, 105},
@@ -291,25 +291,63 @@ const unsigned int CMuxCodec::Cnk[8][16] =
 	{0, 0, 0, 0, 0, 0, 0, 0, 1, 9, 45, 165, 495, 1287, 3003, 6435}
 };
 
-const unsigned int CMuxCodec::enumLenth[] =
-{0, 4, 7, 10, 11, 13, 13, 14, 14};
+const unsigned char CMuxCodec::CnkLen[16][8] =
+{
+	{0, 0, 0, 0, 0, 0, 0, 0},
+	{1, 0, 0, 0, 0, 0, 0, 0},
+	{2, 2, 0, 0, 0, 0, 0, 0},
+	{2, 3, 2, 0, 0, 0, 0, 0},
+	{3, 4, 4, 3, 0, 0, 0, 0},
+	{3, 4, 5, 4, 3, 0, 0, 0},
+	{3, 5, 6, 6, 5, 3, 0, 0},
+	{3, 5, 6, 7, 6, 5, 3, 0},
+	{4, 6, 7, 7, 7, 7, 6, 4},
+	{4, 6, 7, 8, 8, 8, 7, 6},
+	{4, 6, 8, 9, 9, 9, 9, 8},
+	{4, 7, 8, 9, 10, 10, 10, 9},
+	{4, 7, 9, 10, 11, 11, 11, 11},
+	{4, 7, 9, 10, 11, 12, 12, 12},
+	{4, 7, 9, 11, 12, 13, 13, 13},
+	{4, 7, 10, 11, 13, 13, 14, 14}
+};
 
-const unsigned int CMuxCodec::enumLost[] =
-{0, 0, 8, 464, 228, 3824, 184, 4944, 3514};
+const unsigned short CMuxCodec::CnkLost[16][8] =
+{
+	{0, 0, 0, 0, 0, 0, 0, 0},
+	{0, 0, 0, 0, 0, 0, 0, 0},
+	{1, 1, 0, 0, 0, 0, 0, 0},
+	{0, 2, 0, 0, 0, 0, 0, 0},
+	{3, 6, 6, 3, 0, 0, 0, 0},
+	{2, 1, 12, 1, 2, 0, 0, 0},
+	{1, 11, 29, 29, 11, 1, 0, 0},
+	{0, 4, 8, 58, 8, 4, 0, 0},
+	{7, 28, 44, 2, 2, 44, 28, 7},
+	{6, 19, 8, 46, 4, 46, 8, 19},
+	{5, 9, 91, 182, 50, 50, 182, 91},
+	{4, 62, 36, 17, 232, 100, 232, 17},
+	{3, 50, 226, 309, 761, 332, 332, 761},
+	{2, 37, 148, 23, 46, 1093, 664, 1093},
+	{1, 23, 57, 683, 1093, 3187, 1757, 1757},
+	{0, 8, 464, 228, 3824, 184, 4944, 3514}
+};
 
 /**
- * Attention : il n'est pas possible de coder 0
- * @param bits
+ * Codes upto 16 bits using enumerative coding
+ * Be careful : 0 and n_max are not allowed for k
+ * @param n_max number of bits to code
+ * @param bits bits to code
+ * @param k number of bits set
  */
-void CMuxCodec::enum16Code(unsigned int bits, unsigned int k)
+template <unsigned int n_max>
+	void CMuxCodec::enumCode(unsigned int bits, unsigned int k)
 {
 	unsigned int code = 0;
-	const unsigned int * C = Cnk[0];
+	const unsigned short * C = Cnk[0];
 	unsigned int n = 0;
 
-	if (k > 8) {
-		k = 16 - k;
-		bits ^= 0xFFFFu;
+	if (k > ((n_max + 1) >> 1)) {
+		k = n_max - k;
+		bits ^= (1 << n_max) - 1;
 	}
 
 	do {
@@ -321,31 +359,34 @@ void CMuxCodec::enum16Code(unsigned int bits, unsigned int k)
 		bits >>= 1;
 	} while(bits != 0);
 
-	if (code < enumLost[k])
-		bitsCode(code, enumLenth[k] - 1);
+	if (code < CnkLost[n_max - 1][k - 1])
+		bitsCode(code, CnkLen[n_max - 1][k - 1] - 1);
 	else
-		bitsCode(code + enumLost[k], enumLenth[k]);
+		bitsCode(code + CnkLost[n_max - 1][k - 1], CnkLen[n_max - 1][k - 1]);
 }
 
-/**
- * Attention : il n'est pas possible de décoder k = 0 ou k = 16
- * @param k
- * @return
- */
-unsigned int CMuxCodec::enum16Decode(unsigned int k)
-{
-	unsigned int n = 15, bits = 0;
+template void CMuxCodec::enumCode<16>(unsigned int, unsigned int);
 
-	if (k > 8) {
-		k = 16 - k;
-		bits = 0xFFFFu;
+/**
+ * Decode upto 16 bits using enumerative coding
+ * @param n_max number of bits to decode
+ * @param k number of bits set
+ * @return decoded bits
+ */
+template <unsigned int n_max>
+	unsigned int CMuxCodec::enumDecode(unsigned int k)
+{
+	unsigned int n = n_max - 1, bits = 0;
+
+	if (k > ((n_max + 1) >> 1)) {
+		k = n_max - k;
+		bits ^= (1 << n_max) - 1;
 	}
 
-	unsigned int code = bitsDecode(enumLenth[k] - 1);
-	const unsigned int * C = Cnk[k-1];
-
-	if (code >= enumLost[k])
-		code = ((code << 1) | bitsDecode(1)) - enumLost[k];
+	const unsigned short * C = Cnk[k - 1];
+	unsigned int code = bitsDecode(CnkLen[n_max - 1][k - 1] - 1);
+	if (code >= CnkLost[n_max - 1][k - 1])
+		code = ((code << 1) | bitsDecode(1)) - CnkLost[n_max - 1][k - 1];
 
 	do {
 		if (code >= C[n]) {
@@ -358,6 +399,8 @@ unsigned int CMuxCodec::enum16Decode(unsigned int k)
 
 	return bits;
 }
+
+template unsigned int CMuxCodec::enumDecode<16>(unsigned int);
 
 void CMuxCodec::golombCode(unsigned int nb, const int k)
 {

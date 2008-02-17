@@ -90,9 +90,9 @@ private:
 	unsigned int nTaboo;
 
 	static const unsigned int nbFibo[32];
-	static const unsigned int Cnk[8][16];
-	static const unsigned int enumLenth[];
-	static const unsigned int enumLost[];
+	static const unsigned short Cnk[8][16];
+	static const unsigned char CnkLen[16][8];
+	static const unsigned short CnkLost[16][8];
 
 	void emptyBuffer(void);
 	template <bool end> void flushBuffer(void);
@@ -118,8 +118,10 @@ public:
 	void tabooCode(unsigned int nb);
 	unsigned int tabooDecode(void);
 
-	void enum16Code(unsigned int bits, unsigned int k);
-	unsigned int enum16Decode(unsigned int k);
+	template <unsigned int n_max>
+		void enumCode(unsigned int bits, unsigned int k);
+	template <unsigned int n_max>
+		unsigned int enumDecode(unsigned int k);
 
 	void maxCode(unsigned int value, unsigned int max);
 	unsigned int maxDecode(unsigned int max);
