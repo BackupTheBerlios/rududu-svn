@@ -182,7 +182,7 @@ unsigned int CBandCodec::tsuqBlock(short * pCur, int stride, short Quant, short 
 template <bool high_band, int block_size>
 		void CBandCodec::buildTree(const short Quant, const float Thres, const int lambda)
 {
-	int lbda = lambda / (Weight * Weight);
+	int lbda = lambda / Weight;
 	short Q = (short) (Quant / Weight);
 	if (Q == 0) Q = 1;
 	short iQuant = (1 << 16) / Q;

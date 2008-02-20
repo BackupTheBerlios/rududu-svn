@@ -122,7 +122,7 @@ void CompressImage(string & infile, string & outfile, int Quant, float Thres)
 	CWavelet2D Wavelet(img.columns(), img.rows(), WAV_LEVELS);
 	Wavelet.SetWeight(TRANSFORM);
 	Wavelet.Transform<TRANSFORM>(ImgPixels, img.columns());
-	Wavelet.CodeBand(&Codec, 1, Quants(Quant + SHIFT * 5), Thres, Quants(Quant + SHIFT * 5 - 7));
+	Wavelet.CodeBand(&Codec, 1, Quants(Quant + SHIFT * 5), Thres, Quants(Quant + SHIFT * 5 - 8));
 
 	pEnd = Codec.endCoding();
 
