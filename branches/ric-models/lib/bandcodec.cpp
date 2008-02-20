@@ -108,54 +108,84 @@ template void CBandCodec::pred<decode>(CMuxCodec *);
 
 #define INSIGNIF_BLOCK -0x8000
 
-template <int block_size>
-unsigned int CBandCodec::tsuqBlock(short * pCur, int stride, short Quant, short iQuant, short T, int lambda)
+void  inSort (short ** pKeys, int len)
 {
-	unsigned int dist = 0, cnt = 0, rate = 0;
-	short min = 0, max = 0;
-	static const unsigned char blen[block_size * block_size + 1] = {
+	for (int i = 1; i < len; i++) {
+		short * tmp = pKeys[i];
+		int j = i;
+		while (j > 0 && abs(pKeys[j - 1][0]) < abs(tmp[0])) {
+			pKeys[j] = pKeys[j - 1];
+			j--;
+		}
+		pKeys[j] = tmp;
+	}
+}
+
+static inline int evalLen(short coef, unsigned int cnt)
+{
+	static const unsigned char k[] =
+	{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 2};
+	static const unsigned char lps_len[] =
+	{3, 3, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
+	static const unsigned char mps_len[] =
+	{1, 1, 2, 2, 2, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5};
+
+	cnt--;
+	unsigned int l = (coef - 1) >> k[cnt];
+	return (k[cnt] + 1 + l * lps_len[cnt]) * 5 + mps_len[cnt];
+}
+
+template <int block_size>
+unsigned int CBandCodec::tsuqBlock(short * pCur, int stride, short Quant, short iQuant, int lambda)
+{
+	unsigned int var_cnt = 0;
+	short T = Quant >> 1;
+	static const char blen[block_size * block_size + 1] = {
 // 		0, 11, 17, 22, 26, 29, 31, 32, 32, 32, 31, 29, 26, 22, 17, 11, 0 // theo
 // 		10, 15, 22, 27, 31, 34, 37, 39, 39, 39, 38, 37, 34, 30, 25, 19, 10 // @q=9 for all bands
-		8, 16, 22, 26, 30, 32, 34, 35, 35, 35, 34, 32, 30, 26, 22, 16, 8 // enum theo
+		20, 40, 55, 66, 75, 81, 85, 88, 89, 88, 85, 81, 75, 66, 55, 40, 20 // enum theo
 	};
+	short * var[block_size * block_size];
 	for (int j = 0; j < block_size; j++) {
 		for ( int i = 0; i < block_size; i++ ) {
-			if ( (unsigned short) (pCur[i] + T) <= (unsigned short) (2 * T)) {
+			if ((unsigned short) (pCur[i] + T) <= (unsigned short) (2 * T)) {
 				pCur[i] = 0;
-			} else {
-				cnt++;
-				short tmp = pCur[i];
-				dist += tmp * tmp;
-				pCur[i] = (pCur[i] * (int)iQuant + (1 << 15)) >> 16;
-				tmp -= pCur[i] * Quant;
-				dist -= tmp * tmp;
-				max = MAX(max, pCur[i]);
-				min = MIN(min, pCur[i]);
-				pCur[i] = s2u_(pCur[i]);
-				rate += bitlen(pCur[i]);
+			} else{
+				var[var_cnt++] = pCur + i;
 			}
 		}
 		pCur += stride;
 	}
 
-	rate = (rate + cnt) * 2 + blen[cnt];
+	if (var_cnt > 0) {
+		inSort(var, var_cnt);
+		int i = var_cnt - 1;
+		for (; i >= 0; i--) {
+			short tmp = *var[i];
+			short qtmp = (tmp * (int)iQuant + (1 << 15)) >> 16;
+			int diff = abs(tmp) - abs(tmp - qtmp * Quant);
+			qtmp = s2u_(qtmp);
+			int rate = (blen[i + 1] - blen[i] + evalLen(qtmp >> 1, var_cnt));
+			if (diff * 16 > rate * lambda)
+				break;
+			*var[i] = 0;
+		}
+		var_cnt = i + 1;
+		for (; i >= 0; i--)
+			*var[i] = s2u_((*var[i] * (int)iQuant + (1 << 15)) >> 16);
+	}
 
-	if (dist <= lambda * rate)
-		return 0;
-
-	Max = MAX(Max, max);
-	Min = MIN(Min, min);
-	Count += cnt;
-	return dist - lambda * rate;
+	Count += var_cnt;
+	return var_cnt;
 }
 
 template <bool high_band, int block_size>
 		void CBandCodec::buildTree(const short Quant, const float Thres, const int lambda)
 {
+	int lbda = lambda / (Weight * Weight);
 	short Q = (short) (Quant / Weight);
 	if (Q == 0) Q = 1;
 	short iQuant = (1 << 16) / Q;
-	short T = (short) (Thres * Q);
 	Min = 0, Max = 0, Count = 0;
 	short * pCur = pBand;
 	unsigned int * pChild[2] = {0, 0};
@@ -175,16 +205,16 @@ template <bool high_band, int block_size>
 	for( unsigned int j = 0; j < DimY; j += block_size){
 		for( unsigned int i = 0, k = 0; i < DimX; i += block_size, k++){
 			unsigned int rate = 0;
-			unsigned long long dist = tsuqBlock<block_size>(pCur + i, DimXAlign, Q, iQuant, T, lambda);
+			unsigned long long dist = tsuqBlock<block_size>(pCur + i, DimXAlign, Q, iQuant, lbda);
 			if (! high_band) {
 				dist += pChild[0][2*k] + pChild[0][2*k + 1] + pChild[1][2*k] + pChild[1][2*k + 1];
 				rate += 4 * 2;
 			}
-			if (dist <= lambda * rate) {
+			if (dist <= 0 /*lambda * rate*/) {
 				pCur[i] = INSIGNIF_BLOCK;
 				pRD[k] = 0;
 			} else
-				pRD[k] = MIN(dist - lambda * rate, 0xFFFFFFFFu);
+				pRD[k] = MIN(dist/* - lambda * rate*/, 0xFFFFFFFFu);
 		}
 		pCur += DimXAlign * block_size;
 		pRD += rd_stride;

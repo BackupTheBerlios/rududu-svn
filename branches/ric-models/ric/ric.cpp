@@ -41,9 +41,9 @@ using namespace rududu;
 short Quants(int idx)
 {
 	static const unsigned short Q[5] = {32768, 37641, 43238, 49667, 57052};
-	if (idx == 0) return 0; // lossless
+	if (idx <= 0) return 0; // lossless
 	idx--;
-	int r = 14 - SHIFT - idx / 5;
+	int r = 14 - idx / 5;
 	return (short)((Q[idx % 5] + (1 << (r - 1))) >> r );
 }
 
@@ -122,7 +122,7 @@ void CompressImage(string & infile, string & outfile, int Quant, float Thres)
 	CWavelet2D Wavelet(img.columns(), img.rows(), WAV_LEVELS);
 	Wavelet.SetWeight(TRANSFORM);
 	Wavelet.Transform<TRANSFORM>(ImgPixels, img.columns());
-	Wavelet.CodeBand(&Codec, 1, Quants(Quant), Thres, 0);
+	Wavelet.CodeBand(&Codec, 1, Quants(Quant + SHIFT * 5), Thres, Quants(Quant + SHIFT * 5 - 7));
 
 	pEnd = Codec.endCoding();
 
@@ -162,7 +162,7 @@ void DecompressImage(string & infile, string & outfile, int Dither)
 	CWavelet2D Wavelet(width, heigth, WAV_LEVELS);
 	Wavelet.SetWeight(TRANSFORM);
 	Wavelet.DecodeBand(&Codec, 1);
-	Wavelet.TSUQi<false>(Quants(Head.Quant));
+	Wavelet.TSUQi<false>(Quants(Head.Quant + SHIFT * 5));
 	Wavelet.TransformI<TRANSFORM>(ImgPixels + width * heigth, width);
 
 	if (Head.Quant == 0)
