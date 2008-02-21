@@ -38,8 +38,8 @@ public:
 	static void init_lut(void);
 
 	template <cmode mode> void pred(CMuxCodec * pCodec);
-	template <bool high_band, int block_size> void buildTree(short Quant, float Thres, int lambda);
-	template <cmode mode, bool high_band, int block_size> void tree(CMuxCodec * pCodec);
+	template <bool high_band>void buildTree(short Quant, int lambda);
+	template <cmode mode, bool high_band> void tree(CMuxCodec * pCodec);
 
 #ifdef GENERATE_HUFF_STATS
 	static unsigned int histo_l[17][17];
@@ -47,20 +47,25 @@ public:
 #endif
 
 private :
-	template <int block_size>
-			unsigned int tsuqBlock(short * pCur, int stride, short Quant, short iQuant, int lambda);
+	unsigned int tsuqBlock(short * pCur, int stride, short Quant, short iQuant,
+	                       int lambda, unsigned short * rd_thres);
 
 	template <int block_size, cmode mode>
 		static inline int maxLen(short * pBlock, int stride);
 	template <cmode mode, bool high_band>
 		static unsigned int block_enum(short * pBlock, int stride, CMuxCodec * pCodec,
 		                       CGeomCodec & geoCodec, int idx);
+	static inline int clen(short coef, unsigned int cnt);
+	static void inSort (unsigned short ** pKeys, int len);
+	static void makeThres(unsigned short * thres, const short quant, const int lambda);
+
 	unsigned int * pRD;
 
 	static const sHuffSym * huff_lk_enc[17];
 	static const sHuffSym * huff_hk_enc[16];
 	static sHuffCan huff_lk_dec[17];
 	static sHuffCan huff_hk_dec[16];
+	static const char blen[BLK_SIZE * BLK_SIZE + 1];
 };
 
 }

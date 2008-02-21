@@ -36,7 +36,7 @@ public:
 	void SetWeight(trans t, float baseWeight = 1.);
 
 	void DecodeBand(CMuxCodec * pCodec, int method);
-	void CodeBand(CMuxCodec * pCodec, int method, short Quant, float Thres, int lambda);
+	void CodeBand(CMuxCodec * pCodec, int method, short Quant, int lambda);
 
 	template <bool use_dct> unsigned int TSUQ(short Quant, float Thres);
 	template <bool use_dct> void TSUQi(short Quant);

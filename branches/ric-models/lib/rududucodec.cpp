@@ -25,7 +25,6 @@ using namespace std;
 
 #define WAV_LEVELS	3
 #define TRANSFORM	cdf97
-#define THRES_RATIO	.7f
 #define BUFFER_SIZE (SUB_IMAGE_CNT + 1)
 
 namespace rududu {
@@ -69,9 +68,9 @@ void CRududuCodec::encodeImage(CImage * pImage)
 {
 	for( int c = 0; c < pImage->component; c++){
 		wavelet->Transform<TRANSFORM>(pImage->pImage[c], pImage->dimXAlign);
-		wavelet->CodeBand(&codec, 1, quants(quant), THRES_RATIO, 0);
+		wavelet->CodeBand(&codec, 1, quants(quant + 20), quants(quant + 12));
 		cerr << codec.getSize() << endl;
-		wavelet->TSUQi<false>(quants(quant));
+		wavelet->TSUQi<false>(quants(quant + 20));
 		wavelet->TransformI<TRANSFORM>(pImage->pImage[c], pImage->dimXAlign);
 	}
 }
@@ -80,7 +79,7 @@ void CRududuCodec::decodeImage(CImage * pImage)
 {
 	for( int c = 0; c < pImage->component; c++){
 		wavelet->DecodeBand(&codec, 1);
-		wavelet->TSUQi<false>(quants(quant));
+		wavelet->TSUQi<false>(quants(quant + 20));
 		wavelet->TransformI<TRANSFORM>(pImage->pImage[c], pImage->dimXAlign);
 	}
 }
