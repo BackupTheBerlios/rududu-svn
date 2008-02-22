@@ -20,18 +20,16 @@
 
 #include <fstream>
 #include <iostream>
-#include <cstdlib>
-#include <math.h>
-#include <unistd.h>
 
-#include <Magick++.h>
+// http://cimg.sourceforge.net
+#define cimg_display_type 0
+#include <CImg.h>
 
 #include <utils.h>
 #include <wavelet2d.h>
-#include <dct2d.h>
 
 using namespace std;
-using namespace Magick;
+using namespace cimg_library;
 using namespace rududu;
 
 #define BAD_MAGIC		2
@@ -45,37 +43,6 @@ short Quants(int idx)
 	idx--;
 	int r = 14 - idx / 5;
 	return (short)((Q[idx % 5] + (1 << (r - 1))) >> r );
-}
-
-template <class Pxl>
-void BW2RGB(Pxl * pIn, int stride, Pxl offset = 0, Pxl scale = 1)
-{
-	for( int i = stride - 1, j = (stride - 1) * 3; i >= 0 ; i--){
-		pIn[j] = pIn[j+1] = pIn[j+2] = pIn[i] * scale + offset;
-		j-=3;
-	}
-}
-
-template <unsigned int shift>
-void short2char(short * pIn, int size)
-{
-	unsigned char * pOut = (unsigned char *) pIn;
-	for( int i = 0; i < size ; i++){
-		if (shift > 0)
-			pIn[i] = 128 + ((pIn[i] + (1 << (shift - 1))) >> shift);
-		else
-			pIn[i] += 128;
-		pOut[i] = (unsigned char) CLIP(pIn[i], 0, 255);
-	}
-}
-
-template <unsigned int shift>
-void char2short(short * pOut, int size)
-{
-	unsigned char * pIn = (unsigned char *) pOut;
-	for( int i = size - 1; i >= 0 ; i--){
-		pOut[i] = (pIn[i] - 128) << shift;
-	}
 }
 
 #define WAV_LEVELS	5
@@ -98,30 +65,27 @@ void CompressImage(string & infile, string & outfile, int Quant, float Thres)
 	ofstream oFile( outfile.c_str() , ios::out );
 	oFile << "RUD2";
 
-	Image img( infile );
-	img.type( GrayscaleType );
-	unsigned int imSize = img.columns() * img.rows();
-	short * ImgPixels = new short [imSize];
+	CImg<short> img( infile.c_str() );
+	unsigned int imSize = img.dimx() * img.dimy();
 	unsigned char * pStream = new unsigned char[imSize];
 
-	img.write(0, 0, img.columns(), img.rows(), "R", CharPixel, ImgPixels);
 	if (Quant == 0)
-		char2short<0>(ImgPixels, imSize);
+		img -= 128;
 	else
-		char2short<SHIFT>(ImgPixels, imSize);
+		cimg_for(img, ptr, short) { *ptr = (*ptr - 128) << SHIFT; }
 
-	unsigned short tmp = img.columns();
+	unsigned short tmp = img.dimx();
 	oFile.write((char *)&tmp, sizeof(unsigned short));
-	tmp = img.rows();
+	tmp = img.dimy();
 	oFile.write((char *)&tmp, sizeof(unsigned short));
 	oFile.write((char *)&Head, sizeof(Header));
 	unsigned char * pEnd = pStream;
 
 	CMuxCodec Codec(pEnd, 0);
 
-	CWavelet2D Wavelet(img.columns(), img.rows(), WAV_LEVELS);
+	CWavelet2D Wavelet(img.dimx(), img.dimy(), WAV_LEVELS);
 	Wavelet.SetWeight(TRANSFORM);
-	Wavelet.Transform<TRANSFORM>(ImgPixels, img.columns());
+	Wavelet.Transform<TRANSFORM>(img.ptr(), img.dimx());
 	Wavelet.CodeBand(&Codec, 1, Quants(Quant + SHIFT * 5), Quants(Quant + SHIFT * 5 - 7));
 
 	pEnd = Codec.endCoding();
@@ -129,7 +93,6 @@ void CompressImage(string & infile, string & outfile, int Quant, float Thres)
 	oFile.write((char *) pStream + 2, (pEnd - pStream - 2));
 	oFile.close();
 
-	delete[] ImgPixels;
 	delete[] pStream;
 }
 
@@ -147,7 +110,7 @@ void DecompressImage(string & infile, string & outfile, int Dither)
 	iFile.read((char *) &width, sizeof(unsigned short));
 	iFile.read((char *) &heigth, sizeof(unsigned short));
 
-	short * ImgPixels = new short [width * heigth * 3];
+	CImg<short> img( width, heigth );
 	unsigned char * pStream = new unsigned char[width * heigth];
 
 	iFile.read((char *) pStream, width * heigth);
@@ -163,24 +126,22 @@ void DecompressImage(string & infile, string & outfile, int Dither)
 	Wavelet.SetWeight(TRANSFORM);
 	Wavelet.DecodeBand(&Codec, 1);
 	Wavelet.TSUQi<false>(Quants(Head.Quant + SHIFT * 5));
-	Wavelet.TransformI<TRANSFORM>(ImgPixels + width * heigth, width);
+	Wavelet.TransformI<TRANSFORM>(img.ptr() + width * heigth, width);
 
 	if (Head.Quant == 0)
-		short2char<0>(ImgPixels, width * heigth);
+		img += 128;
 	else
-		short2char<SHIFT>(ImgPixels, width * heigth);
+		cimg_for(img, ptr, short) {
+			*ptr = 128 + ((*ptr + (1 << (SHIFT - 1))) >> SHIFT);
+			*ptr = CLIP(*ptr, 0, 255);
+		};
 
-	BW2RGB((unsigned char *)ImgPixels, width * heigth);
-	Image img(width, heigth, "RGB", CharPixel, ImgPixels);
-	img.depth(8);
-	img.compressType(UndefinedCompression);
+	img.save_pnm(outfile.c_str());
 
-	img.write(outfile);
-
-	delete[] ImgPixels;
 	delete[] pStream;
 }
 
+/*
 void Test(string & infile, int Quant)
 {
 	Image img( infile );
@@ -226,6 +187,7 @@ void Test(string & infile, int Quant)
 
 	delete[] ImgPixels;
 }
+*/
 
 int main( int argc, char *argv[] )
 {
