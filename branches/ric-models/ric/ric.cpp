@@ -45,6 +45,31 @@ short Quants(int idx)
 	return (short)((Q[idx % 5] + (1 << (r - 1))) >> r );
 }
 
+void dither(short * pIn, int width, int heigth)
+{
+	for( int j = 0; j < heigth - 1; j++){
+		pIn[0] = 128 + ((pIn[0] + (1 << (SHIFT - 1))) >> SHIFT);
+		pIn[0] = CLIP(pIn[0], 0, 255);
+		for( int i = 1; i < width - 1; i++){
+			short tmp = pIn[i] + (1 << (SHIFT - 1));
+			pIn[i] = tmp >> SHIFT;
+			tmp -= pIn[i] << SHIFT;
+			pIn[i+1] += (tmp >> 1) - (tmp >> 4);
+			pIn[i+width - 1] += (tmp >> 3) + (tmp >> 4);
+			pIn[i+width] += (tmp >> 2) + (tmp >> 4);
+			pIn[i+width + 1] += tmp >> 4;
+			pIn[i] = clip(pIn[i] + 128, 0, 255);
+		}
+		pIn += width;
+		pIn[-1] = 128 + ((pIn[-1] + (1 << (SHIFT - 1))) >> SHIFT);
+		pIn[-1] = CLIP(pIn[-1], 0, 255);
+	}
+	for( int i = 0; i < width; i++){
+		pIn[i] = 128 + ((pIn[i] + (1 << (SHIFT - 1))) >> SHIFT);
+		pIn[i] = CLIP(pIn[i], 0, 255);
+	}
+}
+
 #define WAV_LEVELS	5
 #define TRANSFORM	cdf97
 
@@ -56,7 +81,7 @@ typedef union {
 	char last;
 } Header;
 
-void CompressImage(string & infile, string & outfile, int Quant, float Thres)
+void CompressImage(string & infile, string & outfile, int Quant)
 {
 	Header Head;
 	Head.Quant = Quant;
@@ -130,6 +155,8 @@ void DecompressImage(string & infile, string & outfile, int Dither)
 
 	if (Head.Quant == 0)
 		img += 128;
+	else if (Dither > 0)
+		dither(img.ptr(), img.dimx(), img.dimy());
 	else
 		cimg_for(img, ptr, short) {
 			*ptr = 128 + ((*ptr + (1 << (SHIFT - 1))) >> SHIFT);
@@ -195,7 +222,6 @@ int main( int argc, char *argv[] )
 	extern char * optarg;
 	string infile;
 	string outfile;
-	float ThresRatio = 0.7;
 	int Quant = 9;
 	int Type = 0;
 	int Dither = 0;
@@ -211,9 +237,6 @@ int main( int argc, char *argv[] )
 			case 'q':
 				Quant = atoi(optarg);
 				break;
-			case 't':
-				ThresRatio = atof(optarg);
-				break;
 			case 'v':
 				Type = atoi(optarg);
 				break;
@@ -226,19 +249,18 @@ int main( int argc, char *argv[] )
 		exit(1);
 	}
 
-	int mode = 0; // 0 = code , 1 = decode
+	cmode mode = encode;
 	size_t loc;
 	if ((loc = infile.rfind(".ric", string::npos, 4)) != string::npos){
-		// mode dÃ©codage
-		mode = 1;
+		// decoding
+		mode = decode;
 		if (outfile.length() == 0) {
 			outfile = infile;
 // 			outfile.resize(loc);
 			outfile.append(".pgm");
 		}
 	} else {
-		// mode codage
-		mode = 0;
+		// encoding
 		if (outfile.length() == 0) {
 			outfile = infile;
 			loc = infile.find_last_of(".", string::npos, 5);
@@ -250,8 +272,8 @@ int main( int argc, char *argv[] )
 		}
 	}
 
-	if (mode == 0) {
-		CompressImage(infile, outfile, Quant, ThresRatio);
+	if (mode == encode) {
+		CompressImage(infile, outfile, Quant);
 // 		Test(infile, Quant);
 	} else {
 		DecompressImage(infile, outfile, Dither);
