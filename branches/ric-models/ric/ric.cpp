@@ -76,7 +76,7 @@ void dither(short * pIn, int width, int heigth)
 typedef union {
 	struct  {
 		unsigned char Quant	:5;
-		unsigned char Type	:3;
+		unsigned char Color	:1;
 	};
 	char last;
 } Header;
@@ -85,19 +85,22 @@ void CompressImage(string & infile, string & outfile, int Quant)
 {
 	Header Head;
 	Head.Quant = Quant;
-	Head.Type = 0;
+	Head.Color = 0;
 
 	ofstream oFile( outfile.c_str() , ios::out );
 	oFile << "RUD2";
 
 	CImg<short> img( infile.c_str() );
-	unsigned int imSize = img.dimx() * img.dimy();
+	unsigned int imSize = img.dimx() * img.dimy() * img.dimv();
 	unsigned char * pStream = new unsigned char[imSize];
 
 	if (Quant == 0)
 		img -= 128;
 	else
 		cimg_for(img, ptr, short) { *ptr = (*ptr - 128) << SHIFT; }
+
+	if (img.dimv() == 3)
+		Head.Color = 1;
 
 	unsigned short tmp = img.dimx();
 	oFile.write((char *)&tmp, sizeof(unsigned short));
@@ -110,8 +113,15 @@ void CompressImage(string & infile, string & outfile, int Quant)
 
 	CWavelet2D Wavelet(img.dimx(), img.dimy(), WAV_LEVELS);
 	Wavelet.SetWeight(TRANSFORM);
-	Wavelet.Transform<TRANSFORM>(img.ptr(), img.dimx());
+
+	Wavelet.Transform<TRANSFORM>(img.ptr(0,0,0,0), img.dimx());
 	Wavelet.CodeBand(&Codec, 1, Quants(Quant + SHIFT * 5), Quants(Quant + SHIFT * 5 - 7));
+	if (Head.Color) {
+		Wavelet.Transform<TRANSFORM>(img.ptr(0,0,0,1), img.dimx());
+		Wavelet.CodeBand(&Codec, 1, Quants(Quant + SHIFT * 5), Quants(Quant + SHIFT * 5 - 7));
+		Wavelet.Transform<TRANSFORM>(img.ptr(0,0,0,2), img.dimx());
+		Wavelet.CodeBand(&Codec, 1, Quants(Quant + SHIFT * 5), Quants(Quant + SHIFT * 5 - 7));
+	}
 
 	pEnd = Codec.endCoding();
 
@@ -131,39 +141,52 @@ void DecompressImage(string & infile, string & outfile, int Dither)
 	if (magic[0] != 'R' || magic[1] != 'U' || magic[2]!= 'D' || magic[3] != '2')
 		throw BAD_MAGIC;
 
-	unsigned short width, heigth;
+	unsigned short width, heigth, channels = 1;
 	iFile.read((char *) &width, sizeof(unsigned short));
 	iFile.read((char *) &heigth, sizeof(unsigned short));
 
-	CImg<short> img( width, heigth );
-	unsigned char * pStream = new unsigned char[width * heigth];
-
-	iFile.read((char *) pStream, width * heigth);
-
 	Header Head;
-	Head.last = *pStream;
+	iFile.read(&Head.last, 1);
+	if (Head.Color == 1)
+		channels = 3;
 
-	unsigned char * pEnd = pStream;
+	CImg<short> img( width, heigth, 1, channels );
+	unsigned char * pStream = new unsigned char[width * heigth * channels];
 
-	CMuxCodec Codec(pEnd - 1);
+	iFile.read((char *) pStream + 2, width * heigth * channels);
+
+	CMuxCodec Codec(pStream);
 
 	CWavelet2D Wavelet(width, heigth, WAV_LEVELS);
 	Wavelet.SetWeight(TRANSFORM);
+
 	Wavelet.DecodeBand(&Codec, 1);
 	Wavelet.TSUQi<false>(Quants(Head.Quant + SHIFT * 5));
 	Wavelet.TransformI<TRANSFORM>(img.ptr() + width * heigth, width);
+	if (Head.Color) {
+		Wavelet.DecodeBand(&Codec, 1);
+		Wavelet.TSUQi<false>(Quants(Head.Quant + SHIFT * 5));
+		Wavelet.TransformI<TRANSFORM>(img.ptr() + width * heigth * 2, width);
+		Wavelet.DecodeBand(&Codec, 1);
+		Wavelet.TSUQi<false>(Quants(Head.Quant + SHIFT * 5));
+		Wavelet.TransformI<TRANSFORM>(img.ptr() + width * heigth * 3, width);
+	}
 
 	if (Head.Quant == 0)
 		img += 128;
-	else if (Dither > 0)
+	else if (Dither > 0) {
 		dither(img.ptr(), img.dimx(), img.dimy());
-	else
+		if (Head.Color) {
+			dither(img.ptr() + width * heigth, img.dimx(), img.dimy());
+			dither(img.ptr() + width * heigth * 2, img.dimx(), img.dimy());
+		}
+	} else
 		cimg_for(img, ptr, short) {
 			*ptr = 128 + ((*ptr + (1 << (SHIFT - 1))) >> SHIFT);
 			*ptr = CLIP(*ptr, 0, 255);
 		};
 
-	img.save_pnm(outfile.c_str());
+	img.save(outfile.c_str());
 
 	delete[] pStream;
 }
@@ -257,7 +280,7 @@ int main( int argc, char *argv[] )
 		if (outfile.length() == 0) {
 			outfile = infile;
 // 			outfile.resize(loc);
-			outfile.append(".pgm");
+			outfile.append(".pnm");
 		}
 	} else {
 		// encoding
