@@ -70,8 +70,48 @@ void dither(short * pIn, int width, int heigth)
 	}
 }
 
+template <int shift, class T>
+void RGBtoYCoCg(CImg<T> & img)
+{
+	// 0 (R) -> Co, 1 (G) -> Cg, 2 (B) -> Y
+	cimg_forXYZ(img,x,y,z) {
+		img(x,y,z,0) -= img(x,y,z,2);
+		img(x,y,z,2) += img(x,y,z,0) >> 1;
+		img(x,y,z,1) -= img(x,y,z,2);
+		img(x,y,z,2) += (img(x,y,z,1) >> 1) - 128;
+		if (shift > 0) {
+			img(x,y,z,0) <<= shift - 1;
+			img(x,y,z,1) <<= shift - 1;
+			img(x,y,z,2) <<= shift;
+		}
+	}
+}
+
+template <int shift, class T>
+void YCoCgtoRGB(CImg<T> & img)
+{
+	cimg_forXYZ(img,x,y,z) {
+		if (shift > 0) {
+			img(x,y,z,0) = (img(x,y,z,0) + (1 << (shift - 2))) >> (shift - 1);
+			img(x,y,z,1) = (img(x,y,z,1) + (1 << (shift - 2))) >> (shift - 1);
+			img(x,y,z,2) = (img(x,y,z,2) + (1 << (shift - 1))) >> shift;
+		}
+		img(x,y,z,2) -= (img(x,y,z,1) >> 1) - 128;
+		img(x,y,z,1) += img(x,y,z,2);
+		img(x,y,z,2) -= img(x,y,z,0) >> 1;
+		img(x,y,z,0) += img(x,y,z,2);
+		if (shift > 0) {
+			img(x,y,z,0) = CLIP(img(x,y,z,0), 0, 255);
+			img(x,y,z,1) = CLIP(img(x,y,z,1), 0, 255);
+			img(x,y,z,2) = CLIP(img(x,y,z,2), 0, 255);
+		}
+	}
+}
+
 #define WAV_LEVELS	5
 #define TRANSFORM	cdf97
+// color quantizer boost
+#define C_Q_BOOST	8
 
 typedef union {
 	struct  {
@@ -94,13 +134,18 @@ void CompressImage(string & infile, string & outfile, int Quant)
 	unsigned int imSize = img.dimx() * img.dimy() * img.dimv();
 	unsigned char * pStream = new unsigned char[imSize];
 
-	if (Quant == 0)
-		img -= 128;
-	else
-		cimg_for(img, ptr, short) { *ptr = (*ptr - 128) << SHIFT; }
-
-	if (img.dimv() == 3)
+	if (img.dimv() == 3) {
 		Head.Color = 1;
+		if (Quant == 0)
+			RGBtoYCoCg<0>(img);
+		else
+			RGBtoYCoCg<SHIFT>(img);
+	} else {
+		if (Quant == 0)
+			img -= 128;
+		else
+			cimg_for(img, ptr, short) { *ptr = (*ptr - 128) << SHIFT; }
+	}
 
 	unsigned short tmp = img.dimx();
 	oFile.write((char *)&tmp, sizeof(unsigned short));
@@ -114,12 +159,15 @@ void CompressImage(string & infile, string & outfile, int Quant)
 	CWavelet2D Wavelet(img.dimx(), img.dimy(), WAV_LEVELS);
 	Wavelet.SetWeight(TRANSFORM);
 
-	Wavelet.Transform<TRANSFORM>(img.ptr(0,0,0,0), img.dimx());
-	Wavelet.CodeBand(&Codec, 1, Quants(Quant + SHIFT * 5), Quants(Quant + SHIFT * 5 - 7));
 	if (Head.Color) {
-		Wavelet.Transform<TRANSFORM>(img.ptr(0,0,0,1), img.dimx());
-		Wavelet.CodeBand(&Codec, 1, Quants(Quant + SHIFT * 5), Quants(Quant + SHIFT * 5 - 7));
 		Wavelet.Transform<TRANSFORM>(img.ptr(0,0,0,2), img.dimx());
+		Wavelet.CodeBand(&Codec, 1, Quants(Quant + SHIFT * 5), Quants(Quant + SHIFT * 5 - 7));
+		Wavelet.Transform<TRANSFORM>(img.ptr(0,0,0,1), img.dimx());
+		Wavelet.CodeBand(&Codec, 1, Quants(Quant + SHIFT * 5 + C_Q_BOOST), Quants(Quant + SHIFT * 5 - 7 + C_Q_BOOST));
+		Wavelet.Transform<TRANSFORM>(img.ptr(0,0,0,0), img.dimx());
+		Wavelet.CodeBand(&Codec, 1, Quants(Quant + SHIFT * 5 + C_Q_BOOST), Quants(Quant + SHIFT * 5 - 7 + C_Q_BOOST));
+	} else {
+		Wavelet.Transform<TRANSFORM>(img.ptr(0,0,0,0), img.dimx());
 		Wavelet.CodeBand(&Codec, 1, Quants(Quant + SHIFT * 5), Quants(Quant + SHIFT * 5 - 7));
 	}
 
@@ -162,29 +210,36 @@ void DecompressImage(string & infile, string & outfile, int Dither)
 
 	Wavelet.DecodeBand(&Codec, 1);
 	Wavelet.TSUQi<false>(Quants(Head.Quant + SHIFT * 5));
-	Wavelet.TransformI<TRANSFORM>(img.ptr() + width * heigth, width);
 	if (Head.Color) {
+		Wavelet.TransformI<TRANSFORM>(img.ptr() + width * heigth * 3, width);
 		Wavelet.DecodeBand(&Codec, 1);
-		Wavelet.TSUQi<false>(Quants(Head.Quant + SHIFT * 5));
+		Wavelet.TSUQi<false>(Quants(Head.Quant + SHIFT * 5 + C_Q_BOOST));
 		Wavelet.TransformI<TRANSFORM>(img.ptr() + width * heigth * 2, width);
 		Wavelet.DecodeBand(&Codec, 1);
-		Wavelet.TSUQi<false>(Quants(Head.Quant + SHIFT * 5));
-		Wavelet.TransformI<TRANSFORM>(img.ptr() + width * heigth * 3, width);
+		Wavelet.TSUQi<false>(Quants(Head.Quant + SHIFT * 5 + C_Q_BOOST));
 	}
+	Wavelet.TransformI<TRANSFORM>(img.ptr() + width * heigth, width);
 
-	if (Head.Quant == 0)
-		img += 128;
-	else if (Dither > 0) {
-		dither(img.ptr(), img.dimx(), img.dimy());
-		if (Head.Color) {
-			dither(img.ptr() + width * heigth, img.dimx(), img.dimy());
-			dither(img.ptr() + width * heigth * 2, img.dimx(), img.dimy());
-		}
-	} else
-		cimg_for(img, ptr, short) {
-			*ptr = 128 + ((*ptr + (1 << (SHIFT - 1))) >> SHIFT);
-			*ptr = CLIP(*ptr, 0, 255);
-		};
+	if (Head.Color == 0) {
+		if (Head.Quant == 0)
+			img += 128;
+		else if (Dither > 0) {
+			dither(img.ptr(), img.dimx(), img.dimy());
+			if (Head.Color) {
+				dither(img.ptr() + width * heigth, img.dimx(), img.dimy());
+				dither(img.ptr() + width * heigth * 2, img.dimx(), img.dimy());
+			}
+		} else
+			cimg_for(img, ptr, short) {
+				*ptr = 128 + ((*ptr + (1 << (SHIFT - 1))) >> SHIFT);
+				*ptr = CLIP(*ptr, 0, 255);
+			}
+	} else {
+		if (Head.Quant == 0)
+			YCoCgtoRGB<0>(img);
+		else
+			YCoCgtoRGB<SHIFT>(img);
+	}
 
 	img.save(outfile.c_str());
 
