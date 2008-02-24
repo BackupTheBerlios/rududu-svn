@@ -150,11 +150,11 @@ void CBandCodec::makeThres(unsigned short * thres, const short quant, const int 
 	}
 }
 
-unsigned int CBandCodec::tsuqBlock(short * pCur, int stride, short Quant,
-                                   short iQuant, int lambda,
+int CBandCodec::tsuqBlock(short * pCur, int stride, short Quant,
+                                   unsigned short iQuant, int lambda,
                                    unsigned short * rd_thres)
 {
-	unsigned int var_cnt = 0, cnt = 0;
+	int var_cnt = 0, cnt = 0, dist = 0, rate = 0;
 	short T = Quant >> 1;
 	unsigned short * var[BLK_SIZE * BLK_SIZE];
 	for (int j = 0; j < BLK_SIZE; j++) {
@@ -169,6 +169,9 @@ unsigned int CBandCodec::tsuqBlock(short * pCur, int stride, short Quant,
 					cnt++;
 					unsigned short tmp = ((unsigned short) pCur[i]) >> 1;
 					unsigned short qtmp = (tmp * (unsigned int)iQuant + (1 << 15)) >> 16;
+					int diff = qtmp * Quant;
+					if (diff > tmp) diff = 2 * tmp - diff;
+					dist += diff;
 					pCur[i] = (qtmp << 1) | (pCur[i] & 1);
 				}
 			}
@@ -182,10 +185,23 @@ unsigned int CBandCodec::tsuqBlock(short * pCur, int stride, short Quant,
 		while( i >= 0 && *var[i] < rd_thres[i + cnt])
 			*var[i--] = 0;
 		cnt += i + 1;
-		for (; i >= 0; i--)
+		for (; i >= 0; i--) {
+			dist += (pCur[i] & 0xFFFEu) - Quant;
 			*var[i] = 2 | (*var[i] & 1);
+		}
 	}
 
+	for (int j = 0; j < BLK_SIZE; j++) {
+		pCur -= stride;
+		for ( int i = 0; i < BLK_SIZE; i++ ) {
+			if (pCur[i] != 0)
+				rate += clen(pCur[i] >> 1, cnt);
+		}
+	}
+
+	rate += blen[cnt] - blen[0];
+
+// 	return dist * 16 - lambda * rate;
 	return cnt;
 }
 
@@ -196,7 +212,7 @@ template <bool high_band>
 	int lbda = (int) (lambda / Weight);
 	short Q = (short) (Quant / Weight);
 	if (Q == 0) Q = 1;
-	short iQuant = (1 << 16) / Q;
+	unsigned short iQuant = (1 << 16) / Q;
 	makeThres(rd_thres, Q, lbda);
 	short * pCur = pBand;
 	unsigned int * pChild[2] = {0, 0};
@@ -215,8 +231,8 @@ template <bool high_band>
 
 	for( unsigned int j = 0; j < DimY; j += BLK_SIZE){
 		for( unsigned int i = 0, k = 0; i < DimX; i += BLK_SIZE, k++){
-			unsigned int rate = 0;
-			unsigned long long dist = tsuqBlock(pCur + i, DimXAlign, Q, iQuant, lbda, rd_thres);
+			int rate = 0;
+			long long dist = tsuqBlock(pCur + i, DimXAlign, Q, iQuant, lbda, rd_thres);
 			if (! high_band) {
 				dist += pChild[0][2*k] + pChild[0][2*k + 1] + pChild[1][2*k] + pChild[1][2*k + 1];
 				rate += 4 * 2;

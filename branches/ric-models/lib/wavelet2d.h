@@ -69,10 +69,10 @@ private:
 	void Transform53V(short * pImage, int Stride);
 	void Transform53VI(short * pImage, int Stride);
 
-	void TransformHaarH(short * pImage, int Stride);
-	void TransformHaarHI(short * pImage, int Stride);
-	void TransformHaarV(short * pImage, int Stride);
-	void TransformHaarVI(short * pImage, int Stride);
+	static void TransLineHaar(short * i, int len);
+	static void TransLineHaarI(short * i, int len);
+	void TransformHaar(short * pImage, int Stride);
+	void TransformHaarI(short * pImage, int Stride);
 
 	template <bool forward> void DCT4H(void);
 	template <bool forward> void DCT4V(void);

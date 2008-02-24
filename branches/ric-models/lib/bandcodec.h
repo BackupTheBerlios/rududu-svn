@@ -47,7 +47,7 @@ public:
 #endif
 
 private :
-	unsigned int tsuqBlock(short * pCur, int stride, short Quant, short iQuant,
+	int tsuqBlock(short * pCur, int stride, short Quant, unsigned short iQuant,
 	                       int lambda, unsigned short * rd_thres);
 
 	template <int block_size, cmode mode>
