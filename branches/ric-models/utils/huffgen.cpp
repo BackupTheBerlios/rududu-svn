@@ -21,6 +21,7 @@
 
 #include <fstream>
 #include <iostream>
+#include <math.h>
 
 #include "huffcodec.h"
 
@@ -74,9 +75,9 @@ int main( int argc, char *argv[] )
 				total_cnt += counts[i];
 				total_size += counts[i] * input[i].len;
 				if (counts[i] != 0)
-					optim_size += counts[i] * __builtin_log2(counts[i]);
+					optim_size += counts[i] * log2(counts[i]);
 			}
-			optim_size = total_cnt * __builtin_log2(total_cnt) - optim_size;
+			optim_size = total_cnt * log2(total_cnt) - optim_size;
 			cout << "count : " << total_cnt << endl;
 			if (total_cnt > 0) {
 				cout << "huff : " << total_size / total_cnt << " bps" << endl;
