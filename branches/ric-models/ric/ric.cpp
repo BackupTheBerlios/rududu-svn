@@ -34,6 +34,11 @@ using namespace rududu;
 
 #define BAD_MAGIC		2
 #define UNKNOW_TYPE		3
+
+#define WAV_LEVELS	5
+#define TRANSFORM	cdf97
+// color quantizer boost
+#define C_Q_BOOST	8
 #define SHIFT			4
 
 short Quants(int idx)
@@ -108,11 +113,6 @@ void YCoCgtoRGB(CImg<T> & img)
 	}
 }
 
-#define WAV_LEVELS	5
-#define TRANSFORM	cdf97
-// color quantizer boost
-#define C_Q_BOOST	8
-
 typedef union {
 	struct  {
 		unsigned char Quant	:5;
@@ -179,7 +179,7 @@ void CompressImage(string & infile, string & outfile, int Quant)
 	delete[] pStream;
 }
 
-void DecompressImage(string & infile, string & outfile, int Dither)
+void DecompressImage(string & infile, string & outfile, bool Dither)
 {
 	ifstream iFile( infile.c_str() , ios::in );
 	char magic[4] = {0,0,0,0};
@@ -223,7 +223,7 @@ void DecompressImage(string & infile, string & outfile, int Dither)
 	if (Head.Color == 0) {
 		if (Head.Quant == 0)
 			img += 128;
-		else if (Dither > 0) {
+		else if (Dither) {
 			dither(img.ptr(), img.dimx(), img.dimy());
 			if (Head.Color) {
 				dither(img.ptr() + width * heigth, img.dimx(), img.dimy());
@@ -294,36 +294,41 @@ void Test(string & infile, int Quant)
 }
 */
 
+#define BOLD	"\x1B[1m"
+#define NORM	"\x1B[0m"
+
+#define USAGE	\
+	BOLD "--- Rududu Image Codec ---" NORM " built " __DATE__ " " __TIME__ "\n" \
+	"© 2006-2008 Nicolas BOTTI\n" \
+	BOLD "Usage : " NORM "ric -i <input file> [-o <output file>] [options]\n" \
+	"For a description of available options, use the -h option\n"
+
+#define HELP	\
+	BOLD "--- Rududu Image Codec ---" NORM " built " __DATE__ " " __TIME__ "\n" \
+	"© 2006-2008 Nicolas BOTTI\n\n" \
+	BOLD "Usage :\n" NORM \
+	"    ric -i <input file> [-o <output file>] [options]\n\n" \
+	BOLD "Exemple :\n" NORM \
+	"    ric -i test.pnm -q 7\n" \
+	"    ric -i test.ric\n\n" \
+	BOLD "Available options :" NORM
+
 int main( int argc, char *argv[] )
 {
-	int c;
-	extern char * optarg;
-	string infile;
-	string outfile;
-	int Quant = 9;
-	int Type = 0;
-	int Dither = 0;
+	cimg_help(HELP);
 
-	while ((c = getopt(argc , argv, "i:o:q:t:v:d")) != -1) {
-		switch (c) {
-			case 'i':
-				infile = optarg;
-				break;
-			case 'o':
-				outfile = optarg;
-				break;
-			case 'q':
-				Quant = atoi(optarg);
-				break;
-			case 'v':
-				Type = atoi(optarg);
-				break;
-			case 'd':
-				Dither = 1;
-		}
-	}
+	string infile = cimg_option("-i", "", "Input file (use extension .ric for decompression)");
+	string outfile = cimg_option("-o", "", "Output file");
+	int Quant = cimg_option("-q", 9, "Quantizer : 0 (lossless) to 31");
+	bool dither = cimg_option("-d", false, "Use dithering for ouput image (decompression and greyscale only)");
+	bool help = cimg_option("-h", false, "Display this help");
+	help = help || cimg_option("-help", false, 0);
+	help = help || cimg_option("--help", false, 0);
+
 	if (infile.length() == 0) {
-		cerr << "An input file name must be specified (option -i)" << endl;
+		if (!help) {
+			cerr << USAGE;
+		}
 		exit(1);
 	}
 
@@ -354,7 +359,7 @@ int main( int argc, char *argv[] )
 		CompressImage(infile, outfile, Quant);
 // 		Test(infile, Quant);
 	} else {
-		DecompressImage(infile, outfile, Dither);
+		DecompressImage(infile, outfile, dither);
 	}
 
 	return EXIT_SUCCESS;
