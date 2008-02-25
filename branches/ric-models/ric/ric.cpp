@@ -39,7 +39,7 @@ using namespace rududu;
 #define TRANSFORM	cdf97
 // color quantizer boost
 #define C_Q_BOOST	8
-#define SHIFT			4
+#define SHIFT		4
 
 short Quants(int idx)
 {
@@ -160,14 +160,14 @@ void CompressImage(string & infile, string & outfile, int Quant)
 	Wavelet.SetWeight(TRANSFORM);
 
 	if (Head.Color) {
-		Wavelet.Transform<TRANSFORM>(img.ptr(0,0,0,2), img.dimx());
+		Wavelet.Transform(img.ptr(0,0,0,2), img.dimx(), TRANSFORM);
 		Wavelet.CodeBand(&Codec, 1, Quants(Quant + SHIFT * 5), Quants(Quant + SHIFT * 5 - 7));
-		Wavelet.Transform<TRANSFORM>(img.ptr(0,0,0,1), img.dimx());
+		Wavelet.Transform(img.ptr(0,0,0,1), img.dimx(), TRANSFORM);
 		Wavelet.CodeBand(&Codec, 1, Quants(Quant + SHIFT * 5 + C_Q_BOOST), Quants(Quant + SHIFT * 5 - 7 + C_Q_BOOST));
-		Wavelet.Transform<TRANSFORM>(img.ptr(0,0,0,0), img.dimx());
+		Wavelet.Transform(img.ptr(0,0,0,0), img.dimx(), TRANSFORM);
 		Wavelet.CodeBand(&Codec, 1, Quants(Quant + SHIFT * 5 + C_Q_BOOST), Quants(Quant + SHIFT * 5 - 7 + C_Q_BOOST));
 	} else {
-		Wavelet.Transform<TRANSFORM>(img.ptr(0,0,0,0), img.dimx());
+		Wavelet.Transform(img.ptr(0,0,0,0), img.dimx(), TRANSFORM);
 		Wavelet.CodeBand(&Codec, 1, Quants(Quant + SHIFT * 5), Quants(Quant + SHIFT * 5 - 7));
 	}
 
@@ -211,14 +211,14 @@ void DecompressImage(string & infile, string & outfile, bool Dither)
 	Wavelet.DecodeBand(&Codec, 1);
 	Wavelet.TSUQi<false>(Quants(Head.Quant + SHIFT * 5));
 	if (Head.Color) {
-		Wavelet.TransformI<TRANSFORM>(img.ptr() + width * heigth * 3, width);
+		Wavelet.TransformI(img.ptr() + width * heigth * 3, width, TRANSFORM);
 		Wavelet.DecodeBand(&Codec, 1);
 		Wavelet.TSUQi<false>(Quants(Head.Quant + SHIFT * 5 + C_Q_BOOST));
-		Wavelet.TransformI<TRANSFORM>(img.ptr() + width * heigth * 2, width);
+		Wavelet.TransformI(img.ptr() + width * heigth * 2, width, TRANSFORM);
 		Wavelet.DecodeBand(&Codec, 1);
 		Wavelet.TSUQi<false>(Quants(Head.Quant + SHIFT * 5 + C_Q_BOOST));
 	}
-	Wavelet.TransformI<TRANSFORM>(img.ptr() + width * heigth, width);
+	Wavelet.TransformI(img.ptr() + width * heigth, width, TRANSFORM);
 
 	if (Head.Color == 0) {
 		if (Head.Quant == 0)

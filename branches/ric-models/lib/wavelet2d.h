@@ -30,8 +30,8 @@ public:
 
     ~CWavelet2D();
 
-	template <trans t> void Transform(short * pImage, int Stride);
-	template <trans t> void TransformI(short * pImage, int Stride);
+	void Transform(short * pImage, int Stride, trans t);
+	void TransformI(short * pImage, int Stride, trans t);
 	template <bool forward> void DCT4(void);
 	void SetWeight(trans t, float baseWeight = 1.);
 
@@ -64,10 +64,10 @@ private:
 	void Transform97(short * pImage, int Stride);
 	void Transform97I(short * pImage, int Stride);
 
-	void Transform53H(short * pImage, int Stride);
-	void Transform53HI(short * pImage, int Stride);
-	void Transform53V(short * pImage, int Stride);
-	void Transform53VI(short * pImage, int Stride);
+	static void TransLine53(short * i, int len);
+	static void TransLine53I(short * i, int len);
+	void Transform53(short * pImage, int Stride);
+	void Transform53I(short * pImage, int Stride);
 
 	static void TransLineHaar(short * i, int len);
 	static void TransLineHaarI(short * i, int len);
