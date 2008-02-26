@@ -161,14 +161,14 @@ void CompressImage(string & infile, string & outfile, int Quant)
 
 	if (Head.Color) {
 		Wavelet.Transform(img.ptr(0,0,0,2), img.dimx(), TRANSFORM);
-		Wavelet.CodeBand(&Codec, 1, Quants(Quant + SHIFT * 5), Quants(Quant + SHIFT * 5 - 7));
+		Wavelet.CodeBand(&Codec, 1, Quant ? Quants(Quant + SHIFT * 5) : 0, Quant ? Quants(Quant + SHIFT * 5 - 7) : 0);
 		Wavelet.Transform(img.ptr(0,0,0,1), img.dimx(), TRANSFORM);
-		Wavelet.CodeBand(&Codec, 1, Quants(Quant + SHIFT * 5 + C_Q_BOOST), Quants(Quant + SHIFT * 5 - 7 + C_Q_BOOST));
+		Wavelet.CodeBand(&Codec, 1, Quant ? Quants(Quant + SHIFT * 5 + C_Q_BOOST) : 0, Quant ? Quants(Quant + SHIFT * 5 - 7 + C_Q_BOOST) : 0);
 		Wavelet.Transform(img.ptr(0,0,0,0), img.dimx(), TRANSFORM);
-		Wavelet.CodeBand(&Codec, 1, Quants(Quant + SHIFT * 5 + C_Q_BOOST), Quants(Quant + SHIFT * 5 - 7 + C_Q_BOOST));
+		Wavelet.CodeBand(&Codec, 1, Quant ? Quants(Quant + SHIFT * 5 + C_Q_BOOST) : 0, Quant ? Quants(Quant + SHIFT * 5 - 7 + C_Q_BOOST) : 0);
 	} else {
 		Wavelet.Transform(img.ptr(0,0,0,0), img.dimx(), TRANSFORM);
-		Wavelet.CodeBand(&Codec, 1, Quants(Quant + SHIFT * 5), Quants(Quant + SHIFT * 5 - 7));
+		Wavelet.CodeBand(&Codec, 1, Quant ? Quants(Quant + SHIFT * 5) : 0, Quant ? Quants(Quant + SHIFT * 5 - 7) : 0);
 	}
 
 	pEnd = Codec.endCoding();
@@ -209,14 +209,17 @@ void DecompressImage(string & infile, string & outfile, bool Dither)
 	Wavelet.SetWeight(TRANSFORM);
 
 	Wavelet.DecodeBand(&Codec, 1);
-	Wavelet.TSUQi<false>(Quants(Head.Quant + SHIFT * 5));
+	if (Head.Quant != 0)
+		Wavelet.TSUQi<false>(Quants(Head.Quant + SHIFT * 5));
 	if (Head.Color) {
 		Wavelet.TransformI(img.ptr() + width * heigth * 3, width, TRANSFORM);
 		Wavelet.DecodeBand(&Codec, 1);
-		Wavelet.TSUQi<false>(Quants(Head.Quant + SHIFT * 5 + C_Q_BOOST));
+		if (Head.Quant != 0)
+			Wavelet.TSUQi<false>(Quants(Head.Quant + SHIFT * 5 + C_Q_BOOST));
 		Wavelet.TransformI(img.ptr() + width * heigth * 2, width, TRANSFORM);
 		Wavelet.DecodeBand(&Codec, 1);
-		Wavelet.TSUQi<false>(Quants(Head.Quant + SHIFT * 5 + C_Q_BOOST));
+		if (Head.Quant != 0)
+			Wavelet.TSUQi<false>(Quants(Head.Quant + SHIFT * 5 + C_Q_BOOST));
 	}
 	Wavelet.TransformI(img.ptr() + width * heigth, width, TRANSFORM);
 

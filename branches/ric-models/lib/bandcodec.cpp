@@ -151,7 +151,7 @@ void CBandCodec::makeThres(unsigned short * thres, const short quant, const int 
 }
 
 int CBandCodec::tsuqBlock(short * pCur, int stride, short Quant,
-                                   unsigned short iQuant, int lambda,
+                                   unsigned int iQuant, int lambda,
                                    unsigned short * rd_thres)
 {
 	int var_cnt = 0, cnt = 0, dist = 0, rate = 0;
@@ -168,7 +168,7 @@ int CBandCodec::tsuqBlock(short * pCur, int stride, short Quant,
 				else {
 					cnt++;
 					unsigned short tmp = ((unsigned short) pCur[i]) >> 1;
-					unsigned short qtmp = (tmp * (unsigned int)iQuant + (1 << 15)) >> 16;
+					unsigned short qtmp = (tmp * iQuant + (1 << 15)) >> 16;
 					int diff = qtmp * Quant;
 					if (diff > tmp) diff = 2 * tmp - diff;
 					dist += diff;
@@ -212,7 +212,7 @@ template <bool high_band>
 	int lbda = (int) (lambda / Weight);
 	short Q = (short) (Quant / Weight);
 	if (Q == 0) Q = 1;
-	unsigned short iQuant = (1 << 16) / Q;
+	unsigned int iQuant = (1 << 16) / Q;
 	makeThres(rd_thres, Q, lbda);
 	short * pCur = pBand;
 	unsigned int * pChild[2] = {0, 0};

@@ -64,6 +64,11 @@ private:
 	void Transform97(short * pImage, int Stride);
 	void Transform97I(short * pImage, int Stride);
 
+	static void TransLine75(short * i, int len);
+	static void TransLine75I(short * i, int len);
+	void Transform75(short * pImage, int Stride);
+	void Transform75I(short * pImage, int Stride);
+
 	static void TransLine53(short * i, int len);
 	static void TransLine53I(short * i, int len);
 	void Transform53(short * pImage, int Stride);
