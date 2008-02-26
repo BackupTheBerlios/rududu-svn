@@ -36,7 +36,6 @@ using namespace rududu;
 #define UNKNOW_TYPE		3
 
 #define WAV_LEVELS	5
-#define TRANSFORM	cdf97
 // color quantizer boost
 #define C_Q_BOOST	8
 #define SHIFT		4
@@ -117,15 +116,17 @@ typedef union {
 	struct  {
 		unsigned char Quant	:5;
 		unsigned char Color	:1;
+		unsigned char Trans	:2;
 	};
 	char last;
 } Header;
 
-void CompressImage(string & infile, string & outfile, int Quant)
+void CompressImage(string & infile, string & outfile, int Quant, trans Trans)
 {
 	Header Head;
 	Head.Quant = Quant;
 	Head.Color = 0;
+	Head.Trans = (unsigned char) Trans;
 
 	ofstream oFile( outfile.c_str() , ios::out );
 	oFile << "RUD2";
@@ -157,17 +158,17 @@ void CompressImage(string & infile, string & outfile, int Quant)
 	CMuxCodec Codec(pEnd, 0);
 
 	CWavelet2D Wavelet(img.dimx(), img.dimy(), WAV_LEVELS);
-	Wavelet.SetWeight(TRANSFORM);
+	Wavelet.SetWeight(Trans);
 
 	if (Head.Color) {
-		Wavelet.Transform(img.ptr(0,0,0,2), img.dimx(), TRANSFORM);
+		Wavelet.Transform(img.ptr(0,0,0,2), img.dimx(), Trans);
 		Wavelet.CodeBand(&Codec, 1, Quant ? Quants(Quant + SHIFT * 5) : 0, Quant ? Quants(Quant + SHIFT * 5 - 7) : 0);
-		Wavelet.Transform(img.ptr(0,0,0,1), img.dimx(), TRANSFORM);
+		Wavelet.Transform(img.ptr(0,0,0,1), img.dimx(), Trans);
 		Wavelet.CodeBand(&Codec, 1, Quant ? Quants(Quant + SHIFT * 5 + C_Q_BOOST) : 0, Quant ? Quants(Quant + SHIFT * 5 - 7 + C_Q_BOOST) : 0);
-		Wavelet.Transform(img.ptr(0,0,0,0), img.dimx(), TRANSFORM);
+		Wavelet.Transform(img.ptr(0,0,0,0), img.dimx(), Trans);
 		Wavelet.CodeBand(&Codec, 1, Quant ? Quants(Quant + SHIFT * 5 + C_Q_BOOST) : 0, Quant ? Quants(Quant + SHIFT * 5 - 7 + C_Q_BOOST) : 0);
 	} else {
-		Wavelet.Transform(img.ptr(0,0,0,0), img.dimx(), TRANSFORM);
+		Wavelet.Transform(img.ptr(0,0,0,0), img.dimx(), Trans);
 		Wavelet.CodeBand(&Codec, 1, Quant ? Quants(Quant + SHIFT * 5) : 0, Quant ? Quants(Quant + SHIFT * 5 - 7) : 0);
 	}
 
@@ -197,6 +198,7 @@ void DecompressImage(string & infile, string & outfile, bool Dither)
 	iFile.read(&Head.last, 1);
 	if (Head.Color == 1)
 		channels = 3;
+	trans Trans = (trans) Head.Trans;
 
 	CImg<short> img( width, heigth, 1, channels );
 	unsigned char * pStream = new unsigned char[width * heigth * channels];
@@ -206,22 +208,22 @@ void DecompressImage(string & infile, string & outfile, bool Dither)
 	CMuxCodec Codec(pStream);
 
 	CWavelet2D Wavelet(width, heigth, WAV_LEVELS);
-	Wavelet.SetWeight(TRANSFORM);
+	Wavelet.SetWeight(Trans);
 
 	Wavelet.DecodeBand(&Codec, 1);
 	if (Head.Quant != 0)
 		Wavelet.TSUQi<false>(Quants(Head.Quant + SHIFT * 5));
 	if (Head.Color) {
-		Wavelet.TransformI(img.ptr() + width * heigth * 3, width, TRANSFORM);
+		Wavelet.TransformI(img.ptr() + width * heigth * 3, width, Trans);
 		Wavelet.DecodeBand(&Codec, 1);
 		if (Head.Quant != 0)
 			Wavelet.TSUQi<false>(Quants(Head.Quant + SHIFT * 5 + C_Q_BOOST));
-		Wavelet.TransformI(img.ptr() + width * heigth * 2, width, TRANSFORM);
+		Wavelet.TransformI(img.ptr() + width * heigth * 2, width, Trans);
 		Wavelet.DecodeBand(&Codec, 1);
 		if (Head.Quant != 0)
 			Wavelet.TSUQi<false>(Quants(Head.Quant + SHIFT * 5 + C_Q_BOOST));
 	}
-	Wavelet.TransformI(img.ptr() + width * heigth, width, TRANSFORM);
+	Wavelet.TransformI(img.ptr() + width * heigth, width, Trans);
 
 	if (Head.Color == 0) {
 		if (Head.Quant == 0)
@@ -323,10 +325,14 @@ int main( int argc, char *argv[] )
 	string infile = cimg_option("-i", "", "Input file (use extension .ric for decompression)");
 	string outfile = cimg_option("-o", "", "Output file");
 	int Quant = cimg_option("-q", 9, "Quantizer : 0 (lossless) to 31");
+	int Trans = cimg_option("-t", 0, "Transform used 0:cdf97 1:cdf53 2:haar");
 	bool dither = cimg_option("-d", false, "Use dithering for ouput image (decompression and greyscale only)");
 	bool help = cimg_option("-h", false, "Display this help");
 	help = help || cimg_option("-help", false, 0);
 	help = help || cimg_option("--help", false, 0);
+
+	if (Trans > 3 || Trans < 0)
+		Trans = 0;
 
 	if (infile.length() == 0) {
 		if (!help) {
@@ -359,7 +365,7 @@ int main( int argc, char *argv[] )
 	}
 
 	if (mode == encode) {
-		CompressImage(infile, outfile, Quant);
+		CompressImage(infile, outfile, Quant, (trans)Trans);
 // 		Test(infile, Quant);
 	} else {
 		DecompressImage(infile, outfile, dither);
