@@ -35,16 +35,16 @@ namespace rududu {
 
 #define SQRT2	1.414213562f
 
-CWavelet2D::CWavelet2D(int x, int y, int level, int Align):
+CWavelet2D::CWavelet2D(int x, int y, int level, int level_chg, int Align):
 	pLow(0),
 	pHigh(0),
 	DimX(x),
 	DimY(y)
 {
-	Init(level, Align);
+	Init(level, level_chg, Align);
 }
 
-CWavelet2D::CWavelet2D(int x, int y, int level, CWavelet2D * pHigh, int Align):
+CWavelet2D::CWavelet2D(int x, int y, int level, int level_chg, CWavelet2D * pHigh, int Align):
 	pLow(0),
 	pHigh(0),
 	DimX(x),
@@ -58,7 +58,7 @@ CWavelet2D::CWavelet2D(int x, int y, int level, CWavelet2D * pHigh, int Align):
 	pHigh->VBand.pParent = &VBand;
 	VBand.pChild = &pHigh->VBand;
 
-	Init(level, Align);
+	Init(level, level_chg, Align);
 }
 
 CWavelet2D::~CWavelet2D()
@@ -66,151 +66,206 @@ CWavelet2D::~CWavelet2D()
 	delete pLow;
 }
 
-void CWavelet2D::Init(int level, int Align){
-	DBand.Init(DimX >> 1, DimY >> 1, Align);
-	VBand.Init(DimX >> 1, (DimY + 1) >> 1, Align);
-	HBand.Init((DimX + 1) >> 1, DimY >> 1, Align);
+void CWavelet2D::Init(int level, int level_chg, int Align){
+	band_t type = sshort;
+	if (level <= level_chg)
+		type = sint;
+	DBand.Init(type, DimX >> 1, DimY >> 1, Align);
+	VBand.Init(type, DimX >> 1, (DimY + 1) >> 1, Align);
+	HBand.Init(type, (DimX + 1) >> 1, DimY >> 1, Align);
 	if (level > 1){
-		pLow = new CWavelet2D((DimX + 1) >> 1, (DimY + 1) >> 1, level - 1, this, Align);
+		pLow = new CWavelet2D((DimX + 1) >> 1, (DimY + 1) >> 1, level - 1, level_chg, this, Align);
 	}else{
-		LBand.Init((DimX + 1) >> 1, (DimY + 1) >> 1, Align);
+		LBand.Init(type, (DimX + 1) >> 1, (DimY + 1) >> 1, Align);
 	}
 }
 
-void CWavelet2D::CodeBand(CMuxCodec * pCodec, int method,
-						  short Quant, int lambda)
+void CWavelet2D::CodeBand(CMuxCodec * pCodec, int Quant, int lambda)
 {
 	CWavelet2D * pCurWav = this;
 
-	switch( method ){
-		case 1 :
 #ifdef GENERATE_HUFF_STATS
-			cin.peek();
-			if (cin.eof()) {
-				for( int i = 0; i < 17; i++){
-					for( int j = 0; j < 17; j++){
-						CBandCodec::histo_l[i][j] = 0;
-						if (j != 16) CBandCodec::histo_h[i][j] = 0;
-					}
-				}
-			} else {
-				for( int i = 0; i < 17; i++){
-					for( int j = 0; j < 17; j++){
-						cin >> CBandCodec::histo_l[i][j];
-					}
-				}
-				for( int i = 0; i < 17; i++){
-					for( int j = 0; j < 16; j++){
-						cin >> CBandCodec::histo_h[i][j];
-					}
-				}
+	cin.peek();
+	if (cin.eof()) {
+		for( int i = 0; i < 17; i++){
+			for( int j = 0; j < 17; j++){
+				CBandCodec::histo_l[i][j] = 0;
+				if (j != 16) CBandCodec::histo_h[i][j] = 0;
 			}
-#endif
-			pCurWav->DBand.buildTree<true>(Quant, lambda);
-			pCurWav->HBand.buildTree<true>(Quant, lambda);
-			pCurWav->VBand.buildTree<true>(Quant, lambda);
-			while( pCurWav->pLow ) pCurWav = pCurWav->pLow;
-			pCurWav->LBand.TSUQ(Quant, 0.5f);
-			pCurWav->LBand.pred<encode>(pCodec);
-			while( pCurWav->pHigh ) {
-				pCurWav->VBand.tree<encode, false>(pCodec);
-				pCurWav->HBand.tree<encode, false>(pCodec);
-				pCurWav->DBand.tree<encode, false>(pCodec);
-				pCurWav = pCurWav->pHigh;
+		}
+	} else {
+		for( int i = 0; i < 17; i++){
+			for( int j = 0; j < 17; j++){
+				cin >> CBandCodec::histo_l[i][j];
 			}
-			pCurWav->VBand.tree<encode, true>(pCodec);
-			pCurWav->HBand.tree<encode, true>(pCodec);
-			pCurWav->DBand.tree<encode, true>(pCodec);
-#ifdef GENERATE_HUFF_STATS
-			for( int i = 0; i < 17; i++){
-				for( int j = 0; j < 17; j++){
-					cout << CBandCodec::histo_l[i][j] << " ";
-				}
-				cout << endl;
+		}
+		for( int i = 0; i < 17; i++){
+			for( int j = 0; j < 16; j++){
+				cin >> CBandCodec::histo_h[i][j];
 			}
-			cout << endl;
-			for( int i = 0; i < 17; i++){
-				for( int j = 0; j < 16; j++){
-					cout << CBandCodec::histo_h[i][j] << " ";
-				}
-				cout << endl;
-			}
-			cout << endl;
-#endif
+		}
 	}
+#endif
+
+	if (DBand.type == sshort) {
+		DBand.buildTree<true, short>(Quant, lambda);
+		HBand.buildTree<true, short>(Quant, lambda);
+		VBand.buildTree<true, short>(Quant, lambda);
+	} else if (DBand.type == sint) {
+		DBand.buildTree<true, int>(Quant, lambda);
+		HBand.buildTree<true, int>(Quant, lambda);
+		VBand.buildTree<true, int>(Quant, lambda);
+	}
+	while( pCurWav->pLow ) pCurWav = pCurWav->pLow;
+	if (pCurWav->LBand.type == sshort) {
+		pCurWav->LBand.TSUQ<short>(Quant, 0.5f);
+		pCurWav->LBand.pred<encode, short>(pCodec);
+	} else if (pCurWav->LBand.type == sint) {
+		pCurWav->LBand.TSUQ<int>(Quant, 0.5f);
+		pCurWav->LBand.pred<encode, int>(pCodec);
+	}
+	while( pCurWav->pHigh ) {
+		if (pCurWav->DBand.type == sshort) {
+			if (pCurWav->pLow && pCurWav->pLow->DBand.type == sshort || pCurWav->pLow == 0) {
+				pCurWav->VBand.tree<encode, false, short, short>(pCodec);
+				pCurWav->HBand.tree<encode, false, short, short>(pCodec);
+				pCurWav->DBand.tree<encode, false, short, short>(pCodec);
+			} else if (pCurWav->pLow && pCurWav->pLow->DBand.type == sint) {
+				pCurWav->VBand.tree<encode, false, short, int>(pCodec);
+				pCurWav->HBand.tree<encode, false, short, int>(pCodec);
+				pCurWav->DBand.tree<encode, false, short, int>(pCodec);
+			}
+		} else if (pCurWav->DBand.type == sint) {
+			pCurWav->VBand.tree<encode, false, int, int>(pCodec);
+			pCurWav->HBand.tree<encode, false, int, int>(pCodec);
+			pCurWav->DBand.tree<encode, false, int, int>(pCodec);
+		}
+		pCurWav = pCurWav->pHigh;
+	}
+	if (pCurWav->DBand.type == sshort) {
+		if (pCurWav->pLow && pCurWav->pLow->DBand.type == sshort || pCurWav->pLow == 0) {
+			pCurWav->VBand.tree<encode, true, short, short>(pCodec);
+			pCurWav->HBand.tree<encode, true, short, short>(pCodec);
+			pCurWav->DBand.tree<encode, true, short, short>(pCodec);
+		} else if (pCurWav->pLow && pCurWav->pLow->DBand.type == sint) {
+			pCurWav->VBand.tree<encode, true, short, int>(pCodec);
+			pCurWav->HBand.tree<encode, true, short, int>(pCodec);
+			pCurWav->DBand.tree<encode, true, short, int>(pCodec);
+		}
+	} else if (pCurWav->DBand.type == sint) {
+		pCurWav->VBand.tree<encode, true, int, int>(pCodec);
+		pCurWav->HBand.tree<encode, true, int, int>(pCodec);
+		pCurWav->DBand.tree<encode, true, int, int>(pCodec);
+	}
+
+#ifdef GENERATE_HUFF_STATS
+	for( int i = 0; i < 17; i++){
+		for( int j = 0; j < 17; j++){
+			cout << CBandCodec::histo_l[i][j] << " ";
+		}
+		cout << endl;
+	}
+	cout << endl;
+	for( int i = 0; i < 17; i++){
+		for( int j = 0; j < 16; j++){
+			cout << CBandCodec::histo_h[i][j] << " ";
+		}
+		cout << endl;
+	}
+	cout << endl;
+#endif
 }
 
-void CWavelet2D::DecodeBand(CMuxCodec * pCodec, int method)
+void CWavelet2D::DecodeBand(CMuxCodec * pCodec)
 {
 	CWavelet2D * pCurWav = this;
 
-	switch( method ){
-		case 1 :
-			while( pCurWav->pLow ) pCurWav = pCurWav->pLow;
-			pCurWav->LBand.pred<decode>(pCodec);
-			while( pCurWav->pHigh ) {
-				pCurWav->VBand.Clear(false);
-				pCurWav->VBand.tree<decode, false>(pCodec);
-				pCurWav->HBand.Clear(false);
-				pCurWav->HBand.tree<decode, false>(pCodec);
-				pCurWav->DBand.Clear(false);
-				pCurWav->DBand.tree<decode, false>(pCodec);
-				pCurWav = pCurWav->pHigh;
+	while( pCurWav->pLow ) pCurWav = pCurWav->pLow;
+	if (pCurWav->LBand.type == sshort) {
+		pCurWav->LBand.pred<decode, short>(pCodec);
+	} else if (pCurWav->LBand.type == sint) {
+		pCurWav->LBand.pred<decode, int>(pCodec);
+	}
+	while( pCurWav->pHigh ) {
+		if (pCurWav->DBand.type == sshort) {
+			if (pCurWav->pLow && pCurWav->pLow->DBand.type == sshort || pCurWav->pLow == 0) {
+				pCurWav->VBand.tree<decode, false, short, short>(pCodec);
+				pCurWav->HBand.tree<decode, false, short, short>(pCodec);
+				pCurWav->DBand.tree<decode, false, short, short>(pCodec);
+			} else if (pCurWav->pLow && pCurWav->pLow->DBand.type == sint) {
+				pCurWav->VBand.tree<decode, false, short, int>(pCodec);
+				pCurWav->HBand.tree<decode, false, short, int>(pCodec);
+				pCurWav->DBand.tree<decode, false, short, int>(pCodec);
 			}
-			pCurWav->VBand.Clear(false);
-			pCurWav->VBand.tree<decode, true>(pCodec);
-			pCurWav->HBand.Clear(false);
-			pCurWav->HBand.tree<decode, true>(pCodec);
-			pCurWav->DBand.Clear(false);
-			pCurWav->DBand.tree<decode, true>(pCodec);
+		} else if (pCurWav->DBand.type == sint) {
+			pCurWav->VBand.tree<decode, false, int, int>(pCodec);
+			pCurWav->HBand.tree<decode, false, int, int>(pCodec);
+			pCurWav->DBand.tree<decode, false, int, int>(pCodec);
+		}
+		pCurWav = pCurWav->pHigh;
+	}
+	if (pCurWav->DBand.type == sshort) {
+		if (pCurWav->pLow && pCurWav->pLow->DBand.type == sshort || pCurWav->pLow == 0) {
+			pCurWav->VBand.tree<decode, true, short, short>(pCodec);
+			pCurWav->HBand.tree<decode, true, short, short>(pCodec);
+			pCurWav->DBand.tree<decode, true, short, short>(pCodec);
+		} else if (pCurWav->pLow && pCurWav->pLow->DBand.type == sint) {
+			pCurWav->VBand.tree<decode, true, short, int>(pCodec);
+			pCurWav->HBand.tree<decode, true, short, int>(pCodec);
+			pCurWav->DBand.tree<decode, true, short, int>(pCodec);
+		}
+	} else if (pCurWav->DBand.type == sint) {
+		pCurWav->VBand.tree<decode, true, int, int>(pCodec);
+		pCurWav->HBand.tree<decode, true, int, int>(pCodec);
+		pCurWav->DBand.tree<decode, true, int, int>(pCodec);
 	}
 }
 
-template <bool use_dct>
-	unsigned int CWavelet2D::TSUQ(short Quant, float Thres)
+unsigned int CWavelet2D::TSUQ(int Quant, float Thres)
 {
 	unsigned int Count = 0;
-	Count += DBand.TSUQ(Quant, Thres);
-	if (use_dct) {
-		Count += HBand.TSUQ_DCTH(Quant, Thres);
-		Count += VBand.TSUQ_DCTV(Quant, Thres);
-	} else {
-		Count += HBand.TSUQ(Quant, Thres);
-		Count += VBand.TSUQ(Quant, Thres);
+	if (DBand.type == sshort) {
+		Count += DBand.TSUQ<short>(Quant, Thres);
+		Count += HBand.TSUQ<short>(Quant, Thres);
+		Count += VBand.TSUQ<short>(Quant, Thres);
+	} else if (DBand.type == sint) {
+		Count += DBand.TSUQ<int>(Quant, Thres);
+		Count += HBand.TSUQ<int>(Quant, Thres);
+		Count += VBand.TSUQ<int>(Quant, Thres);
 	}
 
 	if (pLow != 0) {
-		Count += pLow->TSUQ<use_dct>(Quant, Thres);
+		Count += pLow->TSUQ(Quant, Thres);
 	} else {
-		Count += LBand.TSUQ(Quant, 0.5f);
+		if (LBand.type == sshort)
+			Count += LBand.TSUQ<short>(Quant, 0.5f);
+		else if (LBand.type == sint)
+			Count += LBand.TSUQ<int>(Quant, 0.5f);
 	}
 	return Count;
 }
 
-template unsigned int CWavelet2D::TSUQ<false>(short, float);
-template unsigned int CWavelet2D::TSUQ<true>(short, float);
-
-template <bool use_dct>
-	void CWavelet2D::TSUQi(short Quant)
+void CWavelet2D::TSUQi(int Quant)
 {
-	DBand.TSUQi(Quant);
-	if (use_dct) {
-		HBand.TSUQ_DCTHi(Quant);
-		VBand.TSUQ_DCTVi(Quant);
-	} else {
-		HBand.TSUQi(Quant);
-		VBand.TSUQi(Quant);
+	if (DBand.type == sshort) {
+		DBand.TSUQi<short>(Quant);
+		HBand.TSUQi<short>(Quant);
+		VBand.TSUQi<short>(Quant);
+	} else if (DBand.type == sint) {
+		DBand.TSUQi<int>(Quant);
+		HBand.TSUQi<int>(Quant);
+		VBand.TSUQi<int>(Quant);
 	}
 
-	if (pLow != 0){
-		pLow->TSUQi<use_dct>(Quant);
+	if (pLow != 0) {
+		pLow->TSUQi(Quant);
 	} else {
-		LBand.TSUQi(Quant);
+		if (LBand.type == sshort)
+			LBand.TSUQi<short>(Quant);
+		else if (LBand.type == sint)
+			LBand.TSUQi<int>(Quant);
 	}
 }
-
-template void CWavelet2D::TSUQi<false>(short Quant);
-template void CWavelet2D::TSUQi<true>(short Quant);
 
 #define PRINT_STAT(band) \
 	cout << band << " :\t"; \
@@ -220,26 +275,40 @@ template void CWavelet2D::TSUQi<true>(short Quant);
 void CWavelet2D::Stats(void)
 {
 	float Mean = 0, Var = 0;
-	DBand.Mean(Mean, Var);
-	PRINT_STAT("D");
-	HBand.Mean(Mean, Var);
-	PRINT_STAT("H");
-	VBand.Mean(Mean, Var);
-	PRINT_STAT("V");
+	if (DBand.type == sshort) {
+		DBand.Mean<short>(Mean, Var);
+		PRINT_STAT("D");
+		HBand.Mean<short>(Mean, Var);
+		PRINT_STAT("H");
+		VBand.Mean<short>(Mean, Var);
+		PRINT_STAT("V");
+	} else if (DBand.type == sint) {
+		DBand.Mean<int>(Mean, Var);
+		PRINT_STAT("D");
+		HBand.Mean<int>(Mean, Var);
+		PRINT_STAT("H");
+		VBand.Mean<int>(Mean, Var);
+		PRINT_STAT("V");
+	}
 
 	if (pLow != 0)
 		pLow->Stats();
 	else{
-		LBand.Mean(Mean, Var);
+		if (LBand.type == sshort)
+			LBand.Mean<short>(Mean, Var);
+		else if (LBand.type == sint)
+			LBand.Mean<int>(Mean, Var);
 		PRINT_STAT("L");
 	}
 }
 
-#define MUL_FASTER
+// #define MUL_FASTER
 
-inline short CWavelet2D::mult08(short a)
+template <class C>
+	inline C CWavelet2D::mult08(C a)
 {
 #ifdef MUL_FASTER
+	// FIXME issue with int mult
 	return (a * 0xCCCCu) >> 16;
 #else
 	a -= a >> 2;
@@ -248,11 +317,12 @@ inline short CWavelet2D::mult08(short a)
 #endif
 }
 
-void CWavelet2D::TransLine97(short * i, int len)
+template <class C>
+	void CWavelet2D::TransLine97(C * i, int len)
 {
-	short * iend = i + len - 5;
+	C * iend = i + len - 5;
 
-	short tmp = i[0] + i[2];
+	C tmp = i[0] + i[2];
 	i[1] -= tmp + (tmp >> 1);
 	i[0] -= i[1] >> 3;
 
@@ -293,13 +363,14 @@ void CWavelet2D::TransLine97(short * i, int len)
 	}
 }
 
-void CWavelet2D::TransLine97I(short * i, int len)
+template <class C>
+	void CWavelet2D::TransLine97I(C * i, int len)
 {
-	short * iend = i + len - 5;
+	C * iend = i + len - 5;
 
 	i[0] -= i[1] - (i[1] >> 4);
 
-	short tmp = i[1] + i[3];
+	C tmp = i[1] + i[3];
 	i[2] -= (tmp >> 1) - (tmp >> 5);
 	i[1] -= mult08(i[0] + i[2]);
 	i[0] += i[1] >> 3;
@@ -333,17 +404,18 @@ void CWavelet2D::TransLine97I(short * i, int len)
 	}
 }
 
-void CWavelet2D::Transform97(short * pImage, int Stride)
+template <class C>
+	void CWavelet2D::Transform97(C * pImage, int Stride)
 {
-	short * i[6];
+	C * i[6];
 	i[0] = pImage;
 	for( int j = 1; j < 6; j++)
 		i[j] = i[j-1] + Stride;
 
-	short * out[4] = {pImage, VBand.pBand, HBand.pBand, DBand.pBand};
+	C * out[4] = {pImage, (C*) VBand.pBand, (C*) HBand.pBand, (C*) DBand.pBand};
 	int out_stride[4] = {Stride, VBand.DimXAlign, HBand.DimXAlign, DBand.DimXAlign};
 	if (pLow == 0){
-		out[0] = LBand.pBand;
+		out[0] = (C*) LBand.pBand;
 		out_stride[0] = LBand.DimXAlign;
 	}
 
@@ -351,7 +423,7 @@ void CWavelet2D::Transform97(short * pImage, int Stride)
 		TransLine97(i[j], DimX);
 
 	for(int k = 0 ; k < DimX; k++) {
-		short tmp = i[0][k] + i[2][k];
+		C tmp = i[0][k] + i[2][k];
 		i[1][k] -= tmp + (tmp >> 1);
 		i[0][k] -= i[1][k] >> 3;
 
@@ -375,7 +447,7 @@ void CWavelet2D::Transform97(short * pImage, int Stride)
 		TransLine97(i[5], DimX);
 
 		for(int k = 0 ; k < DimX; k++) {
-			short tmp = i[3][k] + i[5][k];
+			C tmp = i[3][k] + i[5][k];
 			i[4][k] -= tmp + (tmp >> 1);
 			i[3][k] -= (i[2][k] + i[4][k]) >> 4;
 			i[2][k] += mult08(i[1][k] + i[3][k]);
@@ -395,7 +467,7 @@ void CWavelet2D::Transform97(short * pImage, int Stride)
 		for(int k = 0 ; k < DimX; k++) {
 			i[3][k] -= i[2][k] >> 3;
 			i[2][k] += mult08(i[1][k] + i[3][k]);
-			short tmp = i[0][k] + i[2][k];
+			C tmp = i[0][k] + i[2][k];
 			i[1][k] += (tmp >> 1) - (tmp >> 5);
 
 			i[3][k] += i[2][k] - (i[2][k] >> 4);
@@ -412,7 +484,7 @@ void CWavelet2D::Transform97(short * pImage, int Stride)
 			i[4][k] -= i[3][k] * 2 + i[3][k];
 			i[3][k] -= (i[2][k] + i[4][k]) >> 4;
 			i[2][k] += mult08(i[1][k] + i[3][k]);
-			short tmp = i[0][k] + i[2][k];
+			C tmp = i[0][k] + i[2][k];
 			i[1][k] += (tmp >> 1) - (tmp >> 5);
 
 			i[4][k] += 2 * mult08(i[3][k]);
@@ -429,25 +501,26 @@ void CWavelet2D::Transform97(short * pImage, int Stride)
 	}
 }
 
-void CWavelet2D::Transform97I(short * pImage, int Stride)
+template <class C>
+	void CWavelet2D::Transform97I(C * pImage, int Stride)
 {
-	short * in[4] = {pImage, VBand.pBand, HBand.pBand, DBand.pBand};
+	C * in[4] = {pImage, (C*) VBand.pBand, (C*) HBand.pBand, (C*) DBand.pBand};
 	int in_stride[4] = {Stride, VBand.DimXAlign, HBand.DimXAlign, DBand.DimXAlign};
 	if (pLow == 0){
-		in[0] = LBand.pBand;
+		in[0] = (C*) LBand.pBand;
 		in_stride[0] = LBand.DimXAlign;
 	} else {
 		in[0] -= (pLow->DimY - 1) * Stride + pLow->DimX;
 	}
 
-	short * i[6];
+	C * i[6];
 	i[0] = pImage - DimY * Stride;
 	if (pHigh != 0) i[0] += Stride - DimX;
 	for( int j = 1; j < 6; j++)
 		i[j] = i[j-1] + Stride;
 
 	for(int k = 0 ; k < DimX; k++) {
-		short tmp = k & 1;
+		C tmp = k & 1;
 		i[0][k] = in[tmp][k >> 1];
 		i[1][k] = in[2 + tmp][k >> 1];
 		i[2][k] = in[tmp][in_stride[tmp] + (k >> 1)];
@@ -469,7 +542,7 @@ void CWavelet2D::Transform97I(short * pImage, int Stride)
 			i[4][k] = in[k & 1][k >> 1];
 			i[5][k] = in[2 + (k & 1)][k >> 1];
 
-			short tmp = i[3][k] + i[5][k];
+			C tmp = i[3][k] + i[5][k];
 			i[4][k] -= (tmp >> 1) - (tmp >> 5);
 			i[3][k] -= mult08(i[2][k] + i[4][k]);
 			i[2][k] += (i[1][k] + i[3][k]) >> 4;
@@ -493,7 +566,7 @@ void CWavelet2D::Transform97I(short * pImage, int Stride)
 			i[4][k] -= i[3][k] - (i[3][k] >> 4);
 			i[3][k] -= mult08(i[2][k] + i[4][k]);
 			i[2][k] += (i[1][k] + i[3][k]) >> 4;
-			short tmp = i[0][k] + i[2][k];
+			C tmp = i[0][k] + i[2][k];
 			i[1][k] += tmp + (tmp >> 1);
 
 			i[4][k] += i[3][k] >> 3;
@@ -505,7 +578,7 @@ void CWavelet2D::Transform97I(short * pImage, int Stride)
 		for(int k = 0 ; k < DimX; k++) {
 			i[3][k] -= 2 * mult08(i[2][k]);
 			i[2][k] += (i[1][k] + i[3][k]) >> 4;
-			short tmp = i[0][k] + i[2][k];
+			C tmp = i[0][k] + i[2][k];
 			i[1][k] += tmp + (tmp >> 1);
 
 			i[3][k] += i[2][k] * 2 + i[2][k];
@@ -516,9 +589,10 @@ void CWavelet2D::Transform97I(short * pImage, int Stride)
 		TransLine97I(i[j], DimX);
 }
 
-void CWavelet2D::TransLine53(short * i, int len)
+template <class C>
+	void CWavelet2D::TransLine53(C * i, int len)
 {
-	short * iend = i + len - 3;
+	C * iend = i + len - 3;
 
 	i[1] -= (i[0] + i[2]) >> 1;
 	i[0] += i[1] >> 1;
@@ -538,9 +612,10 @@ void CWavelet2D::TransLine53(short * i, int len)
 	}
 }
 
-void CWavelet2D::TransLine53I(short * i, int len)
+template <class C>
+	void CWavelet2D::TransLine53I(C * i, int len)
 {
-	short * iend = i + len - 3;
+	C * iend = i + len - 3;
 
 	i[0] -= i[1] >> 1;
 
@@ -557,17 +632,18 @@ void CWavelet2D::TransLine53I(short * i, int len)
 	}
 }
 
-void CWavelet2D::Transform53(short * pImage, int Stride)
+template <class C>
+	void CWavelet2D::Transform53(C * pImage, int Stride)
 {
-	short * i[4];
+	C * i[4];
 	i[0] = pImage;
 	for( int j = 1; j < 4; j++)
 		i[j] = i[j-1] + Stride;
 
-	short * out[4] = {pImage, VBand.pBand, HBand.pBand, DBand.pBand};
+	C * out[4] = {pImage, (C*) VBand.pBand, (C*) HBand.pBand, (C*) DBand.pBand};
 	int out_stride[4] = {Stride, VBand.DimXAlign, HBand.DimXAlign, DBand.DimXAlign};
 	if (pLow == 0){
-		out[0] = LBand.pBand;
+		out[0] = (C*) LBand.pBand;
 		out_stride[0] = LBand.DimXAlign;
 	}
 
@@ -622,18 +698,19 @@ void CWavelet2D::Transform53(short * pImage, int Stride)
 	}
 }
 
-void CWavelet2D::Transform53I(short * pImage, int Stride)
+template <class C>
+	void CWavelet2D::Transform53I(C * pImage, int Stride)
 {
-	short * in[4] = {pImage, VBand.pBand, HBand.pBand, DBand.pBand};
+	C * in[4] = {pImage, (C*) VBand.pBand, (C*) HBand.pBand, (C*) DBand.pBand};
 	int in_stride[4] = {Stride, VBand.DimXAlign, HBand.DimXAlign, DBand.DimXAlign};
 	if (pLow == 0){
-		in[0] = LBand.pBand;
+		in[0] = (C*) LBand.pBand;
 		in_stride[0] = LBand.DimXAlign;
 	} else {
 		in[0] -= (pLow->DimY - 1) * Stride + pLow->DimX;
 	}
 
-	short * i[4];
+	C * i[4];
 	i[0] = pImage - DimY * Stride;
 	if (pHigh != 0) i[0] += Stride - DimX;
 	for( int j = 1; j < 4; j++)
@@ -683,9 +760,10 @@ void CWavelet2D::Transform53I(short * pImage, int Stride)
 	TransLine53I(i[1], DimX);
 }
 
-void CWavelet2D::TransLine75(short * i, int len)
+template <class C>
+	void CWavelet2D::TransLine75(C * i, int len)
 {
-	short * iend = i + len - 4;
+	C * iend = i + len - 4;
 
 	i[0] -= i[1] >> 1;
 
@@ -698,31 +776,32 @@ void CWavelet2D::TransLine75(short * i, int len)
 	for( ; i < iend; i += 2) {
 		i[3] -= (i[2] + i[4]) >> 2;
 		i[2] -= i[1] + i[3];
-		short tmp = i[0] + i[2];
+		C tmp = i[0] + i[2];
 		i[1] += (tmp >> 3) + (tmp >> 4);
 	}
 
 	if (len & 1) {
 		i[3] -= i[2] >> 1;
 		i[2] -= i[1] + i[3];
-		short tmp = i[0] + i[2];
+		C tmp = i[0] + i[2];
 		i[1] += (tmp >> 3) + (tmp >> 4);
 
 		i[3] += (i[2] >> 2) + (i[2] >> 3);
 	} else {
 		i[2] -= i[1] * 2;
-		short tmp = i[0] + i[2];
+		C tmp = i[0] + i[2];
 		i[1] += (tmp >> 3) + (tmp >> 4);
 	}
 }
 
-void CWavelet2D::TransLine75I(short * i, int len)
+template <class C>
+	void CWavelet2D::TransLine75I(C * i, int len)
 {
-	short * iend = i + len - 4;
+	C * iend = i + len - 4;
 
 	i[0] -= (i[1] >> 2) + (i[1] >> 3);
 
-	short tmp = i[1] + i[3];
+	C tmp = i[1] + i[3];
 	i[2] -= (tmp >> 3) + (tmp >> 4);
 	i[1] += i[0] + i[2];
 	i[0] += i[1] >> 1;
@@ -748,17 +827,18 @@ void CWavelet2D::TransLine75I(short * i, int len)
 	}
 }
 
-void CWavelet2D::Transform75(short * pImage, int Stride)
+template <class C>
+	void CWavelet2D::Transform75(C * pImage, int Stride)
 {
-	short * i[5];
+	C * i[5];
 	i[0] = pImage;
 	for( int j = 1; j < 6; j++)
 		i[j] = i[j-1] + Stride;
 
-	short * out[4] = {pImage, VBand.pBand, HBand.pBand, DBand.pBand};
+	C * out[4] = {pImage, (C*) VBand.pBand, (C*) HBand.pBand, (C*) DBand.pBand};
 	int out_stride[4] = {Stride, VBand.DimXAlign, HBand.DimXAlign, DBand.DimXAlign};
 	if (pLow == 0){
-		out[0] = LBand.pBand;
+		out[0] = (C*) LBand.pBand;
 		out_stride[0] = LBand.DimXAlign;
 	}
 
@@ -788,7 +868,7 @@ void CWavelet2D::Transform75(short * pImage, int Stride)
 		for(int k = 0 ; k < DimX; k++) {
 			i[3][k] -= (i[2][k] + i[4][k]) >> 2;
 			i[2][k] -= i[1][k] + i[3][k];
-			short tmp = i[0][k] + i[2][k];
+			C tmp = i[0][k] + i[2][k];
 			i[1][k] += (tmp >> 3) + (tmp >> 4);
 			out[2 + (k & 1)][k >> 1] = i[0][k];
 			out[k & 1][k >> 1] = i[1][k];
@@ -804,7 +884,7 @@ void CWavelet2D::Transform75(short * pImage, int Stride)
 		for(int k = 0 ; k < DimX; k++) {
 			i[3][k] -= i[2][k] >> 1;
 			i[2][k] -= i[1][k] + i[3][k];
-			short tmp = i[0][k] + i[2][k];
+			C tmp = i[0][k] + i[2][k];
 			i[1][k] += (tmp >> 3) + (tmp >> 4);
 
 			i[3][k] += (i[2][k] >> 2) + (i[2][k] >> 3);
@@ -819,7 +899,7 @@ void CWavelet2D::Transform75(short * pImage, int Stride)
 		TransLine75(i[4], DimX);
 		for(int k = 0 ; k < DimX; k++) {
 			i[2][k] -= i[1][k] * 2;
-			short tmp = i[0][k] + i[2][k];
+			C tmp = i[0][k] + i[2][k];
 			i[1][k] += (tmp >> 3) + (tmp >> 4);
 
 			tmp = k & 1;
@@ -830,25 +910,26 @@ void CWavelet2D::Transform75(short * pImage, int Stride)
 	}
 }
 
-void CWavelet2D::Transform75I(short * pImage, int Stride)
+template <class C>
+	void CWavelet2D::Transform75I(C * pImage, int Stride)
 {
-	short * in[4] = {pImage, VBand.pBand, HBand.pBand, DBand.pBand};
+	C * in[4] = {pImage, (C*) VBand.pBand, (C*) HBand.pBand, (C*) DBand.pBand};
 	int in_stride[4] = {Stride, VBand.DimXAlign, HBand.DimXAlign, DBand.DimXAlign};
 	if (pLow == 0){
-		in[0] = LBand.pBand;
+		in[0] = (C*) LBand.pBand;
 		in_stride[0] = LBand.DimXAlign;
 	} else {
 		in[0] -= (pLow->DimY - 1) * Stride + pLow->DimX;
 	}
 
-	short * i[5];
+	C * i[5];
 	i[0] = pImage - DimY * Stride;
 	if (pHigh != 0) i[0] += Stride - DimX;
 	for( int j = 1; j < 5; j++)
 		i[j] = i[j-1] + Stride;
 
 	for(int k = 0 ; k < DimX; k++) {
-		short tmp = k & 1;
+		C tmp = k & 1;
 		i[0][k] = in[tmp][k >> 1];
 		i[1][k] = in[2 + tmp][k >> 1];
 		i[2][k] = in[tmp][in_stride[tmp] + (k >> 1)];
@@ -875,7 +956,7 @@ void CWavelet2D::Transform75I(short * pImage, int Stride)
 			i[3][k] = in[k & 1][k >> 1];
 			i[4][k] = in[2 + (k & 1)][k >> 1];
 
-			short tmp = i[2][k] + i[4][k];
+			C tmp = i[2][k] + i[4][k];
 			i[3][k] -= (tmp >> 3) + (tmp >> 4);
 			i[2][k] += i[1][k] + i[3][k];
 			i[1][k] += (i[0][k] + i[2][k]) >> 2;
@@ -912,9 +993,10 @@ void CWavelet2D::Transform75I(short * pImage, int Stride)
 		TransLine75I(i[j], DimX);
 }
 
-void CWavelet2D::TransLineHaar(short * i, int len)
+template <class C>
+	void CWavelet2D::TransLineHaar(C * i, int len)
 {
-	short * iend = i + len - 1;
+	C * iend = i + len - 1;
 
 	for( ; i < iend; i += 2) {
 		i[1] -= i[0];
@@ -922,9 +1004,10 @@ void CWavelet2D::TransLineHaar(short * i, int len)
 	}
 }
 
-void CWavelet2D::TransLineHaarI(short * i, int len)
+template <class C>
+	void CWavelet2D::TransLineHaarI(C * i, int len)
 {
-	short * iend = i + len - 1;
+	C * iend = i + len - 1;
 
 	for( ; i < iend; i += 2) {
 		i[0] -= i[1] >> 1;
@@ -932,16 +1015,17 @@ void CWavelet2D::TransLineHaarI(short * i, int len)
 	}
 }
 
-void CWavelet2D::TransformHaar(short * pImage, int Stride)
+template <class C>
+	void CWavelet2D::TransformHaar(C * pImage, int Stride)
 {
-	short * i[2];
+	C * i[2];
 	i[0] = pImage;
 	i[1] = i[0] + Stride;
 
-	short * out[4] = {pImage, VBand.pBand, HBand.pBand, DBand.pBand};
+	C * out[4] = {pImage, (C*) VBand.pBand, (C*) HBand.pBand, (C*) DBand.pBand};
 	int out_stride[4] = {Stride, VBand.DimXAlign, HBand.DimXAlign, DBand.DimXAlign};
 	if (pLow == 0){
-		out[0] = LBand.pBand;
+		out[0] = (C*) LBand.pBand;
 		out_stride[0] = LBand.DimXAlign;
 	}
 
@@ -964,18 +1048,19 @@ void CWavelet2D::TransformHaar(short * pImage, int Stride)
 	}
 }
 
-void CWavelet2D::TransformHaarI(short * pImage, int Stride)
+template <class C>
+	void CWavelet2D::TransformHaarI(C * pImage, int Stride)
 {
-	short * in[4] = {pImage, VBand.pBand, HBand.pBand, DBand.pBand};
+	C * in[4] = {pImage, (C*) VBand.pBand, (C*) HBand.pBand, (C*) DBand.pBand};
 	int in_stride[4] = {Stride, VBand.DimXAlign, HBand.DimXAlign, DBand.DimXAlign};
 	if (pLow == 0){
-		in[0] = LBand.pBand;
+		in[0] = (C*) LBand.pBand;
 		in_stride[0] = LBand.DimXAlign;
 	} else {
 		in[0] -= (pLow->DimY - 1) * Stride + pLow->DimX;
 	}
 
-	short * i[2];
+	C * i[2];
 	i[0] = pImage - DimY * Stride;
 	if (pHigh != 0) i[0] += Stride - DimX;
 	i[1] = i[0] + Stride;
@@ -999,6 +1084,7 @@ void CWavelet2D::TransformHaarI(short * pImage, int Stride)
 	}
 }
 
+/*
 template <bool forward>
 	void CWavelet2D::DCT4H(void)
 {
@@ -1065,8 +1151,10 @@ template <bool forward>
 		}
 	}
 }
+*/
 
-void CWavelet2D::Transform(short * pImage, int Stride, trans t)
+template <class C>
+	void CWavelet2D::Transform(C * pImage, int Stride, trans t)
 {
 	if (t == cdf97) {
 		Transform97(pImage, Stride);
@@ -1077,14 +1165,49 @@ void CWavelet2D::Transform(short * pImage, int Stride, trans t)
 	} else if (t == cdf75)
 		Transform75(pImage, Stride);
 
-	if (pLow != 0)
-		pLow->Transform(pImage, Stride, t);
+	if (pLow != 0) {
+		if (DBand.type == sshort && pLow->DBand.type == sint) {
+			C * pIn = pImage;
+			for( int j = 0; j < pLow->DimY; j++){
+				int * pOut = (int*) pIn;
+				for( int i = pLow->DimX - 1; i >= 0; i--){
+					pOut[i] = (int) pIn[i];
+				}
+				pIn += Stride;
+			}
+			Stride >>= 1;
+		}
+		if (pLow->DBand.type == sshort)
+			pLow->Transform(pImage, Stride, t);
+		else
+			pLow->Transform((int*)pImage, Stride, t);
+	}
 }
 
-void CWavelet2D::TransformI(short * pImage, int Stride, trans t)
+template void CWavelet2D::Transform(short *, int, trans);
+
+template <class C>
+	void CWavelet2D::TransformI(C * pImage, int Stride, trans t)
 {
-	if (pLow != 0)
-		pLow->TransformI(pImage, Stride, t);
+	if (pLow != 0) {
+		if (pLow->DBand.type == sshort)
+			pLow->TransformI(pImage, Stride, t);
+		else if (DBand.type == sshort)
+			pLow->TransformI((int*)pImage, Stride >> 1, t);
+		else
+			pLow->TransformI((int*)pImage, Stride, t);
+
+		if (DBand.type == sshort && pLow->DBand.type == sint) {
+			C * pOut = pImage - (pLow->DimY - 1) * Stride;
+			for( int j = 0; j < pLow->DimY; j++){
+				int * pIn = (int*) pOut;
+				for( int i = -1 ; i >= -pLow->DimX; i--){
+					pOut[i] = (C) pIn[i];
+				}
+				pOut += Stride;
+			}
+		}
+	}
 
 	if (t == cdf97) {
 		Transform97I(pImage, Stride);
@@ -1096,6 +1219,9 @@ void CWavelet2D::TransformI(short * pImage, int Stride, trans t)
 		Transform75I(pImage, Stride);
 }
 
+template void CWavelet2D::TransformI(short *, int, trans);
+
+/*
 template <bool forward>
 	void CWavelet2D::DCT4(void)
 {
@@ -1108,6 +1234,7 @@ template <bool forward>
 
 template void CWavelet2D::DCT4<true>(void);
 template void CWavelet2D::DCT4<false>(void);
+*/
 
 void CWavelet2D::SetWeight(trans t, float baseWeight)
 {

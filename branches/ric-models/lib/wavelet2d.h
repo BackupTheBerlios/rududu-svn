@@ -26,20 +26,20 @@ namespace rududu {
 
 class CWavelet2D{
 public:
-	CWavelet2D(int x, int y, int level, int Align = ALIGN);
+	CWavelet2D(int x, int y, int level, int level_chg = 0, int Align = ALIGN);
 
     ~CWavelet2D();
 
-	void Transform(short * pImage, int Stride, trans t);
-	void TransformI(short * pImage, int Stride, trans t);
-	template <bool forward> void DCT4(void);
+	template <class C> void Transform(C * pImage, int Stride, trans t);
+	template <class C> void TransformI(C * pImage, int Stride, trans t);
+// 	template <bool forward> void DCT4(void);
 	void SetWeight(trans t, float baseWeight = 1.);
 
-	void DecodeBand(CMuxCodec * pCodec, int method);
-	void CodeBand(CMuxCodec * pCodec, int method, short Quant, int lambda);
+	void DecodeBand(CMuxCodec * pCodec);
+	void CodeBand(CMuxCodec * pCodec, int Quant, int lambda);
 
-	template <bool use_dct> unsigned int TSUQ(short Quant, float Thres);
-	template <bool use_dct> void TSUQi(short Quant);
+	unsigned int TSUQ(int Quant, float Thres);
+	void TSUQi(int Quant);
 
 	void Stats(void);
 
@@ -55,34 +55,36 @@ private:
 	int DimX;
 	int DimY;
 
-	CWavelet2D(int x, int y, int level, CWavelet2D * pHigh, int Align);
-	void Init(int level, int Align);
+	CWavelet2D(int x, int y, int level, int level_chg, CWavelet2D * pHigh, int Align);
+	void Init(int level, int level_chg, int Align);
 
 	// TODO : tester si inline c'est mieux
-	static void TransLine97(short * i, int len);
-	static void TransLine97I(short * i, int len);
-	void Transform97(short * pImage, int Stride);
-	void Transform97I(short * pImage, int Stride);
+	template <class C> static void TransLine97(C * i, int len);
+	template <class C> static void TransLine97I(C * i, int len);
+	template <class C> void Transform97(C * pImage, int Stride);
+	template <class C> void Transform97I(C * pImage, int Stride);
 
-	static void TransLine75(short * i, int len);
-	static void TransLine75I(short * i, int len);
-	void Transform75(short * pImage, int Stride);
-	void Transform75I(short * pImage, int Stride);
+	template <class C> static void TransLine75(C * i, int len);
+	template <class C> static void TransLine75I(C * i, int len);
+	template <class C> void Transform75(C * pImage, int Stride);
+	template <class C> void Transform75I(C * pImage, int Stride);
 
-	static void TransLine53(short * i, int len);
-	static void TransLine53I(short * i, int len);
-	void Transform53(short * pImage, int Stride);
-	void Transform53I(short * pImage, int Stride);
+	template <class C> static void TransLine53(C * i, int len);
+	template <class C> static void TransLine53I(C * i, int len);
+	template <class C> void Transform53(C * pImage, int Stride);
+	template <class C> void Transform53I(C * pImage, int Stride);
 
-	static void TransLineHaar(short * i, int len);
-	static void TransLineHaarI(short * i, int len);
-	void TransformHaar(short * pImage, int Stride);
-	void TransformHaarI(short * pImage, int Stride);
+	template <class C> static void TransLineHaar(C * i, int len);
+	template <class C> static void TransLineHaarI(C * i, int len);
+	template <class C> void TransformHaar(C * pImage, int Stride);
+	template <class C> void TransformHaarI(C * pImage, int Stride);
 
+	/*
 	template <bool forward> void DCT4H(void);
 	template <bool forward> void DCT4V(void);
+	*/
 
-	static inline short mult08(short a);
+	template <class C> static inline C mult08(C a);
 };
 
 }

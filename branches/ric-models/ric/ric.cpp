@@ -157,19 +157,19 @@ void CompressImage(string & infile, string & outfile, int Quant, trans Trans)
 
 	CMuxCodec Codec(pEnd, 0);
 
-	CWavelet2D Wavelet(img.dimx(), img.dimy(), WAV_LEVELS);
+	CWavelet2D Wavelet(img.dimx(), img.dimy(), WAV_LEVELS, WAV_LEVELS - 4);
 	Wavelet.SetWeight(Trans);
 
 	if (Head.Color) {
 		Wavelet.Transform(img.ptr(0,0,0,2), img.dimx(), Trans);
-		Wavelet.CodeBand(&Codec, 1, Quant ? Quants(Quant + SHIFT * 5) : 0, Quant ? Quants(Quant + SHIFT * 5 - 7) : 0);
+		Wavelet.CodeBand(&Codec, Quant ? Quants(Quant + SHIFT * 5) : 0, Quant ? Quants(Quant + SHIFT * 5 - 7) : 0);
 		Wavelet.Transform(img.ptr(0,0,0,1), img.dimx(), Trans);
-		Wavelet.CodeBand(&Codec, 1, Quant ? Quants(Quant + SHIFT * 5 + C_Q_BOOST) : 0, Quant ? Quants(Quant + SHIFT * 5 - 7 + C_Q_BOOST) : 0);
+		Wavelet.CodeBand(&Codec, Quant ? Quants(Quant + SHIFT * 5 + C_Q_BOOST) : 0, Quant ? Quants(Quant + SHIFT * 5 - 7 + C_Q_BOOST) : 0);
 		Wavelet.Transform(img.ptr(0,0,0,0), img.dimx(), Trans);
-		Wavelet.CodeBand(&Codec, 1, Quant ? Quants(Quant + SHIFT * 5 + C_Q_BOOST) : 0, Quant ? Quants(Quant + SHIFT * 5 - 7 + C_Q_BOOST) : 0);
+		Wavelet.CodeBand(&Codec, Quant ? Quants(Quant + SHIFT * 5 + C_Q_BOOST) : 0, Quant ? Quants(Quant + SHIFT * 5 - 7 + C_Q_BOOST) : 0);
 	} else {
 		Wavelet.Transform(img.ptr(0,0,0,0), img.dimx(), Trans);
-		Wavelet.CodeBand(&Codec, 1, Quant ? Quants(Quant + SHIFT * 5) : 0, Quant ? Quants(Quant + SHIFT * 5 - 7) : 0);
+		Wavelet.CodeBand(&Codec, Quant ? Quants(Quant + SHIFT * 5) : 0, Quant ? Quants(Quant + SHIFT * 5 - 7) : 0);
 	}
 
 	pEnd = Codec.endCoding();
@@ -207,21 +207,21 @@ void DecompressImage(string & infile, string & outfile, bool Dither)
 
 	CMuxCodec Codec(pStream);
 
-	CWavelet2D Wavelet(width, heigth, WAV_LEVELS);
+	CWavelet2D Wavelet(width, heigth, WAV_LEVELS, WAV_LEVELS - 4);
 	Wavelet.SetWeight(Trans);
 
-	Wavelet.DecodeBand(&Codec, 1);
+	Wavelet.DecodeBand(&Codec);
 	if (Head.Quant != 0)
-		Wavelet.TSUQi<false>(Quants(Head.Quant + SHIFT * 5));
+		Wavelet.TSUQi(Quants(Head.Quant + SHIFT * 5));
 	if (Head.Color) {
 		Wavelet.TransformI(img.ptr() + width * heigth * 3, width, Trans);
-		Wavelet.DecodeBand(&Codec, 1);
+		Wavelet.DecodeBand(&Codec);
 		if (Head.Quant != 0)
-			Wavelet.TSUQi<false>(Quants(Head.Quant + SHIFT * 5 + C_Q_BOOST));
+			Wavelet.TSUQi(Quants(Head.Quant + SHIFT * 5 + C_Q_BOOST));
 		Wavelet.TransformI(img.ptr() + width * heigth * 2, width, Trans);
-		Wavelet.DecodeBand(&Codec, 1);
+		Wavelet.DecodeBand(&Codec);
 		if (Head.Quant != 0)
-			Wavelet.TSUQi<false>(Quants(Head.Quant + SHIFT * 5 + C_Q_BOOST));
+			Wavelet.TSUQi(Quants(Head.Quant + SHIFT * 5 + C_Q_BOOST));
 	}
 	Wavelet.TransformI(img.ptr() + width * heigth, width, Trans);
 
@@ -252,50 +252,31 @@ void DecompressImage(string & infile, string & outfile, bool Dither)
 }
 
 /*
-void Test(string & infile, int Quant)
+void Test(string & infile, string & outfile, int Quant, trans Trans)
 {
-	Image img( infile );
-	img.type( GrayscaleType );
-	unsigned int imSize = img.columns() * img.rows();
-	short * ImgPixels = new short [imSize * 3];
+	CImg<short> img( infile.c_str() );
 
-	img.write(0, 0, img.columns(), img.rows(), "R", CharPixel, ImgPixels);
-	for( int i = imSize - 1; i >= 0; i--)
-		ImgPixels[i] = (short)((((unsigned char*)ImgPixels)[i] << 4) - (1 << 11));
+	if (Quant == 0)
+		img -= 128;
+	else
+		cimg_for(img, ptr, short) { *ptr = (*ptr - 128) << SHIFT; }
 
-	CWavelet2D Wavelet(img.columns(), img.rows(), 5);
-	Wavelet.SetWeight(TRANSFORM);
-	Wavelet.Transform<TRANSFORM>(ImgPixels, img.columns());
-	Wavelet.DCT4<true>();
-	int count = Wavelet.TSUQ<true>(Quants(Quant), 0.5);
+	CWavelet2D Wavelet(img.dimx(), img.dimy(), WAV_LEVELS, WAV_LEVELS - 3);
+	Wavelet.SetWeight(Trans);
 
-	Wavelet.HBand.GetBand((unsigned char *)ImgPixels);
-	BW2RGB((char*)ImgPixels, Wavelet.HBand.DimX * Wavelet.HBand.DimY);
-	Image band(Wavelet.HBand.DimXAlign, Wavelet.HBand.DimY, "RGB", CharPixel, ImgPixels);
-	band.depth(8);
-	band.compressType(UndefinedCompression);
-	band.write("/home/nico/Documents/Images/Images test/lena_hband.pgm");
+	Wavelet.Transform(img.ptr(0,0,0,0), img.dimx(), Trans);
+	Wavelet.TSUQ(Quants(Quant + SHIFT * 5), 0.7);
+	Wavelet.TSUQi(Quants(Quant + SHIFT * 5));
+	Wavelet.TransformI(img.ptr(0,0,0,0) + img.dimx() * img.dimy(), img.dimx(), Trans);
 
-	cout << count << endl;
-
-	Wavelet.TSUQi<true>(Quants(Quant));
-	Wavelet.DCT4<false>();
-	Wavelet.TransformI<TRANSFORM>(ImgPixels + imSize, img.columns());
-
-	for( unsigned int i = 0; i < imSize; i++) {
-		int tmp = ((ImgPixels[i] + (1 << 3)) >> 4) + 128;
-		if (tmp > 255) tmp = 255;
-		if (tmp < 0) tmp = 0;
-		((unsigned char*)ImgPixels)[i] = (char) tmp;
-	}
-
-	BW2RGB((char*)ImgPixels, imSize);
-	Image img2(img.columns(), img.rows(), "RGB", CharPixel, ImgPixels);
-	img2.depth(8);
-	img2.compressType(UndefinedCompression);
-	img2.write("/home/nico/Documents/Images/Images test/lena_test.pgm");
-
-	delete[] ImgPixels;
+	if (Quant == 0)
+		img += 128;
+	else
+		cimg_for(img, ptr, short) {
+			*ptr = 128 + ((*ptr + (1 << (SHIFT - 1))) >> SHIFT);
+			*ptr = CLIP(*ptr, 0, 255);
+		}
+	img.save(outfile.c_str());
 }
 */
 
@@ -366,7 +347,7 @@ int main( int argc, char *argv[] )
 
 	if (mode == encode) {
 		CompressImage(infile, outfile, Quant, (trans)Trans);
-// 		Test(infile, Quant);
+// 		Test(infile, outfile, Quant, (trans)Trans);
 	} else {
 		DecompressImage(infile, outfile, dither);
 	}

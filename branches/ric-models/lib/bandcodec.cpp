@@ -59,10 +59,10 @@ unsigned int CBandCodec::histo_l[17][17];
 unsigned int CBandCodec::histo_h[17][16];
 #endif
 
-template <cmode mode>
+template <cmode mode, class C>
 		void CBandCodec::pred(CMuxCodec * pCodec)
 {
-	short * pCur = pBand;
+	C * pCur = (C*) pBand;
 	const int stride = DimXAlign;
 	static const unsigned char geo_init[GEO_CONTEXT_NB]
 		= { 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 15 };
@@ -103,17 +103,22 @@ template <cmode mode>
 	}
 }
 
-template void CBandCodec::pred<encode>(CMuxCodec *);
-template void CBandCodec::pred<decode>(CMuxCodec *);
+template void CBandCodec::pred<encode, short>(CMuxCodec *);
+template void CBandCodec::pred<decode, short>(CMuxCodec *);
 
+template void CBandCodec::pred<encode, int>(CMuxCodec *);
+template void CBandCodec::pred<decode, int>(CMuxCodec *);
+
+//FIXME : what happen with int ?
 #define INSIGNIF_BLOCK -0x8000
 
-void  CBandCodec::inSort(unsigned short ** pKeys, int len)
+template <class C>
+	void  CBandCodec::inSort(C ** pKeys, int len)
 {
 	for (int i = 1; i < len; i++) {
-		unsigned short * tmp = pKeys[i];
+		C * tmp = pKeys[i];
 		int j = i;
-		while (j > 0 && pKeys[j - 1][0] < tmp[0]) {
+		while (j > 0 && U(pKeys[j - 1][0]) < U(tmp[0])) {
 			pKeys[j] = pKeys[j - 1];
 			j--;
 		}
@@ -127,7 +132,7 @@ const char CBandCodec::blen[BLK_SIZE * BLK_SIZE + 1] = {
 	20, 40, 55, 66, 75, 81, 85, 88, 89, 88, 85, 81, 75, 66, 55, 40, 20 // enum theo
 };
 
-int CBandCodec::clen(short coef, unsigned int cnt)
+int CBandCodec::clen(int coef, unsigned int cnt)
 {
 	static const unsigned char k[] =
 	{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 2};
@@ -141,34 +146,35 @@ int CBandCodec::clen(short coef, unsigned int cnt)
 	return (k[cnt] + 1 + l * lps_len[cnt]) * 5 + mps_len[cnt];
 }
 
-void CBandCodec::makeThres(unsigned short * thres, const short quant, const int lambda)
+template <class C>
+	void CBandCodec::makeThres(C * thres, const C quant, const int lambda)
 {
 	for( int i = 0; i < BLK_SIZE * BLK_SIZE; i++){
-		thres[i] = (quant + ((lambda * (blen[i + 1] - blen[i] + clen(1, i + 1)) + 8) >> 4)) & 0xFFFEu;
+		thres[i] = (quant + ((lambda * (blen[i + 1] - blen[i] + clen(1, i + 1)) + 8) >> 4)) & 0xFFFE;
 		if (thres[i] > quant * 2) thres[i] = quant * 2;
-		if (thres[i] < (quant & 0xFFFEu)) thres[i] = quant & 0xFFFEu;
+		if (thres[i] < (quant & 0xFFFE)) thres[i] = quant & 0xFFFE;
 	}
 }
 
-int CBandCodec::tsuqBlock(short * pCur, int stride, short Quant,
-                                   unsigned int iQuant, int lambda,
-                                   unsigned short * rd_thres)
+template <class C>
+	int CBandCodec::tsuqBlock(C * pCur, int stride, C Quant, int iQuant,
+	                          int lambda, C * rd_thres)
 {
 	int var_cnt = 0, cnt = 0, dist = 0, rate = 0;
-	short T = Quant >> 1;
-	unsigned short * var[BLK_SIZE * BLK_SIZE];
+	C T = Quant >> 1;
+	C * var[BLK_SIZE * BLK_SIZE];
 	for (int j = 0; j < BLK_SIZE; j++) {
 		for ( int i = 0; i < BLK_SIZE; i++ ) {
-			if ((unsigned short) (pCur[i] + T) <= (unsigned short) (2 * T)) {
+			if (U(pCur[i] + T) <= U(2 * T)) {
 				pCur[i] = 0;
 			} else {
 				pCur[i] = s2u_(pCur[i]);
-				if (((unsigned short)pCur[i]) < rd_thres[0])
-					var[var_cnt++] = (unsigned short *) pCur + i;
+				if (U(pCur[i]) < U(rd_thres[0]))
+					var[var_cnt++] = pCur + i;
 				else {
 					cnt++;
-					unsigned short tmp = ((unsigned short) pCur[i]) >> 1;
-					unsigned short qtmp = (tmp * iQuant + (1 << 15)) >> 16;
+					int tmp = U(pCur[i]) >> 1;
+					int qtmp = (tmp * iQuant + (1 << 15)) >> 16;
 					int diff = qtmp * Quant;
 					if (diff > tmp) diff = 2 * tmp - diff;
 					dist += diff;
@@ -186,7 +192,7 @@ int CBandCodec::tsuqBlock(short * pCur, int stride, short Quant,
 			*var[i--] = 0;
 		cnt += i + 1;
 		for (; i >= 0; i--) {
-			dist += (pCur[i] & 0xFFFEu) - Quant;
+			dist += (pCur[i] & (C)0xFFFFFFFE) - Quant;
 			*var[i] = 2 | (*var[i] & 1);
 		}
 	}
@@ -201,20 +207,21 @@ int CBandCodec::tsuqBlock(short * pCur, int stride, short Quant,
 
 	rate += blen[cnt] - blen[0];
 
+	// FIXME : this part of the R/D doesn't work
 // 	return dist * 16 - lambda * rate;
 	return cnt;
 }
 
-template <bool high_band>
-		void CBandCodec::buildTree(const short Quant, const int lambda)
+template <bool high_band, class C>
+	void CBandCodec::buildTree(const C Quant, const int lambda)
 {
-	unsigned short rd_thres[BLK_SIZE * BLK_SIZE];
+	C rd_thres[BLK_SIZE * BLK_SIZE];
 	int lbda = (int) (lambda / Weight);
-	short Q = (short) (Quant / Weight);
+	C Q = (short) (Quant / Weight);
 	if (Q == 0) Q = 1;
-	unsigned int iQuant = (1 << 16) / Q;
+	int iQuant = (1 << 16) / Q;
 	makeThres(rd_thres, Q, lbda);
-	short * pCur = pBand;
+	C * pCur = (C*) pBand;
 	unsigned int * pChild[2] = {0, 0};
 	unsigned int child_stride = 0;
 
@@ -249,19 +256,24 @@ template <bool high_band>
 		pChild[1] += child_stride;
 	}
 
-	if (pParent != 0)
-		((CBandCodec*)pParent)->buildTree<false>(Quant, lambda);
+	if (pParent != 0) {
+		if (pParent->type == sshort)
+			((CBandCodec*)pParent)->buildTree<false, short>(Quant, lambda);
+		else if (pParent->type == sint)
+			((CBandCodec*)pParent)->buildTree<false, int>(Quant, lambda);
+	}
 }
 
-template void CBandCodec::buildTree<true>(short, int);
+template void CBandCodec::buildTree<true, short>(short, int);
+template void CBandCodec::buildTree<true, int>(int, int);
 
-template <int block_size, cmode mode>
-	int CBandCodec::maxLen(short * pBlock, int stride)
+template <int block_size, cmode mode, class C>
+	int CBandCodec::maxLen(C * pBlock, int stride)
 {
 	if (block_size == 1)
 		return bitlen(ABS(pBlock[0]));
 
-	short max = 0, min = 0;
+	C max = 0, min = 0;
 	for( int j = 0; j < block_size; j++){
 		for( int i = 0; i < block_size; i++){
 			max = MAX(max, pBlock[i]);
@@ -271,23 +283,23 @@ template <int block_size, cmode mode>
 		pBlock += stride;
 	}
 	if (mode == encode)
-		return bitlen(max >> 1);
+		return bitlen(U(max) >> 1);
 	min = ABS(min);
 	max = MAX(max, min);
 	return bitlen(max);
 }
 
-template <cmode mode, bool high_band>
-	unsigned int CBandCodec::block_enum(short * pBlock, int stride, CMuxCodec * pCodec,
+template <cmode mode, bool high_band, class C>
+	unsigned int CBandCodec::block_enum(C * pBlock, int stride, CMuxCodec * pCodec,
 	                                    CGeomCodec & geoCodec, int idx)
 {
 	unsigned int k = 0;
 	if (mode == encode) {
-		short tmp[16];
+		C tmp[16];
 		unsigned int signif = 0;
 
 		for( int j = 0; j < 4; j++){
-			for( short * pEnd = pBlock + 4; pBlock < pEnd; pBlock++){
+			for( C * pEnd = pBlock + 4; pBlock < pEnd; pBlock++){
 				signif <<= 1;
 				if (pBlock[0] != 0) {
 					tmp[k] = pBlock[0];
@@ -307,7 +319,7 @@ template <cmode mode, bool high_band>
 			if (k != 16)
 				pCodec->enumCode<16>(signif, k);
 			for( unsigned int i = 0; i < k; i++){
-				geoCodec.code((tmp[i] >> 1) - 1,  k - 1);
+				geoCodec.code((U(tmp[i]) >> 1) - 1,  k - 1);
 				pCodec->bitsCode(tmp[i] & 1, 1);
 			}
 		}
@@ -323,7 +335,7 @@ template <cmode mode, bool high_band>
 				signif = pCodec->enumDecode<16>(k);
 
 			for( int j = 0; j < 4; j++){
-				for( short * pEnd = pBlock + 4; pBlock < pEnd; pBlock++){
+				for( C * pEnd = pBlock + 4; pBlock < pEnd; pBlock++){
 					if (signif & (1 << 15)) {
 						pBlock[0] = u2s_(((geoCodec.decode(k - 1) + 1) << 1) | pCodec->bitsDecode(1));
 					}
@@ -340,7 +352,7 @@ template <cmode mode, bool high_band>
 #define K_DECAY	3
 #define K_SPEED	(K_SHIFT - K_DECAY)
 
-template <cmode mode, bool high_band>
+template <cmode mode, bool high_band, class C, class P>
 	void CBandCodec::tree(CMuxCodec * pCodec)
 {
 	static const unsigned char geo_init[GEO_CONTEXT_NB] = {5, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 10, 10, 10, 11};
@@ -348,16 +360,18 @@ template <cmode mode, bool high_band>
 			11 << K_SHIFT, 13 << K_SHIFT, 14 << K_SHIFT, 15 << K_SHIFT, 15 << K_SHIFT, 15 << K_SHIFT,
 			15 << K_SHIFT, 15 << K_SHIFT, 15 << K_SHIFT, 15 << K_SHIFT, 15 << K_SHIFT};
 
-	short * pCur1 = pBand;
-	short * pCur2 = pBand + DimXAlign * (BLK_SIZE >> 1);
+	C * pCur1 = (C*) pBand;
+	C * pCur2 = (C*) pBand + DimXAlign * (BLK_SIZE >> 1);
 	int diff = DimXAlign * BLK_SIZE;
-	short * pPar = 0;
+	P * pPar = 0;
 	int diff_par = 0;
 
 	if (pParent != 0) {
-		pPar = pParent->pBand;
+		pPar = (P*) pParent->pBand;
 		diff_par = pParent->DimXAlign * (BLK_SIZE >> 1);
 	}
+
+	if (mode == decode) Clear(false);
 
 	CGeomCodec geoCodec(pCodec, geo_init);
 	CBitCodec treeCodec(pCodec);
@@ -403,10 +417,20 @@ template <cmode mode, bool high_band>
 	}
 }
 
-template void CBandCodec::tree<encode, true>(CMuxCodec * );
-template void CBandCodec::tree<encode, false>(CMuxCodec * );
-template void CBandCodec::tree<decode, true>(CMuxCodec * );
-template void CBandCodec::tree<decode, false>(CMuxCodec * );
+template void CBandCodec::tree<encode, true, short, short>(CMuxCodec * );
+template void CBandCodec::tree<encode, false, short, short>(CMuxCodec * );
+template void CBandCodec::tree<decode, true, short, short>(CMuxCodec * );
+template void CBandCodec::tree<decode, false, short, short>(CMuxCodec * );
+
+template void CBandCodec::tree<encode, true, short, int>(CMuxCodec * );
+template void CBandCodec::tree<encode, false, short, int>(CMuxCodec * );
+template void CBandCodec::tree<decode, true, short, int>(CMuxCodec * );
+template void CBandCodec::tree<decode, false, short, int>(CMuxCodec * );
+
+template void CBandCodec::tree<encode, true, int, int>(CMuxCodec * );
+template void CBandCodec::tree<encode, false, int, int>(CMuxCodec * );
+template void CBandCodec::tree<decode, true, int, int>(CMuxCodec * );
+template void CBandCodec::tree<decode, false, int, int>(CMuxCodec * );
 
 // low bands (!= first) huffman coding and decoding tables
 static const sHuffSym hcl00[17] = { {1, 1}, {1, 2}, {1, 3}, {1, 4}, {1, 5}, {3, 7}, {2, 7}, {3, 8}, {1, 8}, {2, 8}, {2, 10}, {3, 10}, {3, 11}, {2, 11}, {1, 11}, {1, 12}, {0, 12} };

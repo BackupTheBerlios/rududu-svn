@@ -37,9 +37,9 @@ public:
 	virtual ~CBandCodec();
 	static void init_lut(void);
 
-	template <cmode mode> void pred(CMuxCodec * pCodec);
-	template <bool high_band>void buildTree(short Quant, int lambda);
-	template <cmode mode, bool high_band> void tree(CMuxCodec * pCodec);
+	template <cmode mode, class C> void pred(CMuxCodec * pCodec);
+	template <bool high_band, class C>void buildTree(C Quant, int lambda);
+	template <cmode mode, bool high_band, class C, class P> void tree(CMuxCodec * pCodec);
 
 #ifdef GENERATE_HUFF_STATS
 	static unsigned int histo_l[17][17];
@@ -47,17 +47,19 @@ public:
 #endif
 
 private :
-	int tsuqBlock(short * pCur, int stride, short Quant, unsigned int iQuant,
-	                       int lambda, unsigned short * rd_thres);
+	template <class C> int tsuqBlock(C * pCur, int stride, C Quant, int iQuant,
+	                                 int lambda, C * rd_thres);
 
-	template <int block_size, cmode mode>
-		static inline int maxLen(short * pBlock, int stride);
-	template <cmode mode, bool high_band>
-		static unsigned int block_enum(short * pBlock, int stride, CMuxCodec * pCodec,
+	template <int block_size, cmode mode, class C>
+		static inline int maxLen(C * pBlock, int stride);
+	template <cmode mode, bool high_band, class C>
+		static unsigned int block_enum(C * pBlock, int stride, CMuxCodec * pCodec,
 		                       CGeomCodec & geoCodec, int idx);
-	static inline int clen(short coef, unsigned int cnt);
-	static void inSort (unsigned short ** pKeys, int len);
-	static void makeThres(unsigned short * thres, const short quant, const int lambda);
+	static inline int clen(int coef, unsigned int cnt);
+	template <class C>
+		static void inSort (C ** pKeys, int len);
+	template <class C>
+		static void makeThres(C * thres, const C quant, const int lambda);
 
 	unsigned int * pRD;
 

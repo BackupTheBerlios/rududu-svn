@@ -29,17 +29,17 @@ class CDCT2D{
 public:
 	CDCT2D(int x, int y, int Align = ALIGN);
 
-	template <bool forward> void Transform(short * pImage, int stride);
-	template <bool pre> void Proc(short * pImage, int stride);
+	template <bool forward, class C> void Transform(C * pImage, int stride);
+	template <bool pre, class C> void Proc(C * pImage, int stride);
 	void SetWeight(trans t, float baseWeight = 1.);
 
-	unsigned int TSUQ(short Quant, float Thres);
-	void TSUQi(short Quant);
+	template <class C> unsigned int TSUQ(C Quant, float Thres);
+	template <class C> void TSUQi(C Quant);
 
-	template <bool pre>
-		static void Proc_H(short * pBlock, int stride);
-	template <bool pre>
-		static void Proc_V(short * pBlock, int stride);
+	template <bool pre, class C>
+		static void Proc_H(C * pBlock, int stride);
+	template <bool pre, class C>
+		static void Proc_V(C * pBlock, int stride);
 
 private:
 
@@ -49,10 +49,10 @@ private:
 
 	static const float norm[8];
 
-	static void DCT8_H(short * pBlock, int stride);
-	static void iDCT8_H(short * pBlock, int stride);
-	static void DCT8_V(short * pBlock, int stride);
-	static void iDCT8_V(short * pBlock, int stride);
+	template <class C> static void DCT8_H(C * pBlock, int stride);
+	template <class C> static void iDCT8_H(C * pBlock, int stride);
+	template <class C> static void DCT8_V(C * pBlock, int stride);
+	template <class C> static void iDCT8_V(C * pBlock, int stride);
 };
 
 }

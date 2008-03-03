@@ -26,12 +26,13 @@ CDCT2D::CDCT2D(int x, int y, int Align)
 {
 	DimX = x;
 	DimY = y;
-	DCTBand.Init(64, x * y / 64, Align);
+	DCTBand.Init(sshort, 64, x * y / 64, Align);
 }
 
-void CDCT2D::DCT8_H(short * pBlock, int stride)
+template <class C>
+	void CDCT2D::DCT8_H(C * pBlock, int stride)
 {
-	short * x = pBlock;
+	C * x = pBlock;
 
 	for( int j = 0; j < 8; j++){
 		BFLY(x[0], x[7]);
@@ -66,9 +67,10 @@ void CDCT2D::DCT8_H(short * pBlock, int stride)
 	}
 }
 
-void CDCT2D::DCT8_V(short * pBlock, int stride)
+template <class C>
+	void CDCT2D::DCT8_V(C * pBlock, int stride)
 {
-	short * x[8];
+	C * x[8];
 	x[0] = pBlock;
 	for( int i = 1; i < 8; i++)
 		x[i] = x[i - 1] + stride;
@@ -104,9 +106,10 @@ void CDCT2D::DCT8_V(short * pBlock, int stride)
 	}
 }
 
-void CDCT2D::iDCT8_H(short * pBlock, int stride)
+template <class C>
+	void CDCT2D::iDCT8_H(C * pBlock, int stride)
 {
-	short * x = pBlock;
+	C * x = pBlock;
 
 	for( int j = 0; j < 8; j++){
 		x[4] += x[7] >> 1;
@@ -141,9 +144,10 @@ void CDCT2D::iDCT8_H(short * pBlock, int stride)
 	}
 }
 
-void CDCT2D::iDCT8_V(short * pBlock, int stride)
+template <class C>
+	void CDCT2D::iDCT8_V(C * pBlock, int stride)
 {
-	short * x[8];
+	C * x[8];
 	x[0] = pBlock;
 	for( int i = 1; i < 8; i++)
 		x[i] = x[i - 1] + stride;
@@ -179,18 +183,18 @@ void CDCT2D::iDCT8_V(short * pBlock, int stride)
 	}
 }
 
-template <bool forward>
-void CDCT2D::Transform(short * pImage, int stride)
+template <bool forward, class C>
+void CDCT2D::Transform(C * pImage, int stride)
 {
-	short * pBand = DCTBand.pBand;
+	C * pBand = (C*) DCTBand.pBand;
 	for( int j = 0; j < DimY; j += 8){
-		short * i = pImage;
-		short * iend = i + DimX;
+		C * i = pImage;
+		C * iend = i + DimX;
 		pImage += stride * 8;
 		for( ; i < iend; i += 8){
 			int j = 0;
 			if (forward) {
-				for( short * k = i; k < pImage; k += stride){
+				for( C * k = i; k < pImage; k += stride){
 					do {
 						pBand[j] = k[j & 7];
 						j++;
@@ -201,7 +205,7 @@ void CDCT2D::Transform(short * pImage, int stride)
 			} else {
 				iDCT8_H(pBand, 8);
 				iDCT8_V(pBand, 8);
-				for( short * k = i; k < pImage; k += stride){
+				for( C * k = i; k < pImage; k += stride){
 					do {
 						k[j & 7] = pBand[j];
 						j++;
@@ -213,16 +217,17 @@ void CDCT2D::Transform(short * pImage, int stride)
 	}
 }
 
+/*
 template void CDCT2D::Transform<true>(short *, int);
 template void CDCT2D::Transform<false>(short *, int);
-
+*/
 
 // pre / post filters from
 // http://thanglong.ece.jhu.edu/Tran/Pub/prepost.pdf
-template <bool pre>
-void CDCT2D::Proc_H(short * pBlock, int stride)
+template <bool pre, class C>
+void CDCT2D::Proc_H(C * pBlock, int stride)
 {
-	short * x = pBlock;
+	C * x = pBlock;
 
 	for( int j = 0; j < 8; j++){
 		BFLY_FWD(x[0], x[7]);
@@ -251,10 +256,10 @@ void CDCT2D::Proc_H(short * pBlock, int stride)
 	}
 }
 
-template <bool pre>
-void CDCT2D::Proc_V(short * pBlock, int stride)
+template <bool pre, class C>
+void CDCT2D::Proc_V(C * pBlock, int stride)
 {
-	short * x[8];
+	C * x[8];
 	x[0] = pBlock;
 	for( int i = 1; i < 8; i++)
 		x[i] = x[i - 1] + stride;
@@ -284,10 +289,10 @@ void CDCT2D::Proc_V(short * pBlock, int stride)
 	}
 }
 
-template <bool pre>
-void CDCT2D::Proc(short * pImage, int stride)
+template <bool pre, class C>
+void CDCT2D::Proc(C * pImage, int stride)
 {
-	short * i, * iend;
+	C * i, * iend;
 
 	for( int j = 8; j < DimY; j += 8){
 		i = pImage + 4 * stride;
@@ -310,30 +315,33 @@ void CDCT2D::Proc(short * pImage, int stride)
 	}
 }
 
+/*
 template void CDCT2D::Proc<true>(short *, int);
 template void CDCT2D::Proc<false>(short *, int);
+*/
 
 const float CDCT2D::norm[8] = {.353553391f, .707106781, .461939766f, .5411961f, .707106781, .5f, .5f, .353553391f};
 
-unsigned int CDCT2D::TSUQ(short Quant, float Thres)
+template <class C>
+	unsigned int CDCT2D::TSUQ(C Quant, float Thres)
 {
 	int iQuant[64], Count = 0;
-	short T[64];
-	short * pBand = DCTBand.pBand;
+	C T[64];
+	C * pBand = (C*) DCTBand.pBand;
 
 	Quant = (Quant + 1) >> 1;
 
 	for( int j = 0; j < 8; j++){
 		for( int i = 0; i < 8; i++){
 			iQuant[j * 8 + i] = (((int)(Quant / (norm[i] * norm[j]))) + 8) & (-1 << 4);
-			T[j * 8 + i] = (short) (Thres * iQuant[j * 8 + i]);
+			T[j * 8 + i] = (C) (Thres * iQuant[j * 8 + i]);
 			iQuant[j * 8 + i] = (1 << 16) / iQuant[j * 8 + i];
 		}
 	}
 
 	for ( unsigned int j = 0; j < DCTBand.DimY ; j++ ) {
 		for ( int i = 0; i < 64 ; i++ ) {
-			if ( (unsigned short) (pBand[i] + T[i]) <= (unsigned short) (2 * T[i])) {
+			if ( U(pBand[i] + T[i]) <= U(2 * T[i])) {
 				pBand[i] = 0;
 			} else {
 				Count++;
@@ -347,10 +355,11 @@ unsigned int CDCT2D::TSUQ(short Quant, float Thres)
 	return Count;
 }
 
-void CDCT2D::TSUQi(short Quant)
+template <class C>
+	void CDCT2D::TSUQi(C Quant)
 {
 	int Q[64];
-	short * pBand = DCTBand.pBand;
+	C * pBand = (C*) DCTBand.pBand;
 
 	Quant = (Quant + 1) >> 1;
 

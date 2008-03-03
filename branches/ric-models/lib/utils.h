@@ -100,6 +100,16 @@ int inline u2s_(int u)
 	return ((u >> 1) + m) ^ m;
 }
 
+unsigned short inline U(short s)
+{
+	return (unsigned short)s;
+}
+
+unsigned int inline U(int s)
+{
+	return (unsigned int)s;
+}
+
 int inline abs(int s)
 {
 	int const m = s >> sizeof(int) * 8 - 1;
