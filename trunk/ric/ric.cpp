@@ -32,13 +32,12 @@ using namespace std;
 using namespace cimg_library;
 using namespace rududu;
 
-#define BAD_MAGIC		2
-#define UNKNOW_TYPE		3
-
+#define BAD_MAGIC	2
 #define WAV_LEVELS	5
 // color quantizer boost
 #define C_Q_BOOST	8
 #define SHIFT		4
+#define RIC_VERSION	"v0.1"
 
 short Quants(int idx)
 {
@@ -284,13 +283,13 @@ void Test(string & infile, string & outfile, int Quant, trans Trans)
 #define NORM	"\x1B[0m"
 
 #define USAGE	\
-	BOLD "--- Rududu Image Codec ---" NORM " built " __DATE__ " " __TIME__ "\n" \
+	BOLD "--- Rududu Image Codec --- " NORM RIC_VERSION " built " __DATE__ " " __TIME__ "\n" \
 	"© 2006-2008 Nicolas BOTTI\n" \
 	BOLD "Usage : " NORM "ric -i <input file> [-o <output file>] [options]\n" \
 	"For a description of available options, use the -h option\n"
 
 #define HELP	\
-	BOLD "--- Rududu Image Codec ---" NORM " built " __DATE__ " " __TIME__ "\n" \
+	BOLD "--- Rududu Image Codec --- " NORM RIC_VERSION " built " __DATE__ " " __TIME__ "\n" \
 	"© 2006-2008 Nicolas BOTTI\n\n" \
 	BOLD "Usage :\n" NORM \
 	"    ric -i <input file> [-o <output file>] [options]\n\n" \
