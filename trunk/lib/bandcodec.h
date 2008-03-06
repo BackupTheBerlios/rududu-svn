@@ -63,8 +63,8 @@ private :
 
 	unsigned int * pRD;
 
-	static const sHuffSym * huff_lk_enc[17];
-	static const sHuffSym * huff_hk_enc[16];
+	static sHuffSym const * const huff_lk_enc[17];
+	static sHuffSym const * const huff_hk_enc[16];
 	static sHuffCan huff_lk_dec[17];
 	static sHuffCan huff_hk_dec[16];
 	static const char blen[BLK_SIZE * BLK_SIZE + 1];

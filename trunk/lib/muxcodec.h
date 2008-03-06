@@ -53,8 +53,8 @@ typedef struct {
 
 /// Type used for canonical huffman decoding
 typedef struct {
-	const sHuffSym * table;
-	const unsigned char * sym;
+	sHuffSym const * const table;
+	unsigned char const * const sym;
 	sHuffLut lut[1 << LUT_DEPTH];
 } sHuffCan;
 
