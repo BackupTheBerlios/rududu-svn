@@ -284,13 +284,13 @@ void Test(string & infile, string & outfile, int Quant, trans Trans)
 
 #define USAGE	\
 	BOLD "--- Rududu Image Codec --- " NORM RIC_VERSION " built " __DATE__ " " __TIME__ "\n" \
-	"© 2006-2008 Nicolas BOTTI\n" \
+	"Â© 2006-2008 Nicolas BOTTI\n" \
 	BOLD "Usage : " NORM "ric -i <input file> [-o <output file>] [options]\n" \
 	"For a description of available options, use the -h option\n"
 
 #define HELP	\
 	BOLD "--- Rududu Image Codec --- " NORM RIC_VERSION " built " __DATE__ " " __TIME__ "\n" \
-	"© 2006-2008 Nicolas BOTTI\n\n" \
+	"Â© 2006-2008 Nicolas BOTTI\n\n" \
 	BOLD "Usage :\n" NORM \
 	"    ric -i <input file> [-o <output file>] [options]\n\n" \
 	BOLD "Exemple :\n" NORM \
@@ -311,7 +311,7 @@ int main( int argc, char *argv[] )
 	help = help || cimg_option("-help", false, 0);
 	help = help || cimg_option("--help", false, 0);
 
-	if (Trans > 3 || Trans < 0)
+	if (Trans > 2 || Trans < 0)
 		Trans = 0;
 
 	if (infile.length() == 0) {

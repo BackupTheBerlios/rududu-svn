@@ -25,7 +25,7 @@
 namespace rududu {
 
 typedef enum cmode {encode, decode};
-typedef enum trans {cdf97 = 0, cdf53 = 1, haar = 2, cdf75 = 3};
+typedef enum trans {cdf97 = 0, cdf53 = 1, haar = 2};
 
 #define TOP		1
 #define UP		1
