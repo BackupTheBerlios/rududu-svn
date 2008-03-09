@@ -769,8 +769,8 @@ template <class C>
 	C * iend = i + len - 1;
 
 	for( ; i < iend; i += 2) {
-		i[1] -= i[0];
-		i[0] += i[1] >> 1;
+		i[0] -= i[1];
+		i[1] += i[0] >> 1;
 	}
 }
 
@@ -780,8 +780,8 @@ template <class C>
 	C * iend = i + len - 1;
 
 	for( ; i < iend; i += 2) {
-		i[0] -= i[1] >> 1;
-		i[1] += i[0];
+		i[1] -= i[0] >> 1;
+		i[0] += i[1];
 	}
 }
 
@@ -792,11 +792,11 @@ template <class C>
 	i[0] = pImage;
 	i[1] = i[0] + Stride;
 
-	C * out[4] = {pImage, (C*) VBand.pBand, (C*) HBand.pBand, (C*) DBand.pBand};
-	int out_stride[4] = {Stride, VBand.DimXAlign, HBand.DimXAlign, DBand.DimXAlign};
+	C * out[4] = {(C*) VBand.pBand, pImage, (C*) DBand.pBand, (C*) HBand.pBand};
+	int out_stride[4] = {VBand.DimXAlign, Stride, DBand.DimXAlign, HBand.DimXAlign};
 	if (pLow == 0){
-		out[0] = (C*) LBand.pBand;
-		out_stride[0] = LBand.DimXAlign;
+		out[1] = (C*) LBand.pBand;
+		out_stride[1] = LBand.DimXAlign;
 	}
 
 	for( int j = 0; j < DimY - 1; j += 2 ) {
@@ -805,10 +805,10 @@ template <class C>
 		TransLineHaar(i[1], DimX);
 
 		for(int k = 0 ; k < DimX; k++) {
-			i[1][k] -= i[0][k];
-			i[0][k] += i[1][k] >> 1;
-			out[2 + (k & 1)][k >> 1] = i[1][k];
-			out[k & 1][k >> 1] = i[0][k];
+			i[0][k] -= i[1][k];
+			i[1][k] += i[0][k] >> 1;
+			out[2 + (k & 1)][k >> 1] = i[0][k];
+			out[k & 1][k >> 1] = i[1][k];
 		}
 
 		i[0] += 2 * Stride;
@@ -821,13 +821,13 @@ template <class C>
 template <class C>
 	void CWavelet2D::TransformHaarI(C * pImage, int Stride)
 {
-	C * in[4] = {pImage, (C*) VBand.pBand, (C*) HBand.pBand, (C*) DBand.pBand};
-	int in_stride[4] = {Stride, VBand.DimXAlign, HBand.DimXAlign, DBand.DimXAlign};
+	C * in[4] = {(C*) VBand.pBand, pImage, (C*) DBand.pBand, (C*) HBand.pBand};
+	int in_stride[4] = {VBand.DimXAlign, Stride, DBand.DimXAlign, HBand.DimXAlign};
 	if (pLow == 0){
-		in[0] = (C*) LBand.pBand;
-		in_stride[0] = LBand.DimXAlign;
+		in[1] = (C*) LBand.pBand;
+		in_stride[1] = LBand.DimXAlign;
 	} else {
-		in[0] -= (pLow->DimY - 1) * Stride + pLow->DimX;
+		in[1] -= (pLow->DimY - 1) * Stride + pLow->DimX;
 	}
 
 	C * i[2];
@@ -837,11 +837,11 @@ template <class C>
 
 	for( int j = 0; j < DimY - 1; j += 2 ){
 		for(int k = 0 ; k < DimX; k++) {
-			i[0][k] = in[k & 1][k >> 1];
-			i[1][k] = in[2 + (k & 1)][k >> 1];
+			i[1][k] = in[k & 1][k >> 1];
+			i[0][k] = in[2 + (k & 1)][k >> 1];
 
-			i[0][k] -= i[1][k] >> 1;
-			i[1][k] += i[0][k];
+			i[1][k] -= i[0][k] >> 1;
+			i[0][k] += i[1][k];
 		}
 
 		TransLineHaarI(i[0], DimX);
