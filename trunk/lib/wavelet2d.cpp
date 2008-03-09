@@ -322,17 +322,12 @@ template <class C>
 {
 	C * iend = i + len - 5;
 
-	C tmp = i[0] + i[2];
-	i[1] -= tmp + (tmp >> 1);
-	i[0] -= i[1] >> 3;
+	i[0] -= i[1] * 3;
 
-	tmp = i[2] + i[4];
-	i[3] -= tmp + (tmp >> 1);
-	i[2] -= (i[1] + i[3]) >> 4;
-	i[1] += mult08(i[0] + i[2]);
-	i[0] += i[1] - (i[1] >> 4);
-
-	i++;
+	C tmp = i[1] + i[3];
+	i[2] -= tmp + (tmp >> 1);
+	i[1] -= (i[0] + i[2]) >> 4;
+	i[0] += 2 * mult08(i[1]);
 
 	for( ; i < iend; i += 2) {
 		tmp = i[3] + i[5];
@@ -344,13 +339,6 @@ template <class C>
 	}
 
 	if (len & 1) {
-		i[3] -= i[2] >> 3;
-		i[2] += mult08(i[1] + i[3]);
-		tmp = i[0] + i[2];
-		i[1] += (tmp >> 1) - (tmp >> 5);
-
-		i[3] += i[2] - (i[2] >> 4);
-	} else {
 		i[4] -= i[3] * 2 + i[3];
 		i[3] -= (i[2] + i[4]) >> 4;
 		i[2] += mult08(i[1] + i[3]);
@@ -360,6 +348,13 @@ template <class C>
 		i[4] += 2 * mult08(i[3]);
 		tmp = i[2] + i[4];
 		i[3] += (tmp >> 1) - (tmp >> 5);
+	} else {
+		i[3] -= i[2] >> 3;
+		i[2] += mult08(i[1] + i[3]);
+		tmp = i[0] + i[2];
+		i[1] += (tmp >> 1) - (tmp >> 5);
+
+		i[3] += i[2] - (i[2] >> 4);
 	}
 }
 
@@ -368,12 +363,17 @@ template <class C>
 {
 	C * iend = i + len - 5;
 
-	i[0] -= i[1] - (i[1] >> 4);
+	C tmp = i[0] + i[2];
+	i[1] -= (tmp >> 1) - (tmp >> 5);
+	i[0] -= 2 * mult08(i[1]);
 
-	C tmp = i[1] + i[3];
-	i[2] -= (tmp >> 1) - (tmp >> 5);
-	i[1] -= mult08(i[0] + i[2]);
-	i[0] += i[1] >> 3;
+	tmp = i[2] + i[4];
+	i[3] -= (tmp >> 1) - (tmp >> 5);
+	i[2] -= mult08(i[1] + i[3]);
+	i[1] += (i[0] + i[2]) >> 4;
+	i[0] += i[1] * 3;
+
+	i++;
 
 	for( ; i < iend; i += 2) {
 		tmp = i[3] + i[5];
@@ -385,6 +385,13 @@ template <class C>
 	}
 
 	if (len & 1) {
+		i[3] -= 2 * mult08(i[2]);
+		i[2] += (i[1] + i[3]) >> 4;
+		tmp = i[0] + i[2];
+		i[1] += tmp + (tmp >> 1);
+
+		i[3] += i[2] * 3;
+	} else {
 		i[4] -= i[3] - (i[3] >> 4);
 		i[3] -= mult08(i[2] + i[4]);
 		i[2] += (i[1] + i[3]) >> 4;
@@ -394,13 +401,6 @@ template <class C>
 		i[4] += i[3] >> 3;
 		tmp = i[2] + i[4];
 		i[3] += tmp + (tmp >> 1);
-	} else {
-		i[3] -= 2 * mult08(i[2]);
-		i[2] += (i[1] + i[3]) >> 4;
-		tmp = i[0] + i[2];
-		i[1] += tmp + (tmp >> 1);
-
-		i[3] += i[2] * 2 + i[2];
 	}
 }
 
@@ -412,36 +412,26 @@ template <class C>
 	for( int j = 1; j < 6; j++)
 		i[j] = i[j-1] + Stride;
 
-	C * out[4] = {pImage, (C*) VBand.pBand, (C*) HBand.pBand, (C*) DBand.pBand};
-	int out_stride[4] = {Stride, VBand.DimXAlign, HBand.DimXAlign, DBand.DimXAlign};
+	C * out[4] = {(C*) VBand.pBand, pImage, (C*) DBand.pBand, (C*) HBand.pBand};
+	int out_stride[4] = {VBand.DimXAlign, Stride, DBand.DimXAlign, HBand.DimXAlign};
 	if (pLow == 0){
-		out[0] = (C*) LBand.pBand;
-		out_stride[0] = LBand.DimXAlign;
+		out[1] = (C*) LBand.pBand;
+		out_stride[1] = LBand.DimXAlign;
 	}
 
-	for( int j = 0; j < 5; j++)
+	for( int j = 0; j < 4; j++)
 		TransLine97(i[j], DimX);
 
 	for(int k = 0 ; k < DimX; k++) {
-		C tmp = i[0][k] + i[2][k];
-		i[1][k] -= tmp + (tmp >> 1);
-		i[0][k] -= i[1][k] >> 3;
+		i[0][k] -= i[1][k] * 3;
 
-		tmp = i[2][k] + i[4][k];
-		i[3][k] -= tmp + (tmp >> 1);
-		i[2][k] -= (i[1][k] + i[3][k]) >> 4;
-		i[1][k] += mult08(i[0][k] + i[2][k]);
-		i[0][k] += i[1][k] - (i[1][k] >> 4);
-		out[k & 1][k >> 1] = i[0][k];
+		C tmp = i[1][k] + i[3][k];
+		i[2][k] -= tmp + (tmp >> 1);
+		i[1][k] -= (i[0][k] + i[2][k]) >> 4;
+		i[0][k] += 2 * mult08(i[1][k]);
 	}
 
-	for( int j = 0; j < 6; j++)
-		i[j] += Stride;
-
-	out[0] += out_stride[0];
-	out[1] += out_stride[1];
-
-	for( int j = 6; j < DimY; j += 2 ) {
+	for( int j = 5; j < DimY; j += 2 ) {
 
 		TransLine97(i[4], DimX);
 		TransLine97(i[5], DimX);
@@ -464,24 +454,9 @@ template <class C>
 	}
 
 	if (DimY & 1) {
-		for(int k = 0 ; k < DimX; k++) {
-			i[3][k] -= i[2][k] >> 3;
-			i[2][k] += mult08(i[1][k] + i[3][k]);
-			C tmp = i[0][k] + i[2][k];
-			i[1][k] += (tmp >> 1) - (tmp >> 5);
-
-			i[3][k] += i[2][k] - (i[2][k] >> 4);
-
-			tmp = k & 1;
-			out[tmp][k >> 1] = i[1][k];
-			out[2 + tmp][k >> 1] = i[0][k];
-			out[tmp][out_stride[tmp] + (k >> 1)] = i[3][k];
-			out[2 + tmp][out_stride[2 + tmp] + (k >> 1)] = i[2][k];
-		}
-	} else {
 		TransLine97(i[4], DimX);
 		for(int k = 0 ; k < DimX; k++) {
-			i[4][k] -= i[3][k] * 2 + i[3][k];
+			i[4][k] -= i[3][k] * 3;
 			i[3][k] -= (i[2][k] + i[4][k]) >> 4;
 			i[2][k] += mult08(i[1][k] + i[3][k]);
 			C tmp = i[0][k] + i[2][k];
@@ -498,19 +473,34 @@ template <class C>
 			out[2 + tmp][out_stride[2 + tmp] + (k >> 1)] = i[2][k];
 			out[2 + tmp][out_stride[2 + tmp] * 2 + (k >> 1)] = i[4][k];
 		}
+	} else {
+		for(int k = 0 ; k < DimX; k++) {
+			i[3][k] -= i[2][k] >> 3;
+			i[2][k] += mult08(i[1][k] + i[3][k]);
+			C tmp = i[0][k] + i[2][k];
+			i[1][k] += (tmp >> 1) - (tmp >> 5);
+
+			i[3][k] += i[2][k] - (i[2][k] >> 4);
+
+			tmp = k & 1;
+			out[tmp][k >> 1] = i[1][k];
+			out[2 + tmp][k >> 1] = i[0][k];
+			out[tmp][out_stride[tmp] + (k >> 1)] = i[3][k];
+			out[2 + tmp][out_stride[2 + tmp] + (k >> 1)] = i[2][k];
+		}
 	}
 }
 
 template <class C>
 	void CWavelet2D::Transform97I(C * pImage, int Stride)
 {
-	C * in[4] = {pImage, (C*) VBand.pBand, (C*) HBand.pBand, (C*) DBand.pBand};
-	int in_stride[4] = {Stride, VBand.DimXAlign, HBand.DimXAlign, DBand.DimXAlign};
+	C * in[4] = {(C*) VBand.pBand, pImage, (C*) DBand.pBand, (C*) HBand.pBand};
+	int in_stride[4] = {VBand.DimXAlign, Stride, DBand.DimXAlign, HBand.DimXAlign};
 	if (pLow == 0){
-		in[0] = (C*) LBand.pBand;
-		in_stride[0] = LBand.DimXAlign;
+		in[1] = (C*) LBand.pBand;
+		in_stride[1] = LBand.DimXAlign;
 	} else {
-		in[0] -= (pLow->DimY - 1) * Stride + pLow->DimX;
+		in[1] -= (pLow->DimY - 1) * Stride + pLow->DimX;
 	}
 
 	C * i[6];
@@ -521,23 +511,34 @@ template <class C>
 
 	for(int k = 0 ; k < DimX; k++) {
 		C tmp = k & 1;
-		i[0][k] = in[tmp][k >> 1];
-		i[1][k] = in[2 + tmp][k >> 1];
-		i[2][k] = in[tmp][in_stride[tmp] + (k >> 1)];
-		i[3][k] = in[2 + tmp][in_stride[2 + tmp] + (k >> 1)];
+		i[0][k] = in[2 + tmp][k >> 1];
+		i[1][k] = in[tmp][k >> 1];
+		i[2][k] = in[2 + tmp][in_stride[2 + tmp] + (k >> 1)];
+		i[3][k] = in[tmp][in_stride[tmp] + (k >> 1)];
+		i[4][k] = in[2 + tmp][in_stride[2 + tmp] * 2 + (k >> 1)];
 
-		i[0][k] -= i[1][k] - (i[1][k] >> 4);
+		tmp = i[0][k] + i[2][k];
+		i[1][k] -= (tmp >> 1) - (tmp >> 5);
+		i[0][k] -= 2 * mult08(i[1][k]);
 
-		tmp = i[1][k] + i[3][k];
-		i[2][k] -= (tmp >> 1) - (tmp >> 5);
-		i[1][k] -= mult08(i[0][k] + i[2][k]);
-		i[0][k] += i[1][k] >> 3;
+		tmp = i[2][k] + i[4][k];
+		i[3][k] -= (tmp >> 1) - (tmp >> 5);
+		i[2][k] -= mult08(i[1][k] + i[3][k]);
+		i[1][k] += (i[0][k] + i[2][k]) >> 4;
+		i[0][k] += i[1][k] * 3;
 	}
 
-	for( int k = 0; k < 4; k++)
-		in[k] += 2 * in_stride[k];
+	in[0] += 2 * in_stride[0];
+	in[1] += 2 * in_stride[1];
+	in[2] += 3 * in_stride[2];
+	in[3] += 3 * in_stride[3];
 
-	for( int j = 5; j < DimY; j += 2 ){
+	TransLine97I(i[0], DimX);
+
+	for( int k = 0; k < 6; k++)
+		i[k] += Stride;
+
+	for( int j = 6; j < DimY; j += 2 ){
 		for(int k = 0 ; k < DimX; k++) {
 			i[4][k] = in[k & 1][k >> 1];
 			i[5][k] = in[2 + (k & 1)][k >> 1];
@@ -561,6 +562,15 @@ template <class C>
 
 	if (DimY & 1) {
 		for(int k = 0 ; k < DimX; k++) {
+			i[3][k] -= 2 * mult08(i[2][k]);
+			i[2][k] += (i[1][k] + i[3][k]) >> 4;
+			C tmp = i[0][k] + i[2][k];
+			i[1][k] += tmp + (tmp >> 1);
+
+			i[3][k] += i[2][k] * 3;
+		}
+	} else {
+		for(int k = 0 ; k < DimX; k++) {
 			i[4][k] = in[k & 1][k >> 1];
 
 			i[4][k] -= i[3][k] - (i[3][k] >> 4);
@@ -574,15 +584,6 @@ template <class C>
 			i[3][k] += tmp + (tmp >> 1);
 		}
 		TransLine97I(i[4], DimX);
-	} else {
-		for(int k = 0 ; k < DimX; k++) {
-			i[3][k] -= 2 * mult08(i[2][k]);
-			i[2][k] += (i[1][k] + i[3][k]) >> 4;
-			C tmp = i[0][k] + i[2][k];
-			i[1][k] += tmp + (tmp >> 1);
-
-			i[3][k] += i[2][k] * 2 + i[2][k];
-		}
 	}
 
 	for( int j = 0; j < 4; j++)
