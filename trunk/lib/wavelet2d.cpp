@@ -595,10 +595,7 @@ template <class C>
 {
 	C * iend = i + len - 3;
 
-	i[1] -= (i[0] + i[2]) >> 1;
-	i[0] += i[1] >> 1;
-
-	i++;
+	i[0] -= i[1];
 
 	for( ; i < iend; i += 2) {
 		i[2] -= (i[1] + i[3]) >> 1;
@@ -606,10 +603,10 @@ template <class C>
 	}
 
 	if (len & 1) {
-		i[1] += i[0] >> 1;
-	} else {
 		i[2] -= i[1];
 		i[1] += (i[0] + i[2]) >> 2;
+	} else {
+		i[1] += i[0] >> 1;
 	}
 }
 
@@ -618,7 +615,10 @@ template <class C>
 {
 	C * iend = i + len - 3;
 
-	i[0] -= i[1] >> 1;
+	i[1] -= (i[0] + i[2]) >> 2;
+	i[0] += i[1];
+
+	i++;
 
 	for( ; i < iend; i += 2) {
 		i[2] -= (i[1] + i[3]) >> 2;
@@ -626,10 +626,10 @@ template <class C>
 	}
 
 	if (len & 1) {
+		i[1] += i[0];
+	} else {
 		i[2] -= i[1] >> 1;
 		i[1] += (i[0] + i[2]) >> 1;
-	} else {
-		i[1] += i[0];
 	}
 }
 
@@ -641,29 +641,21 @@ template <class C>
 	for( int j = 1; j < 4; j++)
 		i[j] = i[j-1] + Stride;
 
-	C * out[4] = {pImage, (C*) VBand.pBand, (C*) HBand.pBand, (C*) DBand.pBand};
-	int out_stride[4] = {Stride, VBand.DimXAlign, HBand.DimXAlign, DBand.DimXAlign};
+	C * out[4] = {(C*) VBand.pBand, pImage, (C*) DBand.pBand, (C*) HBand.pBand};
+	int out_stride[4] = {VBand.DimXAlign, Stride, DBand.DimXAlign, HBand.DimXAlign};
 	if (pLow == 0){
-		out[0] = (C*) LBand.pBand;
-		out_stride[0] = LBand.DimXAlign;
+		out[1] = (C*) LBand.pBand;
+		out_stride[1] = LBand.DimXAlign;
 	}
 
-	for( int j = 0; j < 3; j++)
+	for( int j = 0; j < 2; j++)
 		TransLine53(i[j], DimX);
 
 	for(int k = 0 ; k < DimX; k++) {
-		i[1][k] -= (i[0][k] + i[2][k]) >> 1;
-		i[0][k] += i[1][k] >> 1;
-		out[k & 1][k >> 1] = i[0][k];
+		i[0][k] -= i[1][k];
 	}
 
-	for( int j = 0; j < 4; j++)
-		i[j] += Stride;
-
-	out[0] += out_stride[0];
-	out[1] += out_stride[1];
-
-	for( int j = 4; j < DimY; j += 2 ) {
+	for( int j = 3; j < DimY; j += 2 ) {
 
 		TransLine53(i[2], DimX);
 		TransLine53(i[3], DimX);
@@ -682,12 +674,6 @@ template <class C>
 	}
 
 	if (DimY & 1) {
-		for(int k = 0 ; k < DimX; k++) {
-			i[1][k] += i[0][k] >> 1;
-			out[2 + (k & 1)][k >> 1] = i[0][k];
-			out[k & 1][k >> 1] = i[1][k];
-		}
-	} else {
 		TransLine53(i[2], DimX);
 		for(int k = 0 ; k < DimX; k++) {
 			i[2][k] -= i[1][k];
@@ -696,19 +682,25 @@ template <class C>
 			out[k & 1][k >> 1] = i[1][k];
 			out[2 + (k & 1)][out_stride[2 + (k & 1)] + (k >> 1)] = i[2][k];
 		}
+	} else {
+		for(int k = 0 ; k < DimX; k++) {
+			i[1][k] += i[0][k] >> 1;
+			out[2 + (k & 1)][k >> 1] = i[0][k];
+			out[k & 1][k >> 1] = i[1][k];
+		}
 	}
 }
 
 template <class C>
 	void CWavelet2D::Transform53I(C * pImage, int Stride)
 {
-	C * in[4] = {pImage, (C*) VBand.pBand, (C*) HBand.pBand, (C*) DBand.pBand};
-	int in_stride[4] = {Stride, VBand.DimXAlign, HBand.DimXAlign, DBand.DimXAlign};
+	C * in[4] = {(C*) VBand.pBand, pImage, (C*) DBand.pBand, (C*) HBand.pBand};
+	int in_stride[4] = {VBand.DimXAlign, Stride, DBand.DimXAlign, HBand.DimXAlign};
 	if (pLow == 0){
-		in[0] = (C*) LBand.pBand;
-		in_stride[0] = LBand.DimXAlign;
+		in[1] = (C*) LBand.pBand;
+		in_stride[1] = LBand.DimXAlign;
 	} else {
-		in[0] -= (pLow->DimY - 1) * Stride + pLow->DimX;
+		in[1] -= (pLow->DimY - 1) * Stride + pLow->DimX;
 	}
 
 	C * i[4];
@@ -718,15 +710,25 @@ template <class C>
 		i[j] = i[j-1] + Stride;
 
 	for(int k = 0 ; k < DimX; k++) {
-		i[0][k] = in[k & 1][k >> 1];
-		i[1][k] = in[2 + (k & 1)][k >> 1];
-		i[0][k] -= i[1][k] >> 1;
+		i[0][k] = in[2 + (k & 1)][k >> 1];
+		i[1][k] = in[k & 1][k >> 1];
+		i[2][k] = in[2 + (k & 1)][in_stride[2] + (k >> 1)];
+
+		i[1][k] -= (i[0][k] + i[2][k]) >> 2;
+		i[0][k] += i[1][k];
 	}
 
-	for( int k = 0; k < 4; k++)
-		in[k] += in_stride[k];
+	TransLine53I(i[0], DimX);
 
-	for( int j = 3; j < DimY; j += 2 ){
+	for( int k = 0; k < 4; k++)
+		i[k] += Stride;
+
+	in[0] += in_stride[0];
+	in[1] += in_stride[1];
+	in[2] += in_stride[2] * 2;
+	in[3] += in_stride[3] * 2;
+
+	for( int j = 4; j < DimY; j += 2 ){
 		for(int k = 0 ; k < DimX; k++) {
 			i[2][k] = in[k & 1][k >> 1];
 			i[3][k] = in[2 + (k & 1)][k >> 1];
@@ -745,6 +747,9 @@ template <class C>
 	}
 
 	if (DimY & 1) {
+		for(int k = 0 ; k < DimX; k++)
+			i[1][k] += i[0][k];
+	} else {
 		for(int k = 0 ; k < DimX; k++) {
 			i[2][k] = in[k & 1][k >> 1];
 
@@ -752,9 +757,6 @@ template <class C>
 			i[1][k] += (i[0][k] + i[2][k]) >> 1;
 		}
 		TransLine53I(i[2], DimX);
-	} else {
-		for(int k = 0 ; k < DimX; k++)
-			i[1][k] += i[0][k];
 	}
 
 	TransLine53I(i[0], DimX);
