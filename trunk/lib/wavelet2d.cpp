@@ -70,13 +70,13 @@ void CWavelet2D::Init(int level, int level_chg, int Align){
 	band_t type = sshort;
 	if (level <= level_chg)
 		type = sint;
-	DBand.Init(type, DimX >> 1, DimY >> 1, Align);
-	VBand.Init(type, DimX >> 1, (DimY + 1) >> 1, Align);
-	HBand.Init(type, (DimX + 1) >> 1, DimY >> 1, Align);
+	DBand.Init(type, (DimX + 1) >> 1, (DimY + 1) >> 1, Align);
+	VBand.Init(type, (DimX + 1) >> 1, DimY >> 1, Align);
+	HBand.Init(type, DimX >> 1, (DimY + 1) >> 1, Align);
 	if (level > 1){
-		pLow = new CWavelet2D((DimX + 1) >> 1, (DimY + 1) >> 1, level - 1, level_chg, this, Align);
+		pLow = new CWavelet2D(DimX >> 1, DimY >> 1, level - 1, level_chg, this, Align);
 	}else{
-		LBand.Init(type, (DimX + 1) >> 1, (DimY + 1) >> 1, Align);
+		LBand.Init(type, DimX >> 1, DimY >> 1, Align);
 	}
 }
 
