@@ -73,7 +73,7 @@ void CWavelet2D::Init(int level, int level_chg, int Align){
 	DBand.Init(type, (DimX + 1) >> 1, (DimY + 1) >> 1, Align);
 	VBand.Init(type, (DimX + 1) >> 1, DimY >> 1, Align);
 	HBand.Init(type, DimX >> 1, (DimY + 1) >> 1, Align);
-	if (level > 1){
+	if (level > 1 && DimX > 15 && DimY > 15){
 		pLow = new CWavelet2D(DimX >> 1, DimY >> 1, level - 1, level_chg, this, Align);
 	}else{
 		LBand.Init(type, DimX >> 1, DimY >> 1, Align);
