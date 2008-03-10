@@ -284,13 +284,13 @@ void Test(string & infile, string & outfile, int Quant, trans Trans)
 
 #define USAGE	\
 	BOLD "--- Rududu Image Codec --- " NORM RIC_VERSION " built " __DATE__ " " __TIME__ "\n" \
-	"Â© 2006-2008 Nicolas BOTTI\n" \
+	"(c) 2006-2008 Nicolas BOTTI\n" \
 	BOLD "Usage : " NORM "ric -i <input file> [-o <output file>] [options]\n" \
 	"For a description of available options, use the -h option\n"
 
 #define HELP	\
 	BOLD "--- Rududu Image Codec --- " NORM RIC_VERSION " built " __DATE__ " " __TIME__ "\n" \
-	"Â© 2006-2008 Nicolas BOTTI\n\n" \
+	"(c) 2006-2008 Nicolas BOTTI\n\n" \
 	BOLD "Usage :\n" NORM \
 	"    ric -i <input file> [-o <output file>] [options]\n\n" \
 	BOLD "Exemple :\n" NORM \
