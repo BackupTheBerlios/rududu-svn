@@ -937,14 +937,16 @@ template <class C>
 	if (pLow != 0) {
 		if (DBand.type == sshort && pLow->DBand.type == sint) {
 			C * pIn = pImage;
+			pImage += (Stride * pLow->DimY + 1) & (~1);
+			int * pOut = (int*) pImage;
+			int in_stride = Stride;
+			Stride = pLow->DimX;
 			for( int j = 0; j < pLow->DimY; j++){
-				int * pOut = (int*) pIn;
-				for( int i = pLow->DimX - 1; i >= 0; i--){
+				for( int i = 0; i < pLow->DimX; i++)
 					pOut[i] = (int) pIn[i];
-				}
-				pIn += Stride;
+				pIn += in_stride;
+				pOut += Stride;
 			}
-			Stride >>= 1;
 		}
 		if (pLow->DBand.type == sshort)
 			pLow->Transform(pImage, Stride, t);
@@ -962,18 +964,18 @@ template <class C>
 		if (pLow->DBand.type == sshort)
 			pLow->TransformI(pImage, Stride, t);
 		else if (DBand.type == sshort)
-			pLow->TransformI((int*)pImage, Stride >> 1, t);
+			pLow->TransformI((int*)(pImage - ((Stride * pLow->DimY + 1) & (~1))), pLow->DimX, t);
 		else
 			pLow->TransformI((int*)pImage, Stride, t);
 
 		if (DBand.type == sshort && pLow->DBand.type == sint) {
-			C * pOut = pImage - (pLow->DimY - 1) * Stride;
+			C * pOut = pImage;
+			int * pIn = (int*) (pImage - ((Stride * pLow->DimY + 1) & (~1)));
 			for( int j = 0; j < pLow->DimY; j++){
-				int * pIn = (int*) pOut;
-				for( int i = -1 ; i >= -pLow->DimX; i--){
+				for( int i = -1 ; i >= -pLow->DimX; i--)
 					pOut[i] = (C) pIn[i];
-				}
-				pOut += Stride;
+				pOut -= Stride;
+				pIn -= pLow->DimX;
 			}
 		}
 	}

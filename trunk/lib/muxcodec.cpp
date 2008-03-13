@@ -338,8 +338,7 @@ const unsigned short CMuxCodec::CnkLost[16][8] =
  * @param bits bits to code
  * @param k number of bits set
  */
-template <unsigned int n_max>
-	void CMuxCodec::enumCode(unsigned int bits, unsigned int k)
+void CMuxCodec::enumCode(unsigned int bits, unsigned int k, unsigned int n_max)
 {
 	unsigned int code = 0;
 	const unsigned short * C = Cnk[0];
@@ -365,6 +364,12 @@ template <unsigned int n_max>
 		bitsCode(code + CnkLost[n_max - 1][k - 1], CnkLen[n_max - 1][k - 1]);
 }
 
+template <unsigned int n_max>
+	void CMuxCodec::enumCode(unsigned int bits, unsigned int k)
+{
+	enumCode(bits, k, n_max);
+}
+
 template void CMuxCodec::enumCode<16>(unsigned int, unsigned int);
 
 /**
@@ -373,8 +378,7 @@ template void CMuxCodec::enumCode<16>(unsigned int, unsigned int);
  * @param k number of bits set
  * @return decoded bits
  */
-template <unsigned int n_max>
-	unsigned int CMuxCodec::enumDecode(unsigned int k)
+unsigned int CMuxCodec::enumDecode(unsigned int k, unsigned int n_max)
 {
 	unsigned int n = n_max - 1, bits = 0;
 
@@ -398,6 +402,12 @@ template <unsigned int n_max>
 	} while(C >= Cnk[0]);
 
 	return bits;
+}
+
+template <unsigned int n_max>
+	unsigned int CMuxCodec::enumDecode(unsigned int k)
+{
+	return enumDecode(k, n_max);
 }
 
 template unsigned int CMuxCodec::enumDecode<16>(unsigned int);

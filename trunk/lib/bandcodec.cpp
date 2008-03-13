@@ -212,6 +212,30 @@ template <class C>
 	return cnt;
 }
 
+template <class C>
+	int CBandCodec::tsuqBlock(C * pCur, int stride, C Quant, int iQuant,
+	                          int lambda, int width, int height)
+{
+	int cnt = 0;
+	C T = (Quant + ((Quant - (Quant >> 2)) >> 1)) >> 1;
+	for (int j = 0; j < height; j++) {
+		for ( int i = 0; i < width; i++ ) {
+			if (U(pCur[i] + T) <= U(2 * T)) {
+				pCur[i] = 0;
+			} else {
+				pCur[i] = s2u_(pCur[i]);
+				cnt++;
+				int tmp = U(pCur[i]) >> 1;
+				int qtmp = (tmp * iQuant + (1 << 15)) >> 16;
+				pCur[i] = (qtmp << 1) | (pCur[i] & 1);
+			}
+		}
+		pCur += stride;
+	}
+
+	return cnt;
+}
+
 template <bool high_band, class C>
 	void CBandCodec::buildTree(const C Quant, const int lambda)
 {
@@ -226,24 +250,33 @@ template <bool high_band, class C>
 	unsigned int child_stride = 0;
 
 	if (this->pRD == 0)
-		this->pRD = new unsigned int [DimX * DimY / (BLK_SIZE * BLK_SIZE)];
+		this->pRD = new unsigned int [((DimX + BLK_SIZE - 1) / BLK_SIZE) * ((DimY + BLK_SIZE - 1) / BLK_SIZE)];
 	unsigned int * pRD = this->pRD;
-	unsigned int rd_stride = DimX / BLK_SIZE;
+	unsigned int rd_stride = (DimX + BLK_SIZE - 1) / BLK_SIZE;
 
 	if (! high_band) {
 		pChild[0] = ((CBandCodec*)this->pChild)->pRD;
-		pChild[1] = pChild[0] + this->pChild->DimX / BLK_SIZE;
-		child_stride = this->pChild->DimX * 2 / BLK_SIZE;
+		pChild[1] = pChild[0] + (this->pChild->DimX + BLK_SIZE - 1) / BLK_SIZE;
+		child_stride = ((this->pChild->DimX + BLK_SIZE - 1) / BLK_SIZE) * 2;
 	}
 
-	for( unsigned int j = 0; j < DimY; j += BLK_SIZE){
-		for( unsigned int i = 0, k = 0; i < DimX; i += BLK_SIZE, k++){
+	for( unsigned int j = 0, i, k; j <= DimY - BLK_SIZE; j += BLK_SIZE){
+		for( i = 0, k = 0; i <= DimX - BLK_SIZE; i += BLK_SIZE, k++){
 			int rate = 0;
 			long long dist = tsuqBlock(pCur + i, DimXAlign, Q, iQuant, lbda, rd_thres);
 			if (! high_band) {
 				dist += pChild[0][2*k] + pChild[0][2*k + 1] + pChild[1][2*k] + pChild[1][2*k + 1];
-				rate += 4 * 2;
+				rate += 4 * 5;
 			}
+			if (dist <= 0 /*lambda * rate*/) {
+				pCur[i] = INSIGNIF_BLOCK;
+				pRD[k] = 0;
+			} else
+				pRD[k] = MIN(dist/* - lambda * rate*/, 0xFFFFFFFFu);
+		}
+		if (i < DimX) {
+// 			int rate = 0;
+			long long dist = tsuqBlock(pCur + i, DimXAlign, Q, iQuant, lbda, DimX - i, BLK_SIZE);
 			if (dist <= 0 /*lambda * rate*/) {
 				pCur[i] = INSIGNIF_BLOCK;
 				pRD[k] = 0;
@@ -254,6 +287,27 @@ template <bool high_band, class C>
 		pRD += rd_stride;
 		pChild[0] += child_stride;
 		pChild[1] += child_stride;
+	}
+	if (DimY & ((1 << BLK_PWR) - 1)) {
+		unsigned int i, k;
+		for( i = 0, k = 0; i <= DimX - BLK_SIZE; i += BLK_SIZE, k++){
+// 			int rate = 0;
+			long long dist = tsuqBlock(pCur + i, DimXAlign, Q, iQuant, lbda, BLK_SIZE, DimY & ((1 << BLK_PWR) - 1));
+			if (dist <= 0 /*lambda * rate*/) {
+				pCur[i] = INSIGNIF_BLOCK;
+				pRD[k] = 0;
+			} else
+				pRD[k] = MIN(dist/* - lambda * rate*/, 0xFFFFFFFFu);
+		}
+		if (i < DimX) {
+// 			int rate = 0;
+			long long dist = tsuqBlock(pCur + i, DimXAlign, Q, iQuant, lbda, DimX - i, DimY & ((1 << BLK_PWR) - 1));
+			if (dist <= 0 /*lambda * rate*/) {
+				pCur[i] = INSIGNIF_BLOCK;
+				pRD[k] = 0;
+			} else
+				pRD[k] = MIN(dist/* - lambda * rate*/, 0xFFFFFFFFu);
+		}
 	}
 
 	if (pParent != 0) {
@@ -348,6 +402,81 @@ template <cmode mode, bool high_band, class C>
 	return k - (high_band == true);
 }
 
+template <cmode mode, bool high_band, class C>
+	unsigned int CBandCodec::block_enum(C * pBlock, int stride, CMuxCodec * pCodec,
+	                                    CGeomCodec & geoCodec, int width, int height)
+{
+	static const unsigned char k_conv2[9][16] =
+	{
+		{15},
+		{7, 15},
+		{4, 10, 15},
+		{3, 7, 11, 15},
+		{2, 4, 7, 10, 12, 15},
+		{1, 3, 5, 7, 9, 11, 13, 15},
+		{1, 3, 4, 6, 8, 10, 11, 13, 15},
+		{0, 2, 3, 4, 6, 7, 8, 10, 11, 12, 14, 15},
+		{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}
+	};
+
+	static const unsigned char k_conv1[16] =
+	{0, 1, 2, 3, 0, 4, 0, 5, 6, 0, 0, 7, 0, 0, 0, 8};
+
+	unsigned int k = 0;
+	unsigned int cnt = width * height;
+	if (mode == encode) {
+		C tmp[16];
+		unsigned int signif = 0;
+
+		for( int j = 0; j < height; j++){
+			for( C * pEnd = pBlock + width; pBlock < pEnd; pBlock++){
+				signif <<= 1;
+				if (pBlock[0] != 0) {
+					tmp[k] = pBlock[0];
+					k++;
+					signif |= 1;
+				}
+			}
+			pBlock += stride - width;
+		}
+
+		if (high_band)
+			pCodec->maxCode(k - 1, cnt - 1);
+		else
+			pCodec->maxCode(k, cnt);
+
+		if (high_band || k != 0) {
+			if (k != cnt)
+				pCodec->enumCode(signif, k, cnt);
+			for( unsigned int i = 0; i < k; i++){
+				geoCodec.code((U(tmp[i]) >> 1) - 1,  k_conv2[k_conv1[cnt]][k - 1]);
+				pCodec->bitsCode(tmp[i] & 1, 1);
+			}
+		}
+	} else {
+		if (high_band)
+			k = pCodec->maxDecode(cnt - 1) + 1;
+		else
+			k = pCodec->maxDecode(cnt);
+
+		if (high_band || k != 0) {
+			unsigned int signif = 0xFFFF;
+			if (k != cnt)
+				signif = pCodec->enumDecode(k, cnt);
+			for( int j = 0; j < height; j++){
+				for( C * pEnd = pBlock + width; pBlock < pEnd; pBlock++){
+					if (signif & (1 << (cnt -1))) {
+						pBlock[0] = u2s_(((geoCodec.decode(k_conv2[k_conv1[cnt]][k - 1]) + 1) << 1) | pCodec->bitsDecode(1));
+					}
+					signif <<= 1;
+				}
+				pBlock += stride - width;
+			}
+		}
+	}
+	return k - (high_band == true);
+}
+
 #define K_SHIFT	10
 #define K_DECAY	3
 #define K_SPEED	(K_SHIFT - K_DECAY)
@@ -375,17 +504,25 @@ template <cmode mode, bool high_band, class C, class P>
 
 	CGeomCodec geoCodec(pCodec, geo_init);
 	CBitCodec treeCodec(pCodec);
+	CBitCodec bordCodec(pCodec);
 
-	for( unsigned int j = 0; j < DimY; j += BLK_SIZE){
-		int i = 0, k = 0, bs = BLK_SIZE;
+	unsigned int j = 0;
+	for( ; j <= DimY - BLK_SIZE; j += BLK_SIZE){
+		int i = 0, bs = BLK_SIZE;
 		if (j & BLK_SIZE) {
 			bs = -bs;
-			i = DimX - BLK_SIZE;
-			if (pParent != 0)
-				k = pParent->DimX - (BLK_SIZE >> 1);
+			i = DimX & (-1 << BLK_PWR);
+			if ((int)DimX > i) {
+				if (pPar && (i >> 1) < (int)pParent->DimX && pPar[i >> 1] == INSIGNIF_BLOCK) pPar[i >> 1] = 0;
+				if ((mode == encode && bordCodec.code(pCur1[i] == INSIGNIF_BLOCK)) || (mode == decode && bordCodec.decode())) {
+					if (mode == encode) pCur1[i] = 0;
+				} else
+					block_enum<mode, high_band>(&pCur1[i], DimXAlign, pCodec, geoCodec, DimX - i, 4);
+			}
+			i += bs;
 		}
-		for( ; (unsigned int)i < DimX; i += bs, k += bs >> 1){
-			int ctx = 15;
+		for( ; (unsigned int)i <= DimX - BLK_SIZE; i += bs){
+			int ctx = 15, k = i >> 1;
 			if (pPar) ctx = pPar[k];
 
 			if (ctx == INSIGNIF_BLOCK) {
@@ -395,11 +532,9 @@ template <cmode mode, bool high_band, class C, class P>
 			}
 
 			if (pPar) ctx = maxLen<BLK_SIZE >> 1, mode>(&pPar[k], pParent->DimXAlign);
-			if ((mode == encode && pCur1[i] == INSIGNIF_BLOCK) || (mode == decode && treeCodec.decode(ctx))) {
-				if (mode == encode) treeCodec.code1(ctx);
+			if ((mode == encode && treeCodec.code(pCur1[i] == INSIGNIF_BLOCK, ctx)) || (mode == decode && treeCodec.decode(ctx))) {
 				pCur1[i] = pCur1[i + (BLK_SIZE >> 1)] = pCur2[i] = pCur2[i + (BLK_SIZE >> 1)] = -(pChild != 0) & INSIGNIF_BLOCK;
 			} else {
-				if (mode == encode) treeCodec.code0(ctx);
 				int idx = (k_mean[ctx] + (1 << (K_SHIFT - 1))) >> K_SHIFT;
 				unsigned int k = block_enum<mode, high_band>(&pCur1[i], DimXAlign, pCodec, geoCodec, idx);
 				k_mean[ctx] += (k << K_SPEED) - (k_mean[ctx] >> K_DECAY);
@@ -411,9 +546,45 @@ template <cmode mode, bool high_band, class C, class P>
 #endif
 			}
 		}
+		if (i > 0 && i < (int)DimX) {
+			if (pPar && (i >> 1) < (int)pParent->DimX && pPar[i >> 1] == INSIGNIF_BLOCK) pPar[i >> 1] = 0;
+			if ((mode == encode && bordCodec.code(pCur1[i] == INSIGNIF_BLOCK)) || (mode == decode && bordCodec.decode())) {
+				if (mode == encode) pCur1[i] = 0;
+			} else
+				block_enum<mode, high_band>(&pCur1[i], DimXAlign, pCodec, geoCodec, DimX - i, 4);
+		}
 		pCur1 += diff;
 		pCur2 += diff;
 		pPar += diff_par;
+	}
+	if (j < DimY) {
+		int i = 0, bs = BLK_SIZE;
+		if (j & BLK_SIZE) {
+			bs = -bs;
+			i = DimX & (-1 << BLK_PWR);
+			if ((int)DimX > i) {
+				if (pPar && (i >> 1) < (int)pParent->DimX && (j >> 1) < pParent->DimY && pPar[i >> 1] == INSIGNIF_BLOCK) pPar[i >> 1] = 0;
+				if ((mode == encode && bordCodec.code(pCur1[i] == INSIGNIF_BLOCK)) || (mode == decode && bordCodec.decode())) {
+					if (mode == encode) pCur1[i] = 0;
+				} else
+					block_enum<mode, high_band>(&pCur1[i], DimXAlign, pCodec, geoCodec, DimX - i, DimY - j);
+			}
+			i += bs;
+		}
+		for( ; (unsigned int)i <= DimX - BLK_SIZE; i += bs){
+			if (pPar && (j >> 1) < pParent->DimY && pPar[i >> 1] == INSIGNIF_BLOCK) pPar[i >> 1] = 0;
+			if ((mode == encode && bordCodec.code(pCur1[i] == INSIGNIF_BLOCK)) || (mode == decode && bordCodec.decode())) {
+				if (mode == encode) pCur1[i] = 0;
+			} else
+				block_enum<mode, high_band>(&pCur1[i], DimXAlign, pCodec, geoCodec, 4, DimY - j);
+		}
+		if (i > 0 && i < (int)DimX) {
+			if (pPar && (i >> 1) < (int)pParent->DimX && (j >> 1) < pParent->DimY && pPar[i >> 1] == INSIGNIF_BLOCK) pPar[i >> 1] = 0;
+			if ((mode == encode && bordCodec.code(pCur1[i] == INSIGNIF_BLOCK)) || (mode == decode && bordCodec.decode())) {
+				if (mode == encode) pCur1[i] = 0;
+			} else
+				block_enum<mode, high_band>(&pCur1[i], DimXAlign, pCodec, geoCodec, DimX - i, DimY - j);
+		}
 	}
 }
 

@@ -120,8 +120,10 @@ public:
 
 	template <unsigned int n_max>
 		void enumCode(unsigned int bits, unsigned int k);
+	void enumCode(unsigned int bits, unsigned int k, unsigned int n_max);
 	template <unsigned int n_max>
 		unsigned int enumDecode(unsigned int k);
+	unsigned int enumDecode(unsigned int k, unsigned int n_max);
 
 	void maxCode(unsigned int value, unsigned int max);
 	unsigned int maxDecode(unsigned int max);

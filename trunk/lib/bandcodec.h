@@ -25,7 +25,8 @@
 #include <geomcodec.h>
 #include <bitcodec.h>
 
-#define BLK_SIZE	4
+#define BLK_PWR		2
+#define BLK_SIZE	(1 << BLK_PWR)
 // #define GENERATE_HUFF_STATS
 
 namespace rududu {
@@ -49,12 +50,17 @@ public:
 private :
 	template <class C> int tsuqBlock(C * pCur, int stride, C Quant, int iQuant,
 	                                 int lambda, C * rd_thres);
+	template <class C> int tsuqBlock(C * pCur, int stride, C Quant, int iQuant,
+	                                 int lambda, int width, int height);
 
 	template <int block_size, cmode mode, class C>
 		static inline int maxLen(C * pBlock, int stride);
 	template <cmode mode, bool high_band, class C>
 		static unsigned int block_enum(C * pBlock, int stride, CMuxCodec * pCodec,
 		                       CGeomCodec & geoCodec, int idx);
+	template <cmode mode, bool high_band, class C>
+		static unsigned int block_enum(C * pBlock, int stride, CMuxCodec * pCodec,
+		                               CGeomCodec & geoCodec, int width, int height);
 	static inline int clen(int coef, unsigned int cnt);
 	template <class C>
 		static void inSort (C ** pKeys, int len);

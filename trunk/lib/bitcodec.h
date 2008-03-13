@@ -49,13 +49,14 @@ public:
 		code(1, ctx);
 	}
 
-	void inline code(unsigned int sym, const unsigned int ctx = 0){
-		sym ^= state[ctx].mps;
-		pRange->codeBin(freq[ctx], sym ^ 1);
-		freq[ctx] += (sym << SPEED) - (freq[ctx] >> DECAY);
+	unsigned int inline code(unsigned int sym, const unsigned int ctx = 0){
+		unsigned int s = sym ^ state[ctx].mps;
+		pRange->codeBin(freq[ctx], s ^ 1);
+		freq[ctx] += (s << SPEED) - (freq[ctx] >> DECAY);
 		if ((unsigned short)(freq[ctx] - thres[state[ctx].shift + 1]) >
 		    thres[state[ctx].shift] - thres[state[ctx].shift + 1])
 			shift_adj(ctx);
+		return sym;
 	}
 
 	unsigned int inline decode(const unsigned int ctx = 0){
