@@ -1,10 +1,10 @@
 /***************************************************************************
- *   Copyright (C) 2007 by Nicolas Botti   *
- *   rududu@laposte.net   *
+ *   Copyright (C) 2007-2008 by Nicolas Botti                              *
+ *   <rududu@laposte.net>                                                  *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
  *   it under the terms of the GNU General Public License as published by  *
- *   the Free Software Foundation; either version 2 of the License, or     *
+ *   the Free Software Foundation; either version 3 of the License, or     *
  *   (at your option) any later version.                                   *
  *                                                                         *
  *   This program is distributed in the hope that it will be useful,       *
@@ -193,7 +193,7 @@ void COBME::EPZS(CImageBuffer & Images)
 				if (i == 0 || i == dimX -1)
 					MVPred[0].MV = pCurMV[i - dimX];
 				else {
-					// TODO prédiction à droite en utilisant le bloc haut-gauche => même chose pour le codage
+					// TODO prÃ©diction Ã  droite en utilisant le bloc haut-gauche => mÃªme chose pour le codage
 					MVPred[0].MV = median_mv(pCurMV[i - 1], pCurMV[i - dimX], pCurMV[i - dimX + 1]);
 					MVPred[n++].MV = pCurMV[i - 1];
 					MVPred[n++].MV = pCurMV[i - dimX];
