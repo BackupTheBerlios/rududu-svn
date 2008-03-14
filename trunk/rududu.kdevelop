@@ -30,8 +30,8 @@
   </general>
   <kdevautoproject>
     <general>
-      <activetarget>utils/huffgen</activetarget>
-      <useconfiguration>optimized</useconfiguration>
+      <activetarget>ric/ric</activetarget>
+      <useconfiguration>mingw</useconfiguration>
     </general>
     <run>
       <mainprogram>/home/nico/src/rududu/debug</mainprogram>
@@ -51,8 +51,8 @@
       <debugarguments>
         <testmotion>&lt; /home/nico/films/video_test/ParkJoy.rgb 2> /home/nico/testmotion</testmotion>
         <sgi2rgb>/home/nico/films/video_test/CrowdRun/0711*.sgi > /home/nico/films/video_test/test.rgb</sgi2rgb>
-        <ric>-i &quot;/home/nico/Documents/Images/Images test/lena.pgm&quot; -o &quot;/home/nico/Documents/Images/Images test/lena.ric&quot;</ric>
-        <huffgen/>
+        <ric>-i &quot;/home/nico/Documents/Images/Images test/lena_ext.pgm&quot; -o &quot;/home/nico/Documents/Images/Images test/lena_ext.ric&quot;</ric>
+        <huffgen>&lt; &quot;/home/nico/Documents/Images/Images test/huff_in&quot;</huffgen>
       </debugarguments>
       <cwd>
         <testmotion>/home/nico/src/rududu/debug/./utils</testmotion>
@@ -72,7 +72,7 @@
         <ccompiler>kdevgccoptions</ccompiler>
         <cxxcompiler>kdevgppoptions</cxxcompiler>
         <f77compiler>kdevg77options</f77compiler>
-        <cxxflags>-O3 -g0 -fomit-frame-pointer -Wall -m3dnow -msse</cxxflags>
+        <cxxflags>-O3 -g0 -fomit-frame-pointer -Wall</cxxflags>
         <envvars/>
         <configargs/>
         <topsourcedir/>
@@ -101,6 +101,23 @@
         <cflags/>
         <f77flags/>
       </debug>
+      <mingw>
+        <envvars/>
+        <configargs>--target=i586-mingw32msvc --host=i586-mingw32msvc</configargs>
+        <builddir>mingw</builddir>
+        <topsourcedir/>
+        <cppflags/>
+        <ldflags/>
+        <ccompiler>kdevgccoptions</ccompiler>
+        <cxxcompiler>kdevgppoptions</cxxcompiler>
+        <f77compiler>kdevg77options</f77compiler>
+        <ccompilerbinary/>
+        <cxxcompilerbinary/>
+        <f77compilerbinary/>
+        <cflags/>
+        <cxxflags>-O1 -g0 -Wall</cxxflags>
+        <f77flags/>
+      </mingw>
     </configurations>
     <make>
       <envvars>
