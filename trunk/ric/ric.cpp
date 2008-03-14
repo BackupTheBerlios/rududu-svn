@@ -127,12 +127,12 @@ void CompressImage(string & infile, string & outfile, int Quant, trans Trans)
 	Head.Color = 0;
 	Head.Trans = (unsigned char) Trans;
 
-	ofstream oFile( outfile.c_str() , ios::out );
-	oFile << "RUD2";
-
 	CImg<short> img( infile.c_str() );
 	unsigned int imSize = img.dimx() * img.dimy() * img.dimv();
 	unsigned char * pStream = new unsigned char[imSize];
+
+	ofstream oFile( outfile.c_str() , ios::out | ios::binary );
+	oFile << "RUD2";
 
 	if (img.dimv() == 3) {
 		Head.Color = 1;
@@ -181,7 +181,7 @@ void CompressImage(string & infile, string & outfile, int Quant, trans Trans)
 
 void DecompressImage(string & infile, string & outfile, bool Dither)
 {
-	ifstream iFile( infile.c_str() , ios::in );
+	ifstream iFile( infile.c_str() , ios::in | ios::binary );
 	char magic[4] = {0,0,0,0};
 
 	iFile.read(magic, 4);
@@ -279,8 +279,13 @@ void Test(string & infile, string & outfile, int Quant, trans Trans)
 }
 */
 
+#ifdef _WIN32
+#define BOLD
+#define NORM
+#else
 #define BOLD	"\x1B[1m"
 #define NORM	"\x1B[0m"
+#endif // _WIN32
 
 #define USAGE	\
 	BOLD "--- Rududu Image Codec --- " NORM RIC_VERSION " built " __DATE__ " " __TIME__ "\n" \
