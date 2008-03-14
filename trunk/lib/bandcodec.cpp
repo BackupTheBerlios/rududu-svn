@@ -371,7 +371,7 @@ template <cmode mode, bool high_band, class C>
 
 		if (high_band || k != 0) {
 			if (k != 16)
-				pCodec->enumCode<16>(signif, k);
+				pCodec->template enumCode<16>(signif, k);
 			for( unsigned int i = 0; i < k; i++){
 				geoCodec.code((U(tmp[i]) >> 1) - 1,  k - 1);
 				pCodec->bitsCode(tmp[i] & 1, 1);
@@ -386,7 +386,7 @@ template <cmode mode, bool high_band, class C>
 		if (high_band || k != 0) {
 			unsigned int signif = 0xFFFF;
 			if (k != 16)
-				signif = pCodec->enumDecode<16>(k);
+				signif = pCodec->template enumDecode<16>(k);
 
 			for( int j = 0; j < 4; j++){
 				for( C * pEnd = pBlock + 4; pBlock < pEnd; pBlock++){
