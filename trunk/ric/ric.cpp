@@ -310,7 +310,7 @@ int main( int argc, char *argv[] )
 	string infile = cimg_option("-i", "", "Input file (use extension .ric for decompression)");
 	string outfile = cimg_option("-o", "", "Output file");
 	int Quant = cimg_option("-q", 9, "Quantizer : 0 (lossless) to 31");
-	int Trans = cimg_option("-t", 0, "Transform used 0:cdf97 1:cdf53 2:haar");
+	int Trans = cimg_option("-t", Quant == 0 ? 1 : 0, "Transform used 0:cdf97 1:cdf53 2:haar (defaults to 1 if lossless)");
 	bool dither = cimg_option("-d", false, "Use dithering for ouput image (decompression and greyscale only)");
 	bool help = cimg_option("-h", false, "Display this help");
 	help = help || cimg_option("-help", false, 0);
