@@ -298,7 +298,7 @@ void Test(string & infile, string & outfile, int Quant, trans Trans)
 	"(c) 2006-2008 Nicolas BOTTI\n\n" \
 	BOLD "Usage :\n" NORM \
 	"    ric -i <input file> [-o <output file>] [options]\n\n" \
-	BOLD "Exemple :\n" NORM \
+	BOLD "Example :\n" NORM \
 	"    ric -i test.pnm -q 7\n" \
 	"    ric -i test.ric\n\n" \
 	BOLD "Available options :" NORM
