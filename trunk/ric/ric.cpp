@@ -37,7 +37,7 @@ using namespace rududu;
 // color quantizer boost
 #define C_Q_BOOST	8
 #define SHIFT		4
-#define RIC_VERSION	"v0.2.1"
+#define RIC_VERSION	"v0.2.2"
 
 short Quants(int idx)
 {
