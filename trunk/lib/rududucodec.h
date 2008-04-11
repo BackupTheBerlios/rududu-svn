@@ -21,7 +21,6 @@
 #pragma once
 
 #include "utils.h"
-#include "muxcodec.h"
 #include "imagebuffer.h"
 #include "obme.h"
 #include "wavelet2d.h"
@@ -39,6 +38,8 @@ public:
 	int encode(unsigned char * pImage, int stride, unsigned char * pBuffer, CImage ** outImage);
 	int decode(unsigned char * pBuffer, CImage ** outImage);
 
+	static short quants(int idx);
+
 private :
 	CImageBuffer images;
 	CImage * predImage;
@@ -50,7 +51,6 @@ private :
 
 	void encodeImage(CImage * pImage);
 	void decodeImage(CImage * pImage);
-	static short quants(int idx);
 
 };
 

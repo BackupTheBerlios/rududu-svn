@@ -25,8 +25,7 @@
 #define cimg_display_type 0
 #include <CImg.h>
 
-#include <utils.h>
-#include <wavelet2d.h>
+#include <rududucodec.h>
 
 using namespace std;
 using namespace cimg_library;
@@ -39,14 +38,7 @@ using namespace rududu;
 #define SHIFT		4
 #define RIC_VERSION	"v0.2.2"
 
-short Quants(int idx)
-{
-	static const unsigned short Q[5] = {0x8000, 0x9000, 0xA800, 0xC000, 0xE000};
-	if (idx <= 0) return 0; // lossless
-	idx--;
-	int r = 14 - idx / 5;
-	return (short)((Q[idx % 5] + (1 << (r - 1))) >> r );
-}
+#define Quants CRududuCodec::quants
 
 void dither(short * pIn, int width, int heigth)
 {

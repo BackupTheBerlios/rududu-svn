@@ -57,10 +57,10 @@ CRududuCodec::~CRududuCodec()
 
 short CRududuCodec::quants(int idx)
 {
-	static const unsigned short Q[5] = {32768, 37641, 43238, 49667, 57052};
-	if (idx == 0) return 0; // lossless
+	static const unsigned short Q[5] = {0x8000, 0x9000, 0xA800, 0xC000, 0xE000};
+	if (idx <= 0) return 0; // lossless
 	idx--;
-	int r = 10 - idx / 5;
+	int r = 14 - idx / 5;
 	return (short)((Q[idx % 5] + (1 << (r - 1))) >> r );
 }
 
