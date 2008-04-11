@@ -10,22 +10,7 @@ using namespace rududu;
 #define WIDTH	1280
 #define HEIGHT	720
 #define CMPNT	3
-#define ALIGN	32
-
-sHuffSym hufftable[] = {
-	{12, 0, 0},
-	{8, 0, 1},
-	{125, 0, 2},
-	{741, 0, 3},
-	{65, 0, 4},
-	{9, 0, 5},
-	{2, 0, 6},
-	{78, 0, 7},
-	{93, 0, 8},
-	{52, 0, 9},
-	{512, 0, 10},
-	{3, 0, 11},
-};
+// #define ALIGN	32
 
 int main( int argc, char *argv[] )
 {
@@ -58,12 +43,18 @@ int main( int argc, char *argv[] )
 			cerr << psnr[c] << "	";
 		}
 		cerr << endl;
+// 		origin -= *encOutImage;
 
 		encOutImage->outputYV12<char, false>((char*)tmp, WIDTH, -128);
+#ifndef DEBUG
  		cout.write((char*)tmp, WIDTH * HEIGHT * CMPNT / 2);
+#endif
 	}
 
 	cout.flush();
+
+	delete[] tmp;
+	delete[] pStream;
 
 	return 0;
 }
