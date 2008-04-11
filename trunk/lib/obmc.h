@@ -73,6 +73,8 @@ private:
 		                       const int src_stride, const int dst_stride);
 	template <int flags>
 		static void obmc_block_intra(short * pDst, const int dst_stride, const short value);
+	template <int flags>
+		short get_block_mean(short * pSrc, const int src_stride);
 
 	static inline int get_pos(const sMotionVector mv, const unsigned int i,
 	                   const unsigned int j, const unsigned int im_x,

@@ -152,5 +152,18 @@ template <class a, int x, int y, bool add>
 	}
 }
 
+template <class a, int x, int y>
+		int inline sum(a * src, const int src_stride)
+{
+	int ret = 0;
+	for (int j = 0; j < y; j++) {
+		for (int i = 0; i < x; i++) {
+			ret += src[i];
+		}
+		src += src_stride;
+	}
+	return ret;
+}
+
 }
 

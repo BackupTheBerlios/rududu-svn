@@ -177,6 +177,17 @@ void COBMC::obmc_block(const short * pSrc, short * pDst,
 }
 
 template <int flags>
+short COBMC::get_block_mean(short * pSrc, const int src_stride)
+{
+	int s, count = 16 * 6;
+
+	s = sum<short, 8, 8>(pSrc, src_stride);
+	s += sum<short, 8, 8>(pSrc + 8, src_stride);
+	s += sum<short, 8, 8>(pSrc + 8 * src_stride, src_stride);
+	return s / (count * 16);
+}
+
+template <int flags>
 void COBMC::obmc_block_intra(short * pDst, const int dst_stride, const short value)
 {
 	int is = 0, ie = 8, js = 0, je = 0;
@@ -311,7 +322,7 @@ void COBMC::apply_mv(CImageBuffer & RefFrames, CImage & dstImage)
 					           dstImage.pImage[c] + dst_pos, stride, stride);
 			} else
 				for( int c = 0; c < component; c++)
-					obmc_block_intra<0>(dstImage.pImage[c] + dst_pos, stride, 0);
+					obmc_block_intra<0>(dstImage.pImage[c] + dst_pos, stride, get_block_mean<0>(dstImage.pImage[c] + dst_pos, stride));
 			dst_pos += 8;
 		}
 		OBMC(RIGHT);
