@@ -245,25 +245,37 @@ unsigned int CWavelet2D::TSUQ(int Quant, float Thres)
 	return Count;
 }
 
-void CWavelet2D::TSUQi(int Quant)
+void CWavelet2D::TSUQi(int Quant, bool conv)
 {
 	if (DBand.type == sshort) {
-		DBand.TSUQi<short>(Quant);
-		HBand.TSUQi<short>(Quant);
-		VBand.TSUQi<short>(Quant);
+		if (conv) {
+			DBand.TSUQi<short, true>(Quant);
+			HBand.TSUQi<short, true>(Quant);
+			VBand.TSUQi<short, true>(Quant);
+		} else {
+			DBand.TSUQi<short, false>(Quant);
+			HBand.TSUQi<short, false>(Quant);
+			VBand.TSUQi<short, false>(Quant);
+		}
 	} else if (DBand.type == sint) {
-		DBand.TSUQi<int>(Quant);
-		HBand.TSUQi<int>(Quant);
-		VBand.TSUQi<int>(Quant);
+		if (conv) {
+			DBand.TSUQi<int, true>(Quant);
+			HBand.TSUQi<int, true>(Quant);
+			VBand.TSUQi<int, true>(Quant);
+		} else {
+			DBand.TSUQi<int, false>(Quant);
+			HBand.TSUQi<int, false>(Quant);
+			VBand.TSUQi<int, false>(Quant);
+		}
 	}
 
 	if (pLow != 0) {
-		pLow->TSUQi(Quant);
+		pLow->TSUQi(Quant, conv);
 	} else {
 		if (LBand.type == sshort)
-			LBand.TSUQi<short>(Quant);
+			LBand.TSUQi<short, false>(Quant);
 		else if (LBand.type == sint)
-			LBand.TSUQi<int>(Quant);
+			LBand.TSUQi<int, false>(Quant);
 	}
 }
 

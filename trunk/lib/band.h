@@ -91,7 +91,7 @@ public:
 		return Count;
 	}
 
-	template <class C>
+	template <class C, bool conv>
 		void TSUQi(C Quant)
 	{
 		int Diff = DimXAlign - DimX;
@@ -100,7 +100,12 @@ public:
 		if (Quant == 0) Quant = 1;
 		for ( unsigned int j = 0, n = 0; j < DimY ; j ++ ) {
 			for ( unsigned int nEnd = n + DimX; n < nEnd ; n++ ) {
-				pBand[n] *= Quant;
+				if (conv) {
+					if (pBand[n] != 0)
+						pBand[n] = u2s_(pBand[n]) * Quant;
+				} else {
+					pBand[n] *= Quant;
+				}
 			}
 			n += Diff;
 		}

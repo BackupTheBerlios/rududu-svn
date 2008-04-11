@@ -39,7 +39,7 @@ public:
 	void CodeBand(CMuxCodec * pCodec, int Quant, int lambda);
 
 	unsigned int TSUQ(int Quant, float Thres);
-	void TSUQi(int Quant);
+	void TSUQi(int Quant, bool conv = false);
 
 	void Stats(void);
 
