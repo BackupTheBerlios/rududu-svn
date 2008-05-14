@@ -39,6 +39,8 @@ public:
 
 	void Init(int Align);
 
+	void input(unsigned char * pIn, int stride);
+	void output(unsigned char * pOut, int stride);
 	template <class input_t> void inputRGB(input_t * pIn, int stride, short offset);
 	template <class input_t> void inputSGI(input_t * pIn, int stride, short offset);
 	template <class output_t> void outputRGB(output_t * pOut, int stride, short offset);

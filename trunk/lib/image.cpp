@@ -67,6 +67,34 @@ void CImage::Init(int Align)
 	}
 }
 
+void CImage::input(unsigned char * pIn, int stride)
+{
+	for( int c = 0; c < component; c++){
+		short * pCur = pImage[c];
+		for( unsigned int j = 0; j < dimY; j++){
+			for (unsigned int i = 0; i < dimX; i++){
+				pCur[i] = ((pIn[i] << 4) | (pIn[i] >> 4)) - 2048;
+			}
+			pCur += dimXAlign;
+			pIn += stride;
+		}
+	}
+}
+
+void CImage::output(unsigned char * pOut, int stride)
+{
+	for( int c = 0; c < component; c++){
+		short * pCur = pImage[c];
+		for( unsigned int j = 0; j < dimY; j++){
+			for (unsigned int i = 0; i < dimX; i++){
+				pOut[i] = ((pCur[i] + 8) >> 4) + 128;
+			}
+			pCur += dimXAlign;
+			pOut += stride;
+		}
+	}
+}
+
 template <class input_t>
 void CImage::inputRGB(input_t * pIn, int stride, short offset)
 {
