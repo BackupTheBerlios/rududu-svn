@@ -58,6 +58,8 @@ protected:
 	sMotionVector * pMV;
 	unsigned char * pRef;
 
+	float a11, a12, a21, a22, mx, my;
+
 	sMotionVector median_mv(sMotionVector v1, sMotionVector v2, sMotionVector v3)
 	{
 		sMotionVector ret;

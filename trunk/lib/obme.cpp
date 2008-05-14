@@ -46,15 +46,54 @@ unsigned short COBME::SAD(const short * pSrc, const short * pDst, const int stri
 {
 	unsigned int ret = 0;
 	for (unsigned int j = 0; j < size; j++) {
-		for (unsigned int i = 0; i < size; i++) {
-			int tmp = pDst[i] - pSrc[i];
-			ret += ABS(tmp);
-		}
+		for (unsigned int i = 0; i < size; i++)
+			ret += abs(pDst[i] - pSrc[i]);
 		pDst += stride;
 		pSrc += stride;
 	}
 	return MIN(ret, 65535);
 }
+
+#ifdef __MMX__
+
+typedef short v4hi __attribute__ ((vector_size (8)));
+
+template <>
+unsigned short COBME::SAD<8>(const short * pSrc, const short * pDst, const int stride)
+{
+	unsigned int ret = 0;
+	union {
+		v4hi v;
+		short s[4];
+	} sum;
+	sum.v = __builtin_ia32_pxor(sum.v, sum.v);
+
+ 	for (unsigned int j = 0; j < 8; j++) {
+		v4hi tmp[4];
+		tmp[0] = __builtin_ia32_psubsw(((v4hi*)pSrc)[0], ((v4hi*)pDst)[0]);
+		tmp[1] = __builtin_ia32_pxor(tmp[1], tmp[1]);
+		tmp[1] = __builtin_ia32_pcmpgtw(tmp[1], tmp[0]);
+		tmp[0] = __builtin_ia32_pxor(tmp[0], tmp[1]);
+		tmp[0] = __builtin_ia32_psubw(tmp[0], tmp[1]);
+		sum.v = __builtin_ia32_paddusw(sum.v, tmp[0]);
+
+		tmp[2] = __builtin_ia32_psubsw(((v4hi*)pSrc)[1], ((v4hi*)pDst)[1]);
+		tmp[3] = __builtin_ia32_pxor(tmp[3], tmp[3]);
+		tmp[3] = __builtin_ia32_pcmpgtw(tmp[3], tmp[2]);
+		tmp[2] = __builtin_ia32_pxor(tmp[2], tmp[3]);
+		tmp[2] = __builtin_ia32_psubw(tmp[2], tmp[3]);
+		sum.v = __builtin_ia32_paddusw(sum.v, tmp[2]);
+
+		pDst += stride;
+		pSrc += stride;
+	}
+
+	ret = (unsigned int) sum.s[0] + sum.s[1] + sum.s[2] + sum.s[3];
+
+	return MIN(ret, 65535);
+}
+
+#endif
 
 #define CHECK_MV(mv)	\
 {	\
@@ -193,7 +232,7 @@ void COBME::EPZS(CImageBuffer & Images)
 				if (i == 0 || i == dimX -1)
 					MVPred[0].MV = pCurMV[i - dimX];
 				else {
-					// TODO prÃ©diction Ã  droite en utilisant le bloc haut-gauche => mÃªme chose pour le codage
+					// TODO prÃÂ©diction ÃÂ  droite en utilisant le bloc haut-gauche => mÃÂªme chose pour le codage
 					MVPred[0].MV = median_mv(pCurMV[i - 1], pCurMV[i - dimX], pCurMV[i - dimX + 1]);
 					MVPred[n++].MV = pCurMV[i - 1];
 					MVPred[n++].MV = pCurMV[i - dimX];
@@ -241,6 +280,60 @@ void COBME::EPZS(CImageBuffer & Images)
 		pCurRef += dimX;
 		pCurDist += dimX;
 	}
+
+#ifdef __MMX__
+	__builtin_ia32_emms();
+#endif
+}
+
+void COBME::global_motion(void)
+{
+	sMotionVector const * pCurMV = pMV + dimX;
+	int mean_x = 0, mean_y = 0, cnt = 0;
+	for( unsigned int j = 1; j < dimY - 1; j++){
+		for( unsigned int i = 1; i < dimX - 1; i++){
+			if (pCurMV[i].all != MV_INTRA) {
+				mean_x += pCurMV[i].x;
+				mean_y += pCurMV[i].y;
+				cnt++;
+			}
+		}
+		pCurMV += dimX;
+	}
+
+	mx = (float)mean_x / cnt;
+	my = (float)mean_y / cnt;
+
+	pCurMV = pMV + dimX;
+	double xVx = 0, xVy = 0, yVx = 0, yVy = 0, x2 = 0, y2 = 0, xy = 0;
+	for( unsigned int j = 1; j < dimY - 1; j++){
+		double l = (double) j - (dimY >> 1);
+		for( unsigned int i = 1; i < dimX - 1; i++){
+			if (pCurMV[i].all != MV_INTRA) {
+				double x = pCurMV[i].x - mx;
+				double y = pCurMV[i].y - my;
+				double k = (double)i - (dimX >> 1);
+				xVx += x * k;
+				xVy += y * k;
+				yVx += x * l;
+				yVy += y * l;
+				x2 += k * k;
+				y2 += j * l;
+				xy += k * l;
+			}
+		}
+		pCurMV += dimX;
+	}
+
+	float det = (float) (x2 * y2 - xy * xy);
+
+	a11 = ((float)xVx * y2 + yVx * -xy) / det;
+	a12 = ((float)xVx * -xy + yVx * x2) / det;
+	a21 = ((float)xVy * y2 + yVy * -xy) / det;
+	a22 = ((float)xVy * -xy + yVy * x2) / det;
+
+	// TODO : add ransac refinement
+	// voir aussi Low-Complexity Global Motion Estimation from P-Frame Motion Vectors for MPEG-7 Applications
 }
 
 }
