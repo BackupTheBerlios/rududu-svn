@@ -412,6 +412,60 @@ const sHuffRL huff_mv_y_rl[] = {
 	{1, 1}, {1, 1}, {2, 2}, {2, 3}, {1, 4}, {1, 3}, {-1, 1}, {2, 6}, {1, 5}, {1, 1}, {-1, 1}, {1, 6}, {1, 6}, {1, 1}, {-1, 1}, {1, 11}, {1, 1}, {-1, 2}, {1, 14}, {1, 5}, {1, 1}, {-1, 2}, {1, 4}, {-1, 1}, {1, 1}, {-1, 3}, {1, 29}, {-1, 1}, {1, 9}, {-6, 1}
 };
 
+static inline void code_mv(sMotionVector mv, sMotionVector pred,
+                           CBitCodec & zeroCodec, CHuffCodec & huff,
+                           CHuffCodec & huff_x, CHuffCodec & huff_y,
+                           CMuxCodec * codec)
+{
+	if (mv.x == pred.x && mv.y == pred.y)
+		zeroCodec.code0(0);
+	else {
+		zeroCodec.code1(0);
+		int x = s2u(mv.x - pred.x);
+		int y = s2u(mv.y - pred.y);
+		int tmp = (MIN(x, 15) | (MIN(y, 15) << 4)) - 1;
+		huff.code(tmp, codec);
+		if (x >= 15) {
+			huff_x.code(MIN(x - 15, 127), codec);
+			if (x >= 127 + 15)
+				codec->golombLinCode(x - 127 - 15, 5, 0);
+		}
+		if (y >= 15) {
+			huff_y.code(MIN(y - 15, 127), codec);
+			if (y >= 127 + 15)
+				codec->golombLinCode(y - 127 - 15, 5, 0);
+		}
+	}
+}
+
+static inline sMotionVector decode_mv(sMotionVector pred, CBitCodec & zeroCodec,
+                                      CHuffCodec & huff, CHuffCodec & huff_x,
+                                      CHuffCodec & huff_y, CMuxCodec * codec)
+{
+	sMotionVector mv;
+	if (zeroCodec.decode(0)) {
+		int tmp = huff.decode(codec) + 1;
+		int x = tmp & 0xF;
+		int y = tmp >> 4;
+		if (x == 15) {
+			x += huff_x.decode(codec);
+			if (x == 127 + 15)
+				x += codec->golombLinDecode(5, 0);
+		}
+		mv.x = u2s(x) + pred.x;
+		if (y == 15) {
+			y += huff_y.decode(codec);
+			if (y == 127 + 15)
+				y += codec->golombLinDecode(5, 0);
+		}
+		mv.y = u2s(y) + pred.y;
+	} else {
+		mv.x = pred.x;
+		mv.y = pred.y;
+	}
+	return mv;
+}
+
 void COBMC::encode(CMuxCodec * codec)
 {
 	sMotionVector * pCurMV = pMV;
@@ -433,28 +487,12 @@ void COBMC::encode(CMuxCodec * codec)
 				} else {
 					if (i == 0 || i == dimX - 1)
 						MVPred = pCurMV[i - dimX];
-					else
-						MVPred = median_mv(pCurMV[i - 1], pCurMV[i - dimX], pCurMV[i - dimX + 1]);
-				}
-				if (pCurMV[i].x == MVPred.x && pCurMV[i].y == MVPred.y)
-					zeroCodec.code0(0);
-				else {
-					zeroCodec.code1(0);
-					int x = s2u(pCurMV[i].x - MVPred.x);
-					int y = s2u(pCurMV[i].y - MVPred.y);
-					int tmp = (MIN(x, 15) | (MIN(y, 15) << 4)) - 1;
-					huff.code(tmp, codec);
-					if (x >= 15) {
-						huff_x.code(MIN(x - 15, 127), codec);
-						if (x >= 127 + 15)
-							codec->golombLinCode(x - 127 - 15, 5, 0);
-					}
-					if (y >= 15) {
-						huff_y.code(MIN(y - 15, 127), codec);
-						if (y >= 127 + 15)
-							codec->golombLinCode(y - 127 - 15, 5, 0);
+					else {
+						sMotionVector tmp[4] = {pCurMV[i - 1], pCurMV[i - dimX], pCurMV[i - dimX + 1], pCurMV[i - dimX - 1]};
+						MVPred = median_mv(tmp, 3);
 					}
 				}
+				code_mv(pCurMV[i], MVPred, zeroCodec, huff, huff_x, huff_y, codec);
 			}
 		}
 		pCurMV += dimX;
@@ -481,33 +519,137 @@ void COBMC::decode(CMuxCodec * codec)
 				} else {
 					if (i == 0 || i == dimX - 1)
 						MVPred = pCurMV[i - dimX];
-					else
-						MVPred = median_mv(pCurMV[i - 1], pCurMV[i - dimX], pCurMV[i - dimX + 1]);
-				}
-				if (zeroCodec.decode(0)) {
-					int tmp = huff.decode(codec) + 1;
-					int x = tmp & 0xF;
-					int y = tmp >> 4;
-					if (x == 15) {
-						x += huff_x.decode(codec);
-						if (x == 127 + 15)
-							x += codec->golombLinDecode(5, 0);
+					else {
+						sMotionVector tmp[4] = {pCurMV[i - 1], pCurMV[i - dimX], pCurMV[i - dimX + 1], pCurMV[i - dimX - 1]};
+						MVPred = median_mv(tmp, 3);
 					}
-					pCurMV[i].x = u2s(x) + MVPred.x;
-					if (y == 15) {
-						y += huff_y.decode(codec);
-						if (y == 127 + 15)
-							y += codec->golombLinDecode(5, 0);
-					}
-					pCurMV[i].y = u2s(y) + MVPred.y;
-				} else {
-					pCurMV[i].x = MVPred.x;
-					pCurMV[i].y = MVPred.y;
 				}
+				pCurMV[i] = decode_mv( MVPred, zeroCodec, huff, huff_x, huff_y, codec);
 			}
 		}
 		pCurMV += dimX;
 	}
+}
+
+template <cmode mode>
+void COBMC::bt(CMuxCodec * codec)
+{
+	CBitCodec intraCodec(codec), zeroCodec(codec);
+	CHuffCodec huff_x(mode, 0, 128);
+	CHuffCodec huff_y(mode, 0, 128);
+	CHuffCodec huff(mode, 0, 255);
+	sMotionVector lst[4];
+
+	uint step = 8;
+
+	uint line_step = step * dimX;
+	sMotionVector * pCurMV = pMV + line_step - dimX;
+
+	for( uint j = step - 1; j < dimY; j += step) {
+		for( uint i = 0; i < dimX; i += step) {
+			if ((mode == rududu::encode && intraCodec.code(pCurMV[i].all == MV_INTRA, 0)) || (mode == rududu::decode &&  intraCodec.decode(0))) {
+				if (mode == rududu::decode) pCurMV[i].all = MV_INTRA;
+			} else {
+				sMotionVector MVPred = {0};
+				if (j < step) {
+					if (i > 0)
+						MVPred = pCurMV[i - step];
+				} else {
+					if (i == 0 || i >= dimX - step)
+						MVPred = pCurMV[i - line_step];
+					else {
+						sMotionVector tmp[3] = {pCurMV[i - step], pCurMV[i - line_step], pCurMV[i - line_step + step]};
+						MVPred = median_mv(tmp, 3);
+					}
+				}
+				if (mode == rududu::encode)
+					code_mv(pCurMV[i], MVPred, zeroCodec, huff, huff_x, huff_y, codec);
+				else
+					pCurMV[i] = decode_mv(MVPred, zeroCodec, huff, huff_x, huff_y, codec);
+			}
+		}
+		pCurMV += line_step;
+	}
+
+	for( ; step >= 2; step >>= 1){
+		uint step_2 = step >> 1;
+		for( uint j = step_2 - 1; j < dimY; j += step){
+			for( uint i = step_2; i < dimX; i += step){
+				int n = 0;
+				if (j >= step_2) {
+					if (i >= step_2)
+						lst[n++] = pMV[(j - step_2) * dimX + i - step_2];
+					if (i + step_2 < dimX)
+						lst[n++] = pMV[(j - step_2) * dimX + i + step_2];
+				}
+				if (j + step_2 < dimY) {
+					if (i >= step_2)
+						lst[n++] = pMV[(j + step_2) * dimX + i - step_2];
+					if (i + step_2 < dimX)
+						lst[n++] = pMV[(j + step_2) * dimX + i + step_2];
+				}
+				if ((mode == rududu::encode && intraCodec.code(pMV[j * dimX + i].all == MV_INTRA, 0)) || (mode == rududu::decode &&  intraCodec.decode(0))) {
+					if (mode == rududu::decode) pMV[j * dimX + i].all = MV_INTRA;
+				} else {
+					sMotionVector pred = median_mv(lst, n);
+					if (mode == rududu::encode)
+						code_mv(pMV[j * dimX + i], pred, zeroCodec, huff, huff_x, huff_y, codec);
+					else
+						pMV[j * dimX + i] = decode_mv(pred, zeroCodec, huff, huff_x, huff_y, codec);
+				}
+			}
+		}
+		uint istart = 0;
+		for( uint j = step_2 - 1; j < dimY; j += step_2){
+			for( uint i = istart; i < dimX; i += step){
+				int n = 0;
+				if (i >= step_2)
+					lst[n++] = pMV[j * dimX + i - step_2];
+				if (i + step_2 < dimX)
+					lst[n++] = pMV[j * dimX + i + step_2];
+				if (j >= step_2)
+					lst[n++] = pMV[(j - step_2) * dimX + i];
+				if (j + step_2 < dimX)
+					lst[n++] = pMV[(j + step_2) * dimX + i];
+				if ((mode == rududu::encode && intraCodec.code(pMV[j * dimX + i].all == MV_INTRA, 0)) || (mode == rududu::decode &&  intraCodec.decode(0))) {
+					if (mode == rududu::decode) pMV[j * dimX + i].all = MV_INTRA;
+				} else {
+					sMotionVector pred = median_mv(lst, n);
+					if (mode == rududu::encode)
+						code_mv(pMV[j * dimX + i], pred, zeroCodec, huff, huff_x, huff_y, codec);
+					else
+						pMV[j * dimX + i] = decode_mv(pred, zeroCodec, huff, huff_x, huff_y, codec);
+				}
+			}
+			istart = step_2 - istart;
+		}
+	}
+}
+
+template void COBMC::bt<rududu::encode>(CMuxCodec * codec);
+template void COBMC::bt<rududu::decode>(CMuxCodec * codec);
+
+void COBMC::toppm(char * file_name) {
+	ofstream f(file_name, ios_base::out | ios_base::binary | ios_base::trunc);
+	f << "P6" << endl << dimX << " " << dimY << endl << "255" << endl;
+
+	sMotionVector const * pCurMV = pMV;
+	for( unsigned int j = 0; j < dimY; j++){
+		for( unsigned int i = 0; i < dimX; i++){
+			int r = pCurMV[i].x + 128;
+			if (r < 0) r = 0;
+			if (r > 255) r = 255;
+			int g = pCurMV[i].y + 128;
+			if (g < 0) g = 0;
+			if (g > 255) g = 255;
+			f.put((unsigned char) r);
+			f.put((unsigned char) g);
+			f.put(128);
+		}
+		pCurMV += dimX;
+	}
+
+	f.close();
 }
 
 }

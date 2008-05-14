@@ -47,6 +47,8 @@ public:
 		void apply_intra(CImage & srcImage, CImage & dstImage);
 	void encode(CMuxCodec * inCodec);
 	void decode(CMuxCodec * inCodec);
+	template <cmode mode> void bt(CMuxCodec * inCodec);
+	void toppm(char * file_name);
 
 protected:
 	unsigned int dimX;
@@ -63,6 +65,50 @@ protected:
 		ret.y = median(v1.y, v2.y, v3.y);
 		return ret;
 	}
+
+	sMotionVector median_mv(sMotionVector * v, int n)
+	{
+		unsigned int dist[n];
+		for( int i = 0; i < n; i++)
+			dist[i] = 0;
+		for( int i = 0; i < n; i++){
+			for( int j = i + 1; j < n; j++){
+				unsigned int x = v[i].x - v[j].x;
+				unsigned int y = v[i].y - v[j].y;
+				x *= x;
+				y *= y;
+				dist[i] += x + y;
+				dist[j] += x + y;
+			}
+		}
+		int idx = 0;
+		for( int i = 1; i < n; i++){
+			if (dist[i] < dist[idx])
+				idx = i;
+		}
+		return v[idx];
+	}
+
+// 	sMotionVector median_mv(sMotionVector * v, int n)
+// 	{
+// 		unsigned int x = 0;
+// 		unsigned int y = 0;
+// 		for( int i = 0; i < n; i++){
+// 			x += v[i].x;
+// 			y += v[i].y;
+// 		}
+//
+// 		int idx = 0;
+// 		int dist = 0x7FFFFFFF;
+// 		for( int i = 0; i < n; i++){
+// 			int curdist = abs(v[i].x * n - x) + abs(v[i].y * n - y);
+// 			if (curdist < dist) {
+// 				idx = i;
+// 				dist = curdist;
+// 			}
+// 		}
+// 		return v[idx];
+// 	}
 
 private:
 	char * pData;
