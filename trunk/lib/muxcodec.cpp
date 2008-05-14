@@ -33,8 +33,8 @@ CMuxCodec::CMuxCodec(unsigned char *pStream){
 	initTaboo(2);
 }
 
-void CMuxCodec::initCoder(unsigned short firstWord = 0,
-						  unsigned char *pOutStream = 0){
+void CMuxCodec::initCoder(unsigned short firstWord,
+						  unsigned char *pOutStream){
 	low = firstWord << 16;
 	range = MIN_RANGE << 4;
 	outCount = 0;
@@ -42,7 +42,7 @@ void CMuxCodec::initCoder(unsigned short firstWord = 0,
 	pReserved = 0;
 	if (pOutStream != 0){
 		pStream = pOutStream + 4;
-		pInitStream = pOutStream + 2;
+		pInitStream = pOutStream;
 		for( int i = 0; i < 4; i++)
 			pLast[i] = pOutStream + i;
 	}
@@ -52,8 +52,8 @@ void CMuxCodec::initDecoder(unsigned char *pInStream)
 {
 	range = MIN_RANGE << 4;
 	nbBits = 0;
-	if (pInStream){
-		pInitStream = pInStream + 2;
+	if (pInStream != 0){
+		pInitStream = pInStream;
 		pStream = pInStream + 2;
 		code = low = (pStream[0] << 8) | pStream[1];
 		pStream += 2;
@@ -88,14 +88,14 @@ unsigned char * CMuxCodec::endCoding(void)
 {
 	flushBuffer<true>();
 
-	if (range <= MIN_RANGE)
-		normalize_enc();
-
-	int last_out = 0x200 | 'W';
-	if ((low & (MIN_RANGE - 1)) > (last_out & (MIN_RANGE - 1)))
-		low += MIN_RANGE;
-
-	low = (low & ~(MIN_RANGE - 1)) | (last_out & (MIN_RANGE - 1));
+// 	if (range <= MIN_RANGE)
+// 		normalize_enc();
+//
+// 	int last_out = 0x200 | 'W';
+// 	if ((low & (MIN_RANGE - 1)) > (last_out & (MIN_RANGE - 1)))
+// 		low += MIN_RANGE;
+//
+// 	low = (low & ~(MIN_RANGE - 1)) | (last_out & (MIN_RANGE - 1));
 
 	*pLast[outCount & ROT_BUF_MASK] = low >> 24;
 	*pLast[(outCount + 1) & ROT_BUF_MASK] = low >> 16;
