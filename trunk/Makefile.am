@@ -2,4 +2,4 @@
 # have all needed files, that a GNU package needs
 AUTOMAKE_OPTIONS = foreign
 
-SUBDIRS = lib ric utils
+SUBDIRS = lib encoder ric utils

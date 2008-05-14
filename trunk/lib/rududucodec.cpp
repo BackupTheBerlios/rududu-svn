@@ -18,9 +18,6 @@
  *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.             *
  ***************************************************************************/
 
-#include <iostream>
-using namespace std;
-
 #include "rududucodec.h"
 
 #define WAV_LEVELS	5
@@ -47,6 +44,14 @@ CRududuCodec::CRududuCodec(cmode mode, int width, int height, int component):
 	}
 }
 
+CRududuCodec CRududuCodec::decoder(istream & s)
+{
+	int width = (s.get() << 8) | s.get();
+	int height = (s.get() << 8) | s.get();
+	int component = s.get();
+
+	return CRududuCodec(rududu::decode, width, height, component);
+}
 
 CRududuCodec::~CRududuCodec()
 {
@@ -64,12 +69,21 @@ short CRududuCodec::quants(int idx)
 	return (short)((Q[idx % 5] + (1 << (r - 1))) >> r );
 }
 
+void CRududuCodec::saveParams(ostream & s)
+{
+	s.put((predImage->dimX >> 8) & 0xFF);
+	s.put(predImage->dimX & 0xFF);
+	s.put((predImage->dimY >> 8) & 0xFF);
+	s.put(predImage->dimY & 0xFF);
+	s.put(predImage->component & 0xFF);
+}
+
 void CRududuCodec::encodeImage(CImage * pImage)
 {
 	for( int c = 0; c < pImage->component; c++){
 		wavelet->Transform(pImage->pImage[c], pImage->dimXAlign, TRANSFORM);
 		wavelet->CodeBand(&codec, quants(quant + 20), quants(quant + 13));
-		cerr << codec.getSize() << endl;
+// 		cerr << codec.getSize() << endl;
 		wavelet->TSUQi(quants(quant + 20), true);
 		wavelet->TransformI(pImage->pImage[c] + pImage->dimXAlign * pImage->dimY,
 		                    pImage->dimXAlign, TRANSFORM);
@@ -91,14 +105,20 @@ int CRududuCodec::encode(unsigned char * pImage, int stride, unsigned char * pBu
 	codec.initCoder(0, pBuffer);
 
 	images.insert(0);
-	images[0][0]->inputSGI(pImage, stride, -128);
+	images[0][0]->input(pImage, stride);
+
+	static int f_cnt = 0;
 
 	if (key_count != 0) {
 		COBME * obme = (COBME *) obmc;
 		images.calc_sub(1);
 		obme->EPZS(images);
-		obme->encode(& codec);
-		cerr << codec.getSize() << endl;
+		obme->bt<rududu::encode>(& codec);
+// 		obme->global_motion();
+// 		char f_name[32];
+// 		sprintf(f_name, "/home/nico/f_%03i.ppm", f_cnt);
+// 		obme->toppm(f_name);
+// 		cerr << codec.getSize() << endl;
 		obme->apply_mv(images, *predImage);
 		*images[0][0] -= *predImage;
 		encodeImage(images[0][0]);
@@ -109,32 +129,43 @@ int CRududuCodec::encode(unsigned char * pImage, int stride, unsigned char * pBu
 		encodeImage(images[0][0]);
 	}
 
+	f_cnt++;
+
+	pBuffer[0] = (pBuffer[0] & 0x80) | quant;
+
 	key_count++;
 	if (key_count == 10)
 		key_count = 0;
 
-	*outImage = images[0][0];
+	if (outImage != 0)
+		*outImage = images[0][0];
 // 	*outImage = predImage;
 	images.remove(1);
 
-	return codec.endCoding() - pBuffer - 2;
+	return codec.endCoding() - pBuffer;
 }
 
 int CRududuCodec::decode(unsigned char * pBuffer, CImage ** outImage)
 {
 	codec.initDecoder(pBuffer);
 
+	quant = pBuffer[0] & 0x7F;
+
+	static int f_cnt = 0;
+
 	images.insert(0);
 
 	if (pBuffer[0] & 0x80) {
 		images.calc_sub(1);
-		obmc->decode(& codec);
+		obmc->bt<rududu::decode>(& codec);
 		obmc->apply_mv(images, *predImage);
 		decodeImage(images[0][0]);
 		*images[0][0] += *predImage;
 	} else {
 		decodeImage(images[0][0]);
 	}
+
+	f_cnt++;
 
 	*outImage = images[0][0];
 	images.remove(1);

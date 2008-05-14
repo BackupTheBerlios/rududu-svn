@@ -19,7 +19,6 @@
  ***************************************************************************/
 
 #include <fstream>
-#include <iostream>
 
 // http://cimg.sourceforge.net
 #define cimg_display_type 0
@@ -27,7 +26,6 @@
 
 #include <rududucodec.h>
 
-using namespace std;
 using namespace cimg_library;
 using namespace rududu;
 

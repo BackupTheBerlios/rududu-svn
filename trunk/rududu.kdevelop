@@ -27,11 +27,12 @@
     <description/>
     <projectname>rududu</projectname>
     <defaultencoding/>
+    <versioncontrol/>
   </general>
   <kdevautoproject>
     <general>
-      <activetarget>ric/ric</activetarget>
-      <useconfiguration>mingw</useconfiguration>
+      <activetarget>encoder/rudenc</activetarget>
+      <useconfiguration>optimized</useconfiguration>
     </general>
     <run>
       <mainprogram>/home/nico/src/rududu/debug</mainprogram>
@@ -40,9 +41,11 @@
       <runarguments>
         <ric/>
         <rududu/>
-        <testmotion>&lt; /home/nico/films/video_test/ParkJoy.rgb 2> /home/nico/testmotion | mplayer -demuxer rawvideo -rawvideo fps=25:w=1280:h=720:yv12 -</testmotion>
+        <testmotion>&lt; /home/nico/films/video_test/ParkJoy.rgb 2> /home/nico/testmotion</testmotion>
         <sgi2rgb>/home/nico/films/video_test/CrowdRun/0711*.sgi > /home/nico/films/video_test/test.rgb</sgi2rgb>
         <huffgen/>
+        <rudenc>/home/nico/films/video_test/sunflower_536.avi /home/nico/test.rdd</rudenc>
+        <ruddec>/home/nico/test.rdd</ruddec>
       </runarguments>
       <customdirectory>/</customdirectory>
       <programargs/>
@@ -53,12 +56,16 @@
         <sgi2rgb>/home/nico/films/video_test/CrowdRun/0711*.sgi > /home/nico/films/video_test/test.rgb</sgi2rgb>
         <ric>-i &quot;/home/nico/Documents/Images/Images test/lena_ext.pgm&quot; -o &quot;/home/nico/Documents/Images/Images test/lena_ext.ric&quot;</ric>
         <huffgen>&lt; &quot;/home/nico/Documents/Images/Images test/huff_in&quot;</huffgen>
+        <rudenc>/home/nico/films/video_test/sunflower_536.avi /home/nico/test.rdd</rudenc>
+        <ruddec>/home/nico/test.rdd</ruddec>
       </debugarguments>
       <cwd>
         <testmotion>/home/nico/src/rududu/debug/./utils</testmotion>
         <sgi2rgb>/home/nico/src/rududu/debug/./utils</sgi2rgb>
         <ric>/home/nico/src/rududu/debug/./ric</ric>
         <huffgen>/home/nico/src/rududu/optimized/./utils</huffgen>
+        <rudenc>/home/nico/src/rududu/debug/./encoder</rudenc>
+        <ruddec>/home/nico/src/rududu/optimized/./encoder</ruddec>
       </cwd>
       <globaldebugarguments/>
       <globalcwd>/home/nico/src/rududu/debug</globalcwd>
@@ -72,7 +79,7 @@
         <ccompiler>kdevgccoptions</ccompiler>
         <cxxcompiler>kdevgppoptions</cxxcompiler>
         <f77compiler>kdevg77options</f77compiler>
-        <cxxflags>-O3 -g0 -fomit-frame-pointer -Wall</cxxflags>
+        <cxxflags>-O3 -g0 -fomit-frame-pointer -Wall -funroll-loops -ftree-vectorize -msse -m3dnow -march=athlon-xp -ftree-vectorizer-verbose=0</cxxflags>
         <envvars/>
         <configargs/>
         <topsourcedir/>
@@ -90,7 +97,7 @@
         <ccompiler>kdevgccoptions</ccompiler>
         <cxxcompiler>kdevgppoptions</cxxcompiler>
         <f77compiler>kdevg77options</f77compiler>
-        <cxxflags>-O0 -g3</cxxflags>
+        <cxxflags>-O0 -g3 -msse</cxxflags>
         <envvars/>
         <topsourcedir/>
         <cppflags>-DDEBUG</cppflags>
@@ -179,6 +186,7 @@
     </ignoredoxygen>
   </kdevdoctreeview>
   <kdevfilecreate>
+    <filetypes/>
     <useglobaltypes>
       <type ext="cpp" />
       <type ext="h" />

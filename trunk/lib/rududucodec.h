@@ -24,6 +24,9 @@
 #include "imagebuffer.h"
 #include "obme.h"
 #include "wavelet2d.h"
+#include <iostream>
+
+using namespace std;
 
 namespace rududu {
 
@@ -32,13 +35,18 @@ public:
 	int quant;
 
     CRududuCodec(cmode mode, int width, int height, int component);
+	static CRududuCodec decoder(istream & s);
 
     ~CRududuCodec();
 
 	int encode(unsigned char * pImage, int stride, unsigned char * pBuffer, CImage ** outImage);
 	int decode(unsigned char * pBuffer, CImage ** outImage);
+	void saveParams(ostream & s);
 
 	static short quants(int idx);
+
+	inline int width(void){ return predImage->dimX; }
+	inline int height(void){ return predImage->dimY; }
 
 private :
 	CImageBuffer images;
