@@ -51,7 +51,7 @@ public:
 protected:
 	unsigned int dimX;
 	unsigned int dimY;
-	static const short window[8][8];
+	static const short window[8][16];
 
 	sMotionVector * pMV;
 	unsigned char * pRef;
@@ -67,7 +67,7 @@ protected:
 private:
 	char * pData;
 
-	static void obmc_block(const short * pSrc, short * pDst, const int src_stride, const int dst_stride);
+	static inline void obmc_block(const short * pSrc, short * pDst, const int src_stride, const int dst_stride);
 	template <int flags>
 		static void obmc_block(const short * pSrc, short * pDst,
 		                       const int src_stride, const int dst_stride);

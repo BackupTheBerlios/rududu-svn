@@ -22,6 +22,7 @@
 #include <string.h>
 
 #include <iostream>
+#include <fstream>
 
 #include "bitcodec.h"
 #include "huffcodec.h"
@@ -53,16 +54,16 @@ COBMC::~COBMC()
 	delete[] pData;
 }
 
-const short COBMC::window[8][8] =
+const short COBMC::window[8][16] =
 {
-	{0,	0,	0,	0,	1,	1,	1,	1},
-	{0,	0,	1,	1,	1,	2,	2,	2},
-	{0,	1,	1,	2,	2,	3,	4,	4},
-	{0,	1,	2,	3,	4,	5,	6,	6},
-	{1,	1,	2,	4,	5,	7,	8,	9},
-	{1,	2,	3,	5,	7,	9,	9,	11},
-	{1,	2,	4,	6,	8,	9,	12,	13},
-	{1,	2,	4,	6,	9,	11,	13,	14}
+	{0,	0,	0,	0,	1,	1,	1,	1,	1,	1,	1,	1,	0,	0,	0,	0},
+	{0,	0,	1,	1,	1,	2,	2,	2,	2,	2,	2,	1,	1,	1,	0,	0},
+	{0,	1,	1,	2,	2,	3,	4,	4,	4,	4,	3,	2,	2,	1,	1,	0},
+	{0,	1,	2,	3,	4,	5,	6,	6,	6,	6,	5,	4,	3,	2,	1,	0},
+	{1,	1,	2,	4,	5,	7,	8,	9,	9,	8,	7,	5,	4,	2,	1,	1},
+	{1,	2,	3,	5,	7,	9,	9,	11,	11,	9,	9,	7,	5,	3,	2,	1},
+	{1,	2,	4,	6,	8,	9,	12,	13,	13,	12,	9,	8,	6,	4,	2,	1},
+	{1,	2,	4,	6,	9,	11,	13,	14,	14,	13,	11,	9,	6,	4,	2,	1}
 };
 
 // const short COBMC::window[8][8] =
@@ -77,13 +78,15 @@ const short COBMC::window[8][8] =
 // 	{0,	0,	0,	0,	16,	16,	16,	16}
 // };
 
+#ifndef __MMX__
 void COBMC::obmc_block(const short * pSrc, short * pDst,
                        const int src_stride, const int dst_stride)
 {
 	for( int j = 0; j < 8; j++) {
 		for( int i = 0; i < 8; i++) {
-			pDst[i] = (pDst[i] + pSrc[i] * window[j][i] + 8) >> 4;
-			pDst[i+8] += pSrc[i+8] * window[j][7-i];
+			pDst[i] += pSrc[i] * window[j][i] + 8;
+			pDst[i] >>= 4;
+			pDst[i+8] += pSrc[i+8] * window[j][i+8];
 		}
 		pDst += dst_stride;
 		pSrc += src_stride;
@@ -92,12 +95,65 @@ void COBMC::obmc_block(const short * pSrc, short * pDst,
 	for( int j = 7; j >= 0; j--) {
 		for( int i = 0; i < 8; i++) {
 			pDst[i] += pSrc[i] * window[j][i];
-			pDst[i+8] = pSrc[i+8] * window[j][7-i];
+			pDst[i+8] = pSrc[i+8] * window[j][i+8];
 		}
 		pDst += dst_stride;
 		pSrc += src_stride;
 	}
 }
+
+#else
+
+typedef short v4hi __attribute__ ((vector_size (8)));
+
+void COBMC::obmc_block(const short * pSrc, short * pDst,
+                       const int src_stride, const int dst_stride)
+{
+	const v4hi rnd = {8, 8, 8, 8 };
+	for( int j = 0; j < 8; j++) {
+		v4hi * src = (v4hi *) pSrc, * dst = (v4hi *) pDst, * win = (v4hi *) window[j];
+		{
+			v4hi tmp = __builtin_ia32_pmullw(src[0], win[0]);
+			tmp = __builtin_ia32_paddw(tmp, rnd);
+			tmp = __builtin_ia32_paddw(tmp, dst[0]);
+			dst[0] = __builtin_ia32_psraw(tmp, 4);
+		}
+		{
+			v4hi tmp = __builtin_ia32_pmullw(src[1], win[1]);
+			tmp = __builtin_ia32_paddw(tmp, rnd);
+			tmp = __builtin_ia32_paddw(tmp, dst[1]);
+			dst[1] = __builtin_ia32_psraw(tmp, 4);
+		}
+		{
+			v4hi tmp = __builtin_ia32_pmullw(src[2], win[2]);
+			dst[2] = __builtin_ia32_paddw(dst[2], tmp);
+		}
+		{
+			v4hi tmp = __builtin_ia32_pmullw(src[3], win[3]);
+			dst[3] = __builtin_ia32_paddw(dst[3], tmp);
+		}
+		pDst += dst_stride;
+		pSrc += src_stride;
+	}
+
+	for( int j = 7; j >= 0; j--) {
+		v4hi * src = (v4hi *) pSrc, * dst = (v4hi *) pDst, * win = (v4hi *) window[j];
+		{
+			v4hi tmp = __builtin_ia32_pmullw(src[0], win[0]);
+			dst[0] = __builtin_ia32_paddw(dst[0], tmp);
+		}
+		{
+			v4hi tmp = __builtin_ia32_pmullw(src[1], win[1]);
+			dst[1] = __builtin_ia32_paddw(dst[1], tmp);
+		}
+		dst[2] = __builtin_ia32_pmullw(src[2], win[2]);
+		dst[3] = __builtin_ia32_pmullw(src[3], win[3]);
+		pDst += dst_stride;
+		pSrc += src_stride;
+	}
+}
+
+#endif
 
 template <int flags>
 void COBMC::obmc_block(const short * pSrc, short * pDst,
@@ -126,7 +182,7 @@ void COBMC::obmc_block(const short * pSrc, short * pDst,
 					pDst[i] = (pDst[i] + pSrc[i] * (window[j][i] + window[7-j][i]) + 8) >> 4;
 			else
 				if (flags & LEFT)
-					pDst[i] = (pDst[i] + pSrc[i] * (window[j][i] + window[j][7-i]) + 8) >> 4;
+					pDst[i] = (pDst[i] + pSrc[i] * (window[j][i] + window[j][i+8]) + 8) >> 4;
 				else
 					pDst[i] = (pDst[i] + pSrc[i] * window[j][i] + 8) >> 4;
 		}
@@ -135,12 +191,12 @@ void COBMC::obmc_block(const short * pSrc, short * pDst,
 				if (flags & RIGHT)
 					pDst[i+8] = pSrc[i+8];
 				else
-					pDst[i+8] = pSrc[i+8] * (window[j][7-i] + window[7-j][7-i]);
+					pDst[i+8] = pSrc[i+8] * (window[j][i+8] + window[7-j][i+8]);
 			else
 				if (flags & RIGHT)
-					pDst[i+8] = (pDst[i+8] + pSrc[i+8] * (window[j][7-i] + window[j][i]) + 8) >> 4;
+					pDst[i+8] = (pDst[i+8] + pSrc[i+8] * (window[j][i+8] + window[j][i]) + 8) >> 4;
 				else
-					pDst[i+8] += pSrc[i+8] * window[j][7-i];
+					pDst[i+8] += pSrc[i+8] * window[j][i+8];
 		}
 		pDst += dst_stride;
 		pSrc += src_stride;
@@ -155,7 +211,7 @@ void COBMC::obmc_block(const short * pSrc, short * pDst,
 					pDst[i] = (pDst[i] + pSrc[i] * (window[j][i] + window[7-j][i]) + 8) >> 4;
 			else
 				if (flags & LEFT)
-					pDst[i] += pSrc[i] * (window[j][i] + window[j][7-i]);
+					pDst[i] += pSrc[i] * (window[j][i] + window[j][i+8]);
 				else
 					pDst[i] += pSrc[i] * window[j][i];
 		}
@@ -164,12 +220,12 @@ void COBMC::obmc_block(const short * pSrc, short * pDst,
 				if (flags & RIGHT)
 					pDst[i+8] = pSrc[i+8];
 				else
-					pDst[i+8] = pSrc[i+8] * (window[j][7-i] + window[7-j][7-i]);
+					pDst[i+8] = pSrc[i+8] * (window[j][i+8] + window[7-j][i+8]);
 			else
 				if (flags & RIGHT)
-					pDst[i+8] = pSrc[i+8] * (window[j][7-i] + window[j][i]);
+					pDst[i+8] = pSrc[i+8] * (window[j][i+8] + window[j][i]);
 				else
-					pDst[i+8] = pSrc[i+8] * window[j][7-i];
+					pDst[i+8] = pSrc[i+8] * window[j][i+8];
 		}
 		pDst += dst_stride;
 		pSrc += src_stride;
@@ -340,6 +396,10 @@ void COBMC::apply_mv(CImageBuffer & RefFrames, CImage & dstImage)
 		dst_pos += 8;
 	}
 	OBMC(BOTTOM | RIGHT);
+
+#ifdef __MMX__
+	__builtin_ia32_emms();
+#endif
 }
 
 #define MV_TABLE_SIZE 127u
