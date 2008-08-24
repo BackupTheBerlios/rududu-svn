@@ -412,56 +412,67 @@ const sHuffRL huff_mv_y_rl[] = {
 	{1, 1}, {1, 1}, {2, 2}, {2, 3}, {1, 4}, {1, 3}, {-1, 1}, {2, 6}, {1, 5}, {1, 1}, {-1, 1}, {1, 6}, {1, 6}, {1, 1}, {-1, 1}, {1, 11}, {1, 1}, {-1, 2}, {1, 14}, {1, 5}, {1, 1}, {-1, 2}, {1, 4}, {-1, 1}, {1, 1}, {-1, 3}, {1, 29}, {-1, 1}, {1, 9}, {-6, 1}
 };
 
+#define MV_TAB_BITS 3 // 2 is good too
+#define MV_MODEL_CNT (1 << (2 * MV_TAB_BITS))
+
 static inline void code_mv(sMotionVector mv, sMotionVector pred,
                            CBitCodec & zeroCodec, CHuffCodec & huff,
-                           CHuffCodec & huff_x, CHuffCodec & huff_y,
                            CMuxCodec * codec)
 {
-	if (mv.x == pred.x && mv.y == pred.y)
+	// FIXME : this check must not be needed, MV_INTRA must not be used as predictor
+	if (pred.all == MV_INTRA)
+		pred.all = 0;
+	if (mv.all == pred.all)
 		zeroCodec.code0(0);
 	else {
 		zeroCodec.code1(0);
-		int x = s2u(mv.x - pred.x);
-		int y = s2u(mv.y - pred.y);
-		int tmp = (MIN(x, 15) | (MIN(y, 15) << 4)) - 1;
+		int x = s2u(mv.x - pred.x) + 1;
+		int y = s2u(mv.y - pred.y) + 1;
+
+		int lx = bitlen(x >> 1);
+		int ly = bitlen(y >> 1);
+
+		if (lx >= (1 << MV_TAB_BITS) || ly >= (1 << MV_TAB_BITS)){
+			huff.code(0, codec);
+			codec->golombCode(x - 1, (1 << MV_TAB_BITS) + 1);
+			codec->golombCode(y - 1, (1 << MV_TAB_BITS) + 1);
+			return;
+		}
+
+		int tmp = lx | (ly << MV_TAB_BITS);
 		huff.code(tmp, codec);
-		if (x >= 15) {
-			huff_x.code(MIN(x - 15, 127), codec);
-			if (x >= 127 + 15)
-				codec->golombLinCode(x - 127 - 15, 5, 0);
-		}
-		if (y >= 15) {
-			huff_y.code(MIN(y - 15, 127), codec);
-			if (y >= 127 + 15)
-				codec->golombLinCode(y - 127 - 15, 5, 0);
-		}
+		if (lx != 0)
+			codec->bitsCode(x & ~(-1 << lx), lx);
+		if (ly != 0)
+			codec->bitsCode(y & ~(-1 << ly), ly);
 	}
 }
 
 static inline sMotionVector decode_mv(sMotionVector pred, CBitCodec & zeroCodec,
-                                      CHuffCodec & huff, CHuffCodec & huff_x,
-                                      CHuffCodec & huff_y, CMuxCodec * codec)
+                                      CHuffCodec & huff, CMuxCodec * codec)
 {
 	sMotionVector mv;
+	// FIXME : this check must not be needed, MV_INTRA must not be used as predictor
+	if (pred.all == MV_INTRA)
+		pred.all = 0;
 	if (zeroCodec.decode(0)) {
-		int tmp = huff.decode(codec) + 1;
-		int x = tmp & 0xF;
-		int y = tmp >> 4;
-		if (x == 15) {
-			x += huff_x.decode(codec);
-			if (x == 127 + 15)
-				x += codec->golombLinDecode(5, 0);
+		int tmp = huff.decode(codec);
+		if (tmp == 0) {
+			mv.x = u2s(codec->golombDecode((1 << MV_TAB_BITS) + 1)) + pred.x;
+			mv.y = u2s(codec->golombDecode((1 << MV_TAB_BITS) + 1)) + pred.y;
+			cout << mv.x << "\t" << mv.y << endl;
+			return mv;
 		}
-		mv.x = u2s(x) + pred.x;
-		if (y == 15) {
-			y += huff_y.decode(codec);
-			if (y == 127 + 15)
-				y += codec->golombLinDecode(5, 0);
-		}
-		mv.y = u2s(y) + pred.y;
+		int lx = tmp & ~(-1 << MV_TAB_BITS);
+		int ly = tmp >> MV_TAB_BITS;
+
+		mv.all = pred.all;
+		if (lx > 0)
+			mv.x += u2s(((1 << lx) | codec->bitsDecode(lx)) - 1);
+		if (ly > 0)
+			mv.y += u2s(((1 << ly) | codec->bitsDecode(ly)) - 1);
 	} else {
-		mv.x = pred.x;
-		mv.y = pred.y;
+		mv.all = pred.all;
 	}
 	return mv;
 }
@@ -470,9 +481,7 @@ void COBMC::encode(CMuxCodec * codec)
 {
 	sMotionVector * pCurMV = pMV;
 	CBitCodec intraCodec(codec), zeroCodec(codec);
-	CHuffCodec huff_x(rududu::encode, 0, 128);
-	CHuffCodec huff_y(rududu::encode, 0, 128);
-	CHuffCodec huff(rududu::encode, 0, 255);
+	CHuffCodec huff(rududu::encode, 0, MV_MODEL_CNT);
 
 	for( unsigned int j = 0; j < dimY; j++) {
 		for( unsigned int i = 0; i < dimX; i++) {
@@ -492,7 +501,7 @@ void COBMC::encode(CMuxCodec * codec)
 						MVPred = median_mv(tmp, 3);
 					}
 				}
-				code_mv(pCurMV[i], MVPred, zeroCodec, huff, huff_x, huff_y, codec);
+				code_mv(pCurMV[i], MVPred, zeroCodec, huff, codec);
 			}
 		}
 		pCurMV += dimX;
@@ -503,9 +512,7 @@ void COBMC::decode(CMuxCodec * codec)
 {
 	sMotionVector * pCurMV = pMV;
 	CBitCodec intraCodec(codec), zeroCodec(codec);
-	CHuffCodec huff_x(rududu::decode, 0, 128);
-	CHuffCodec huff_y(rududu::decode, 0, 128);
-	CHuffCodec huff(rududu::decode, 0, 255);
+	CHuffCodec huff(rududu::decode, 0, MV_MODEL_CNT);
 
 	for( unsigned int j = 0; j < dimY; j++) {
 		for( unsigned int i = 0; i < dimX; i++) {
@@ -524,20 +531,24 @@ void COBMC::decode(CMuxCodec * codec)
 						MVPred = median_mv(tmp, 3);
 					}
 				}
-				pCurMV[i] = decode_mv( MVPred, zeroCodec, huff, huff_x, huff_y, codec);
+				pCurMV[i] = decode_mv( MVPred, zeroCodec, huff, codec);
 			}
 		}
 		pCurMV += dimX;
 	}
 }
 
+
+
+/**
+ * binary tree coding of the motion vectors
+ * @param codec the CMuxCodec where you want to send bits
+ */
 template <cmode mode>
 void COBMC::bt(CMuxCodec * codec)
 {
 	CBitCodec intraCodec(codec), zeroCodec(codec);
-	CHuffCodec huff_x(mode, 0, 128);
-	CHuffCodec huff_y(mode, 0, 128);
-	CHuffCodec huff(mode, 0, 255);
+	CHuffCodec huff(mode, 0, MV_MODEL_CNT);
 	sMotionVector lst[4];
 
 	uint step = 8;
@@ -563,9 +574,9 @@ void COBMC::bt(CMuxCodec * codec)
 					}
 				}
 				if (mode == rududu::encode)
-					code_mv(pCurMV[i], MVPred, zeroCodec, huff, huff_x, huff_y, codec);
+					code_mv(pCurMV[i], MVPred, zeroCodec, huff, codec);
 				else
-					pCurMV[i] = decode_mv(MVPred, zeroCodec, huff, huff_x, huff_y, codec);
+					pCurMV[i] = decode_mv(MVPred, zeroCodec, huff, codec);
 			}
 		}
 		pCurMV += line_step;
@@ -593,9 +604,9 @@ void COBMC::bt(CMuxCodec * codec)
 				} else {
 					sMotionVector pred = median_mv(lst, n);
 					if (mode == rududu::encode)
-						code_mv(pMV[j * dimX + i], pred, zeroCodec, huff, huff_x, huff_y, codec);
+						code_mv(pMV[j * dimX + i], pred, zeroCodec, huff, codec);
 					else
-						pMV[j * dimX + i] = decode_mv(pred, zeroCodec, huff, huff_x, huff_y, codec);
+						pMV[j * dimX + i] = decode_mv(pred, zeroCodec, huff, codec);
 				}
 			}
 		}
@@ -616,9 +627,9 @@ void COBMC::bt(CMuxCodec * codec)
 				} else {
 					sMotionVector pred = median_mv(lst, n);
 					if (mode == rududu::encode)
-						code_mv(pMV[j * dimX + i], pred, zeroCodec, huff, huff_x, huff_y, codec);
+						code_mv(pMV[j * dimX + i], pred, zeroCodec, huff, codec);
 					else
-						pMV[j * dimX + i] = decode_mv(pred, zeroCodec, huff, huff_x, huff_y, codec);
+						pMV[j * dimX + i] = decode_mv(pred, zeroCodec, huff, codec);
 				}
 			}
 			istart = step_2 - istart;

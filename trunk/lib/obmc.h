@@ -58,7 +58,7 @@ protected:
 	sMotionVector * pMV;
 	unsigned char * pRef;
 
-	float a11, a12, a21, a22, mx, my;
+	float a11, a12, a21, a22, mx, my; /// parameters for the (unused) global motion compensation
 
 	sMotionVector median_mv(sMotionVector v1, sMotionVector v2, sMotionVector v3)
 	{
