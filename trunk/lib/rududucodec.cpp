@@ -134,8 +134,8 @@ int CRududuCodec::encode(unsigned char * pImage, int stride, unsigned char * pBu
 	pBuffer[0] = (pBuffer[0] & 0x80) | quant;
 
 	key_count++;
-	if (key_count == 10)
-		key_count = 0;
+// 	if (key_count == 10)
+// 		key_count = 0;
 
 	if (outImage != 0)
 		*outImage = images[0][0];
