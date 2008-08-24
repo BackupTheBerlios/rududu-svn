@@ -43,7 +43,7 @@ int main ( int argc, char *argv[] )
 		return -1; // Couldn't find stream information
 
 	// Dump information about file onto standard error
-	dump_format ( pFormatCtx, 0, argv[1], 0 );
+	// dump_format ( pFormatCtx, 0, argv[1], 0 );
 
 	// Find the first video stream
 	int videoStream = -1;
