@@ -45,30 +45,10 @@ public:
 	void apply_mv(CImageBuffer & RefFrames, CImage & dstImage);
 	template <bool pre>
 		void apply_intra(CImage & srcImage, CImage & dstImage);
-	void encode(CMuxCodec * inCodec);
-	void decode(CMuxCodec * inCodec);
 	template <cmode mode> void bt(CMuxCodec * inCodec);
 	void toppm(char * file_name);
 
-protected:
-	unsigned int dimX;
-	unsigned int dimY;
-	static const short window[8][16];
-
-	sMotionVector * pMV;
-	unsigned char * pRef;
-
-	float a11, a12, a21, a22, mx, my; /// parameters for the (unused) global motion compensation
-
-	sMotionVector median_mv(sMotionVector v1, sMotionVector v2, sMotionVector v3)
-	{
-		sMotionVector ret;
-		ret.x = median(v1.x, v2.x, v3.x);
-		ret.y = median(v1.y, v2.y, v3.y);
-		return ret;
-	}
-
-	sMotionVector median_mv(sMotionVector * v, int n)
+	static sMotionVector median_mv(sMotionVector * v, int n)
 	{
 		unsigned int dist[n];
 		for( int i = 0; i < n; i++)
@@ -89,6 +69,24 @@ protected:
 				idx = i;
 		}
 		return v[idx];
+	}
+
+protected:
+	unsigned int dimX;
+	unsigned int dimY;
+	static const short window[8][16];
+
+	sMotionVector * pMV;
+	unsigned char * pRef;
+
+	float a11, a12, a21, a22, mx, my; /// parameters for the (unused) global motion compensation
+
+	sMotionVector median_mv(sMotionVector v1, sMotionVector v2, sMotionVector v3)
+	{
+		sMotionVector ret;
+		ret.x = median(v1.x, v2.x, v3.x);
+		ret.y = median(v1.y, v2.y, v3.y);
+		return ret;
 	}
 
 // 	sMotionVector median_mv(sMotionVector * v, int n)
