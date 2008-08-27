@@ -415,19 +415,46 @@ const sHuffRL huff_mv_y_rl[] = {
 #define MV_TAB_BITS 3 // 2 is good too
 #define MV_MODEL_CNT (1 << (2 * MV_TAB_BITS))
 
-#define INTRA_CTX 1
+#define INTRA_CTX_BASE 1
+
+static inline int filter_mv(sMotionVector * lst, int lst_cnt)
+{
+	int k = 0;
+	for( int i = 0; i < lst_cnt; i++){
+		if (lst[i].all != MV_INTRA)
+			lst[k++] = lst[i];
+	}
+	return k;
+}
+
+static const char intra_conv[4][4] = {
+	{5},
+	{0, 4},
+	{0, 2, 4},
+	{0, 2, 3, 4}
+};
 
 static inline void code_mv(sMotionVector mv, sMotionVector * lst, int lst_cnt,
                            CBitCodec & bCodec, CHuffCodec & huff,
                            CMuxCodec * codec)
 {
-	if (bCodec.code(mv.all == MV_INTRA, INTRA_CTX))
+	int intra_ctx = lst_cnt;
+	lst_cnt = filter_mv(lst, lst_cnt);
+
+	if (intra_ctx != 4)
+		intra_ctx = intra_conv[intra_ctx][intra_ctx - lst_cnt];
+	else
+		intra_ctx -= lst_cnt;
+
+	if (bCodec.code(mv.all == MV_INTRA, INTRA_CTX_BASE + intra_ctx))
 		return;
 
-	// FIXME : this check must not be needed, MV_INTRA must not be used as predictor
-	sMotionVector pred = COBMC::median_mv(lst, lst_cnt);
-	if (pred.all == MV_INTRA)
+	sMotionVector pred;
+	if (lst_cnt == 0)
 		pred.all = 0;
+	else
+		pred = COBMC::median_mv(lst, lst_cnt);
+
 	if (bCodec.code(mv.all != pred.all, 0)) {
 		int x = s2u(mv.x - pred.x) + 1;
 		int y = s2u(mv.y - pred.y) + 1;
@@ -455,16 +482,25 @@ static inline sMotionVector decode_mv(sMotionVector * lst, int lst_cnt,
                                       CBitCodec & bCodec, CHuffCodec & huff,
                                       CMuxCodec * codec)
 {
+	int intra_ctx = lst_cnt;
+	lst_cnt = filter_mv(lst, lst_cnt);
+
+	if (intra_ctx != 4)
+		intra_ctx = intra_conv[intra_ctx][intra_ctx - lst_cnt];
+	else
+		intra_ctx -= lst_cnt;
+
 	sMotionVector mv;
-	if (bCodec.decode(INTRA_CTX)) {
+	if (bCodec.decode(INTRA_CTX_BASE + intra_ctx)) {
 		mv.all = MV_INTRA;
 		return mv;
 	}
-	// FIXME : this check must not be needed, MV_INTRA must not be used as predictor
-	sMotionVector pred = COBMC::median_mv(lst, lst_cnt);
-	if (pred.all == MV_INTRA)
-		pred.all = 0;
-	mv.all = pred.all;
+
+	if (lst_cnt == 0)
+		mv.all = 0;
+	else
+		mv = COBMC::median_mv(lst, lst_cnt);
+
 	if (bCodec.decode(0)) {
 		int tmp = huff.decode(codec);
 		if (tmp == 0) {
@@ -512,12 +548,11 @@ void COBMC::bt(CMuxCodec * codec)
 				lst[n++] = pCurMV[i - step];
 			if (j >= step) {
 				lst[n++] = pCurMV[i - line_step];
-				if (i >= dimX - step)
-					lst[n++] = pCurMV[i - line_step - step];
-				else if (i != 0)
+				if (i < dimX - step)
 					lst[n++] = pCurMV[i - line_step + step];
+				if (i > 0)
+					lst[n++] = pCurMV[i - line_step - step];
 			}
-			if (n == 0) lst[n++].all = 0;
 			CODE_DECODE_MV(pCurMV[i]);
 		}
 		pCurMV += line_step;

@@ -50,6 +50,8 @@ public:
 
 	static sMotionVector median_mv(sMotionVector * v, int n)
 	{
+		if (n <= 2)
+			return v[0];
 		unsigned int dist[n];
 		for( int i = 0; i < n; i++)
 			dist[i] = 0;
