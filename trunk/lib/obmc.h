@@ -48,29 +48,35 @@ public:
 	template <cmode mode> void bt(CMuxCodec * inCodec);
 	void toppm(char * file_name);
 
-	static sMotionVector median_mv(sMotionVector * v, int n)
+	static int median_mv(sMotionVector * v, int n)
 	{
-		if (n <= 2)
-			return v[0];
-		unsigned int dist[n];
-		for( int i = 0; i < n; i++)
+		if (n <= 1)
+			return -1;
+		if (n <= 2) {
+			int d = abs(v[0].x - v[1].x) + abs(v[0].y - v[1].y);
+			d += d + d;
+			return d;
+		}
+		int dist[n], idx = 0;
+		dist[0] = 0;
+		for( int i = 1; i < n; i++){
 			dist[i] = 0;
-		for( int i = 0; i < n; i++){
-			for( int j = i + 1; j < n; j++){
-				unsigned int x = v[i].x - v[j].x;
-				unsigned int y = v[i].y - v[j].y;
-				x *= x;
-				y *= y;
-				dist[i] += x + y;
-				dist[j] += x + y;
+			for( int j = 0; j < i; j++){
+				int d = abs(v[i].x - v[j].x) + abs(v[i].y - v[j].y);
+				dist[i] += d;
+				dist[j] += d;
 			}
 		}
-		int idx = 0;
 		for( int i = 1; i < n; i++){
 			if (dist[i] < dist[idx])
 				idx = i;
 		}
-		return v[idx];
+		sMotionVector tmp = v[idx];
+		v[idx] = v[0];
+		v[0] = tmp;
+		if (n == 3)
+			return dist[idx] + (dist[idx] >> 1);
+		return dist[idx];
 	}
 
 protected:

@@ -412,10 +412,10 @@ const sHuffRL huff_mv_y_rl[] = {
 	{1, 1}, {1, 1}, {2, 2}, {2, 3}, {1, 4}, {1, 3}, {-1, 1}, {2, 6}, {1, 5}, {1, 1}, {-1, 1}, {1, 6}, {1, 6}, {1, 1}, {-1, 1}, {1, 11}, {1, 1}, {-1, 2}, {1, 14}, {1, 5}, {1, 1}, {-1, 2}, {1, 4}, {-1, 1}, {1, 1}, {-1, 3}, {1, 29}, {-1, 1}, {1, 9}, {-6, 1}
 };
 
-#define MV_TAB_BITS 3 // 2 is good too
+#define MV_TAB_BITS 3 // 2 is better because stats adapts faster
 #define MV_MODEL_CNT (1 << (2 * MV_TAB_BITS))
-
-#define INTRA_CTX_BASE 1
+#define MV_CTX_CNT	4 // number of contexts to code the motion vector difference
+#define MV_CTX_SHIFT 1
 
 static inline int filter_mv(sMotionVector * lst, int lst_cnt)
 {
@@ -435,10 +435,10 @@ static const char intra_conv[4][4] = {
 };
 
 static inline void code_mv(sMotionVector mv, sMotionVector * lst, int lst_cnt,
-                           CBitCodec & bCodec, CHuffCodec & huff,
+                           CBitCodec & bCodec, CHuffCodec * huff,
                            CMuxCodec * codec)
 {
-	int intra_ctx = lst_cnt;
+	int intra_ctx = lst_cnt, mv_ctx;
 	lst_cnt = filter_mv(lst, lst_cnt);
 
 	if (intra_ctx != 4)
@@ -446,16 +446,23 @@ static inline void code_mv(sMotionVector mv, sMotionVector * lst, int lst_cnt,
 	else
 		intra_ctx -= lst_cnt;
 
-	if (bCodec.code(mv.all == MV_INTRA, INTRA_CTX_BASE + intra_ctx))
+	if (bCodec.code(mv.all == MV_INTRA, MV_CTX_CNT + intra_ctx))
 		return;
 
 	sMotionVector pred;
-	if (lst_cnt == 0)
+	if (lst_cnt == 0) {
 		pred.all = 0;
-	else
-		pred = COBMC::median_mv(lst, lst_cnt);
+		mv_ctx = MV_CTX_CNT - 1; // FIXME arbitrary, default value should be from coding stats
+	} else {
+		mv_ctx = COBMC::median_mv(lst, lst_cnt);
+		if (mv_ctx == -1)
+			mv_ctx = MV_CTX_CNT - 1; // FIXME arbitrary, default value should be from coding stats
+		else
+			mv_ctx = min(MV_CTX_CNT - 1, (bitlen(mv_ctx) + (1 << MV_CTX_SHIFT) - 1) >> MV_CTX_SHIFT);
+		pred = lst[0];
+	}
 
-	if (bCodec.code(mv.all != pred.all, 0)) {
+	if (bCodec.code(mv.all != pred.all, mv_ctx)) {
 		int x = s2u(mv.x - pred.x) + 1;
 		int y = s2u(mv.y - pred.y) + 1;
 
@@ -463,14 +470,14 @@ static inline void code_mv(sMotionVector mv, sMotionVector * lst, int lst_cnt,
 		int ly = bitlen(y >> 1);
 
 		if (lx >= (1 << MV_TAB_BITS) || ly >= (1 << MV_TAB_BITS)){
-			huff.code(0, codec);
+			huff[mv_ctx].code(0, codec);
 			codec->golombCode(x - 1, (1 << MV_TAB_BITS) + 1);
 			codec->golombCode(y - 1, (1 << MV_TAB_BITS) + 1);
 			return;
 		}
 
 		int tmp = lx | (ly << MV_TAB_BITS);
-		huff.code(tmp, codec);
+		huff[mv_ctx].code(tmp, codec);
 		if (lx != 0)
 			codec->bitsCode(x & ~(-1 << lx), lx);
 		if (ly != 0)
@@ -479,10 +486,10 @@ static inline void code_mv(sMotionVector mv, sMotionVector * lst, int lst_cnt,
 }
 
 static inline sMotionVector decode_mv(sMotionVector * lst, int lst_cnt,
-                                      CBitCodec & bCodec, CHuffCodec & huff,
+                                      CBitCodec & bCodec, CHuffCodec * huff,
                                       CMuxCodec * codec)
 {
-	int intra_ctx = lst_cnt;
+	int intra_ctx = lst_cnt, mv_ctx;
 	lst_cnt = filter_mv(lst, lst_cnt);
 
 	if (intra_ctx != 4)
@@ -491,18 +498,25 @@ static inline sMotionVector decode_mv(sMotionVector * lst, int lst_cnt,
 		intra_ctx -= lst_cnt;
 
 	sMotionVector mv;
-	if (bCodec.decode(INTRA_CTX_BASE + intra_ctx)) {
+	if (bCodec.decode(MV_CTX_CNT + intra_ctx)) {
 		mv.all = MV_INTRA;
 		return mv;
 	}
 
-	if (lst_cnt == 0)
+	if (lst_cnt == 0) {
 		mv.all = 0;
-	else
-		mv = COBMC::median_mv(lst, lst_cnt);
+		mv_ctx = MV_CTX_CNT - 1; // FIXME arbitrary, default value should be from coding stats
+	} else {
+		mv_ctx = COBMC::median_mv(lst, lst_cnt);
+		if (mv_ctx == -1)
+			mv_ctx = MV_CTX_CNT - 1; // FIXME arbitrary, default value should be from coding stats
+		else
+			mv_ctx = min(MV_CTX_CNT - 1, (bitlen(mv_ctx) + (1 << MV_CTX_SHIFT) - 1) >> MV_CTX_SHIFT);
+		mv = lst[0];
+	}
 
-	if (bCodec.decode(0)) {
-		int tmp = huff.decode(codec);
+	if (bCodec.decode(mv_ctx)) {
+		int tmp = huff[mv_ctx].decode(codec);
 		if (tmp == 0) {
 			mv.x += u2s(codec->golombDecode((1 << MV_TAB_BITS) + 1));
 			mv.y += u2s(codec->golombDecode((1 << MV_TAB_BITS) + 1));
@@ -533,8 +547,14 @@ template <cmode mode>
 void COBMC::bt(CMuxCodec * codec)
 {
 	CBitCodec bCodec(codec);
-	CHuffCodec huff(mode, 0, MV_MODEL_CNT);
+	char * mem[MV_CTX_CNT * sizeof(CHuffCodec)];
 	sMotionVector lst[4];
+	CHuffCodec * huff = (CHuffCodec *) mem;
+	for(int i = 0; i < MV_CTX_CNT; i++) {
+		huff = new(huff) CHuffCodec (mode, 0, MV_MODEL_CNT);
+		huff++;
+	}
+	huff -= MV_CTX_CNT;
 
 	uint step = 8;
 
@@ -594,6 +614,10 @@ void COBMC::bt(CMuxCodec * codec)
 			}
 			istart = step_2 - istart;
 		}
+	}
+	for(int i = 0; i < MV_CTX_CNT; i++) {
+		huff->~CHuffCodec();
+		huff++;
 	}
 }
 
