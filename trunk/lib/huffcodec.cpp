@@ -221,7 +221,13 @@ void CHuffCodec::update_code(void)
 	qsort(sym, nbSym, sizeof(sHuffSym),
 	      (int (*)(const void *, const void *)) comp_freq);
 
-	make_len(sym, nbSym);
+	while (1) {
+		make_len(sym, nbSym); // FIXME lenth limited huffman code may be better
+		if (sym[nbSym - 1].len <= MAX_HUFF_LEN)
+			break;
+		for( unsigned int i = 0; i < nbSym; i++)
+			sym[i].code >>= 1;
+	}
 	make_codes(sym, nbSym);
 	if (pSymLUT == 0) {
 		qsort(sym, nbSym, sizeof(sHuffSym),

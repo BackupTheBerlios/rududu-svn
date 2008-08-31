@@ -29,9 +29,9 @@ namespace rududu {
 #define MAX_HUFF_LEN	16
 // maximum huffman table size
 #define MAX_HUFF_SYM	256
-#define UPDATE_STEP_MIN	128u
-#define UPDATE_STEP_MAX	2048u
-#define UPDATE_THRES	(1u << 14)
+#define UPDATE_STEP_MIN	64u
+#define UPDATE_STEP_MAX	1024u
+#define UPDATE_THRES	(1u << 13)
 
 typedef struct {
 	signed char diff;
