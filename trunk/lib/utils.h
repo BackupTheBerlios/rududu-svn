@@ -52,6 +52,11 @@ typedef enum trans {cdf97 = 0, cdf53 = 1, haar = 2};
 	(((a) > (b)) ? (b) : (a))
 
 template <class a>
+a inline min(const a nb1, const a nb2) {
+	return MIN(nb1, nb2);
+}
+
+template <class a>
 a inline clip(const a nb, const a min, const a max)
 {
 	if (nb < min)

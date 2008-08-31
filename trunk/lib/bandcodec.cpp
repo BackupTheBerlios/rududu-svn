@@ -75,22 +75,22 @@ template <cmode mode, class C>
 
 	for( unsigned int i = 1; i < DimX; i++){
 		if (mode == encode)
-			geoCodec.code(s2u(pCur[i] - pCur[i - 1]), 15);
+			geoCodec.code(s2u(pCur[i] - pCur[i - 1]), BIT_CONTEXT_NB - 1);
 		else
-			pCur[i] = pCur[i - 1] + u2s(geoCodec.decode(15));
+			pCur[i] = pCur[i - 1] + u2s(geoCodec.decode(BIT_CONTEXT_NB - 1));
 	}
 	pCur += stride;
 
 	for( unsigned int j = 1; j < DimY; j++){
 		if (mode == encode)
-			geoCodec.code(s2u(pCur[0] - pCur[-stride]), 15);
+			geoCodec.code(s2u(pCur[0] - pCur[-stride]), BIT_CONTEXT_NB - 1);
 		else
-			pCur[0] = pCur[-stride] + u2s(geoCodec.decode(15));
+			pCur[0] = pCur[-stride] + u2s(geoCodec.decode(BIT_CONTEXT_NB - 1));
 
 		for( unsigned int i = 1; i < DimX; i++){
 			int var = ABS(pCur[i - 1] - pCur[i - 1 - stride]) +
 					ABS(pCur[i - stride] - pCur[i - 1 - stride]);
-			var = bitlen(var);
+			var = min(BIT_CONTEXT_NB - 2, bitlen(var));
 			if (mode == encode) {
 				int pred = pCur[i] - pCur[i - 1] - pCur[i - stride] +
 						pCur[i - 1 - stride];
