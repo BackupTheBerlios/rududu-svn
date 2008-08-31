@@ -27,7 +27,6 @@
 #include "bitcodec.h"
 #include "huffcodec.h"
 #include "obmc.h"
-#include "dct2d.h"
 
 using namespace std;
 
