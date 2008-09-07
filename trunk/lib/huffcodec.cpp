@@ -26,6 +26,28 @@
 
 namespace rududu {
 
+static int comp_sym(const sHuffSym * sym1, const sHuffSym * sym2)
+{
+	return sym1->value - sym2->value;
+}
+
+static int comp_freq(const sHuffSym * sym1, const sHuffSym * sym2)
+{
+	return sym2->code - sym1->code;
+}
+
+static int _comp_freq(const sHuffSym * sym1, const sHuffSym * sym2)
+{
+	return sym1->code - sym2->code;
+}
+
+static int comp_len(const sHuffSym * sym1, const sHuffSym * sym2)
+{
+	if (sym1->len == sym2->len)
+		return sym2->code - sym1->code;
+	return sym1->len - sym2->len;
+}
+
 CHuffCodec::CHuffCodec(cmode mode, const sHuffRL * pInitTable, unsigned int n) :
 	nbSym(n),
 	count(0),
@@ -74,11 +96,99 @@ void CHuffCodec::init(const sHuffRL * pInitTable)
 	update_step = UPDATE_STEP_MIN;
 }
 
+#define UNKNOW_WEIGHT	((1 << 16) - 1)
+#define MAX_WEIGHT		(UNKNOW_WEIGHT - 1)
+
+static unsigned short calc_weight(sHuffSym const * sym, int n,
+                                  unsigned char const * leaf_cnt,
+                                  unsigned short * pack_weight,
+                                  unsigned char * pack_leaf, int max_len)
+{
+	if (max_len == 1) {
+		pack_leaf[0] = leaf_cnt[0] + 2;
+		if (n >= pack_leaf[0]) {
+			return sym[leaf_cnt[0]].code + sym[leaf_cnt[0] + 1].code;
+		} else if (n + 1 == pack_leaf[0]) {
+			pack_leaf[0] = n;
+			return sym[leaf_cnt[0]].code;
+		} else
+			return MAX_WEIGHT;
+	}
+
+	unsigned short weight = 0;
+	memcpy(pack_leaf, leaf_cnt, max_len);
+
+	for( int i = 0; i < 2; i++){
+		if (pack_weight[0] == UNKNOW_WEIGHT)
+			pack_weight[0] = calc_weight(sym, n, pack_leaf + 1, pack_weight + 1,
+			                             pack_leaf + max_len, max_len - 1);
+		if (pack_leaf[0] >= n || pack_weight[0] <= sym[pack_leaf[0]].code) {
+			memcpy(pack_leaf + 1, pack_leaf + max_len, (max_len - 1) * sizeof(*pack_leaf));
+			weight += pack_weight[0];
+			pack_weight[0] = UNKNOW_WEIGHT;
+		} else {
+			weight += sym[pack_leaf[0]++].code;
+		}
+	}
+	return weight;
+}
+
+/**
+ * Compute lenth-limited huffman codes using the methode presented in
+ * "A fast and space-economical algorithm for length-limited coding"
+ * http://www.diku.dk/~jyrki/Paper/ISAAC95.pdf
+ *
+ * the symbol frequency is stored in sHuffSym.code
+ * the symbol lenth is output in sHuffSym.len
+ *
+ * @param sym frequency of the symbols in increasing order
+ * @param n number of symbols
+ * @param max_len maximum symbol lenth
+ */
+void CHuffCodec::make_len(sHuffSym * sym, int n, int max_len)
+{
+	unsigned short pack_weight[max_len - 1]; // weight of the lookahead packages
+	unsigned char leaf_cnt[(max_len * (max_len + 1)) >> 1];
+
+	memset(leaf_cnt, 0, sizeof leaf_cnt);
+
+	for( int i = max_len - 2; i >= 0; i--) {
+		pack_weight[i] = sym[0].code + sym[1].code;
+	}
+	for( int i = 0, j = max_len; j > 0; j--) {
+		leaf_cnt[i] = 2;
+		i += j;
+	}
+
+	for( int i = 2 * n - 4; i > 0 ; i--){
+		if (pack_weight[0] == UNKNOW_WEIGHT)
+			pack_weight[0] = calc_weight(sym, n, leaf_cnt + 1, pack_weight + 1,
+			                             leaf_cnt + max_len, max_len - 1);
+		if (leaf_cnt[0] >= n || pack_weight[0] <= sym[leaf_cnt[0]].code) {
+			memcpy(leaf_cnt + 1, leaf_cnt + max_len, (max_len - 1) * sizeof(*leaf_cnt));
+			pack_weight[0] = UNKNOW_WEIGHT;
+		} else
+			leaf_cnt[0]++;
+	}
+
+	int len = 0;
+	for( int i = n - 1; i >= 0; i--){
+		while(len < max_len && leaf_cnt[len] > i)
+			len++;
+		sym[i].len = len;
+	}
+}
+
 /**
  * Calculate huffman code lenth in place from a sorted frequency array
  * as in "In-Place Calculation of Minimum-Redundancy Codes" Moffat & Katajainen
- * @param sym
- * @param n
+ * http://www.diku.dk/~jyrki/Paper/WADS95.pdf
+ *
+ * the symbol frequency is stored in sHuffSym.code
+ * the symbol lenth is output in sHuffSym.len
+ *
+ * @param sym frequency of the symbols in decreasing order
+ * @param n number of symbols
  */
 void CHuffCodec::make_len(sHuffSym * sym, int n)
 {
@@ -122,23 +232,6 @@ void CHuffCodec::make_len(sHuffSym * sym, int n)
 		depth++;
 		nb_nodes = 0;
 	}
-}
-
-int CHuffCodec::comp_sym(const sHuffSym * sym1, const sHuffSym * sym2)
-{
-	return sym1->value - sym2->value;
-}
-
-int CHuffCodec::comp_freq(const sHuffSym * sym1, const sHuffSym * sym2)
-{
-	return sym2->code - sym1->code;
-}
-
-int CHuffCodec::comp_len(const sHuffSym * sym1, const sHuffSym * sym2)
-{
-	if (sym1->len == sym2->len)
-		return sym2->code - sym1->code;
-	return sym1->len - sym2->len;
 }
 
 /**
@@ -216,18 +309,29 @@ void CHuffCodec::update_code(void)
 	for( unsigned int i = 0; i < nbSym; i++){
 		sym[i].code = pFreq[i];
 		sym[i].value = i;
-		pFreq[i] = (pFreq[i] + 1) >> 1;
 	}
 	qsort(sym, nbSym, sizeof(sHuffSym),
 	      (int (*)(const void *, const void *)) comp_freq);
 
-	while (1) {
-		make_len(sym, nbSym); // FIXME lenth limited huffman code may be better
-		if (sym[nbSym - 1].len <= MAX_HUFF_LEN)
-			break;
-		for( unsigned int i = 0; i < nbSym; i++)
-			sym[i].code >>= 1;
+	make_len(sym, nbSym);
+	if (sym[nbSym - 1].len > MAX_HUFF_LEN) {
+		for( unsigned int i = 0; i < nbSym; i++){
+			sym[i].code = pFreq[i];
+			sym[i].value = i;
+		}
+		qsort(sym, nbSym, sizeof(sHuffSym),
+		      (int (*)(const void *, const void *)) _comp_freq);
+		make_len(sym, nbSym, MAX_HUFF_LEN);
+		for( unsigned int i = 0; i < (nbSym >> 1); i++){
+			sHuffSym tmp = sym[i];
+			sym[i] = sym[nbSym - 1 - i];
+			sym[nbSym - 1 - i] = tmp;
+		}
 	}
+
+	for( unsigned int i = 0; i < nbSym; i++)
+		pFreq[i] = (pFreq[i] + 1) >> 1;
+
 	make_codes(sym, nbSym);
 	if (pSymLUT == 0) {
 		qsort(sym, nbSym, sizeof(sHuffSym),

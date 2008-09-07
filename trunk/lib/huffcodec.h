@@ -29,9 +29,9 @@ namespace rududu {
 #define MAX_HUFF_LEN	16
 // maximum huffman table size
 #define MAX_HUFF_SYM	256
-#define UPDATE_STEP_MIN	64u
-#define UPDATE_STEP_MAX	1024u
-#define UPDATE_THRES	(1u << 13)
+#define UPDATE_STEP_MIN	128u
+#define UPDATE_STEP_MAX	2048u
+#define UPDATE_THRES	(1u << 14)
 
 typedef struct {
 	signed char diff;
@@ -66,10 +66,7 @@ private:
 
 	static void make_codes(sHuffSym * sym, int n);
 	static void make_len(sHuffSym * sym, int n);
-
-	static int comp_freq(const sHuffSym * sym1, const sHuffSym * sym2);
-	static int comp_sym(const sHuffSym * sym1, const sHuffSym * sym2);
-	static int comp_len(const sHuffSym * sym1, const sHuffSym * sym2);
+	static void make_len(sHuffSym * sym, int n, int max_len);
 
 	static void RL2len(const sHuffRL * pRL, sHuffSym * pHuff, int n);
 	static int len2RL(sHuffRL * pRL, const sHuffSym * pHuff, int n);
