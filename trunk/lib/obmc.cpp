@@ -411,8 +411,7 @@ const sHuffRL huff_mv_y_rl[] = {
 	{1, 1}, {1, 1}, {2, 2}, {2, 3}, {1, 4}, {1, 3}, {-1, 1}, {2, 6}, {1, 5}, {1, 1}, {-1, 1}, {1, 6}, {1, 6}, {1, 1}, {-1, 1}, {1, 11}, {1, 1}, {-1, 2}, {1, 14}, {1, 5}, {1, 1}, {-1, 2}, {1, 4}, {-1, 1}, {1, 1}, {-1, 3}, {1, 29}, {-1, 1}, {1, 9}, {-6, 1}
 };
 
-#define MV_TAB_BITS 3 // 2 is better because stats adapts faster
-#define MV_MODEL_CNT (1 << (2 * MV_TAB_BITS))
+#define MV_MODEL_CNT (3 * 16)
 #define MV_CTX_CNT	4 // number of contexts to code the motion vector difference
 #define MV_CTX_SHIFT 1
 
@@ -433,6 +432,7 @@ static const char intra_conv[4][4] = {
 	{0, 2, 3, 4}
 };
 
+// TODO remove maxCode/maxDecode as they recompute bitlen(max)
 static inline void code_mv(sMotionVector mv, sMotionVector * lst, int lst_cnt,
                            CBitCodec & bCodec, CHuffCodec * huff,
                            CMuxCodec * codec)
@@ -468,19 +468,22 @@ static inline void code_mv(sMotionVector mv, sMotionVector * lst, int lst_cnt,
 		int lx = bitlen(x >> 1);
 		int ly = bitlen(y >> 1);
 
-		if (lx >= (1 << MV_TAB_BITS) || ly >= (1 << MV_TAB_BITS)){
-			huff[mv_ctx].code(0, codec);
-			codec->golombCode(x - 1, (1 << MV_TAB_BITS) + 1);
-			codec->golombCode(y - 1, (1 << MV_TAB_BITS) + 1);
-			return;
-		}
-
-		int tmp = lx | (ly << MV_TAB_BITS);
-		huff[mv_ctx].code(tmp, codec);
-		if (lx != 0)
+		int tmp = MAX(lx, ly) - 1;
+		if (lx > ly) {
+			huff[mv_ctx].code(tmp | (2 << 4), codec);
 			codec->bitsCode(x & ~(-1 << lx), lx);
-		if (ly != 0)
+			if (lx > 1)
+				codec->maxCode((y - 1) & ~(-1 << lx), (1 << lx) - 2);
+		} else if (lx == ly) {
+			huff[mv_ctx].code(tmp | (1 << 4), codec);
+			codec->bitsCode(x & ~(-1 << lx), lx);
+			codec->bitsCode(y & ~(-1 << lx), lx);
+		} else {
+			huff[mv_ctx].code(tmp, codec);
+			if (ly > 1)
+				codec->maxCode((x - 1) & ~(-1 << ly), (1 << ly) - 2);
 			codec->bitsCode(y & ~(-1 << ly), ly);
+		}
 	}
 }
 
@@ -516,18 +519,24 @@ static inline sMotionVector decode_mv(sMotionVector * lst, int lst_cnt,
 
 	if (bCodec.decode(mv_ctx)) {
 		int tmp = huff[mv_ctx].decode(codec);
-		if (tmp == 0) {
-			mv.x += u2s(codec->golombDecode((1 << MV_TAB_BITS) + 1));
-			mv.y += u2s(codec->golombDecode((1 << MV_TAB_BITS) + 1));
-			return mv;
+		int l = (tmp & ~(-1 << 4)) + 1;
+		tmp >>= 4;
+		switch( tmp ){
+		case 0:
+			if (l > 1)
+				mv.x += u2s(codec->maxDecode((1 << l) - 2));
+			mv.y += u2s(((1 << l) | codec->bitsDecode(l)) - 1);
+			break;
+		case 1:
+			mv.x += u2s(((1 << l) | codec->bitsDecode(l)) - 1);
+			mv.y += u2s(((1 << l) | codec->bitsDecode(l)) - 1);
+			break;
+		default:
+			mv.x += u2s(((1 << l) | codec->bitsDecode(l)) - 1);
+			if (l > 1)
+				mv.y += u2s(codec->maxDecode((1 << l) - 2));
+			break;
 		}
-		int lx = tmp & ~(-1 << MV_TAB_BITS);
-		int ly = tmp >> MV_TAB_BITS;
-
-		if (lx > 0)
-			mv.x += u2s(((1 << lx) | codec->bitsDecode(lx)) - 1);
-		if (ly > 0)
-			mv.y += u2s(((1 << ly) | codec->bitsDecode(ly)) - 1);
 	}
 	return mv;
 }
