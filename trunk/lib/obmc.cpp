@@ -210,7 +210,7 @@ void COBMC::obmc_block(const short * pSrc, short * pDst,
 					pDst[i] = (pDst[i] + pSrc[i] * (window[j][i] + window[7-j][i]) + 8) >> 4;
 			else
 				if (flags & LEFT)
-					pDst[i] += pSrc[i] * (window[j][i] + window[j][i+8]);
+					pDst[i] = pSrc[i] * (window[j][i] + window[j][i+8]);
 				else
 					pDst[i] += pSrc[i] * window[j][i];
 		}
