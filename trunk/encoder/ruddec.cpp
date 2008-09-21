@@ -45,13 +45,15 @@ int main( int argc, char *argv[] )
 		exit(1);
 	}
 
-	SDL_Surface * screen = SDL_SetVideoMode(w, h, 0, SDL_SWSURFACE);
+	SDL_Surface * screen = SDL_SetVideoMode(w, h, 0, SDL_SWSURFACE | SDL_ASYNCBLIT | SDL_HWACCEL);
 	if ( screen == NULL ) {
 		cerr << "Unable to set video" << endl;
 		exit(1);
 	}
 
-	SDL_Overlay * yuv_overlay = SDL_CreateYUVOverlay(w, h, SDL_YV12_OVERLAY, screen);
+	SDL_WM_SetCaption("Rududu player", "media-player");
+
+	SDL_Overlay * yuv_overlay = SDL_CreateYUVOverlay(w, h, SDL_IYUV_OVERLAY, screen);
 	if ( yuv_overlay == NULL ) {
 		cerr << "SDL: Couldn't create SDL_yuv_overlay: " << SDL_GetError() << endl;
 		exit(1);
