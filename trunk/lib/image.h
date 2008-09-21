@@ -20,6 +20,8 @@
 
 #pragma once
 
+#include <ostream>
+
 namespace rududu {
 
 typedef enum cspace {rvb, yuv, yog, yv12, i420};
@@ -45,11 +47,13 @@ public:
 	template <class input_t> void inputSGI(input_t * pIn, int stride, short offset);
 	template <class output_t> void outputRGB(output_t * pOut, int stride, short offset);
 	template <class output_t, bool i420> void outputYV12(output_t * pOut, int stride, short offset);
+	void write_pgm(std::ostream & os);
 
 	CImage & operator-= (const CImage & In);
 	CImage & operator+= (const CImage & In);
 	void psnr(const CImage & In, float * ret);
 	void copy(const CImage & In);
+	void clear(void);
 
 	template <int pos> void interH(const CImage & In);
 	template <int pos> void interV(const CImage & In);

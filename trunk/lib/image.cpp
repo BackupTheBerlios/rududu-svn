@@ -305,6 +305,14 @@ void CImage::copy(const CImage & In)
 	}
 }
 
+void CImage::clear(void)
+{
+	for (int c = 0; c < component; c++) {
+		short * out = pImage[c] - BORDER * (1 + dimXAlign);
+		memset(out, 0, sizeof(short) * dimXAlign * (dimY + BORDER * 2));
+	}
+}
+
 template <int pos>
 void CImage::interH(const CImage & In)
 {
@@ -368,5 +376,19 @@ void CImage::interV(const CImage & In)
 template void CImage::interV<1>(const CImage &);
 template void CImage::interV<2>(const CImage &);
 template void CImage::interV<3>(const CImage &);
+
+void CImage::write_pgm(ostream & os)
+{
+	os << "P5 " << dimX << " " << dimY << " 255" << endl;
+
+	short * pCur = pImage[0];
+
+	for( int j = 0; j < dimY; j++){
+		for( int i = 0; i < dimX; i++){
+			os.put(clip((pCur[i] + 2056) >> 4, 0, 255));
+		}
+		pCur += dimXAlign;
+	}
+}
 
 }
