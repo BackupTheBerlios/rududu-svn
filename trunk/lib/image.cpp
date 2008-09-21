@@ -87,7 +87,7 @@ void CImage::output(unsigned char * pOut, int stride)
 		short * pCur = pImage[c];
 		for( unsigned int j = 0; j < dimY; j++){
 			for (unsigned int i = 0; i < dimX; i++){
-				pOut[i] = ((pCur[i] + 8) >> 4) + 128;
+				pOut[i] = clip((pCur[i] + 2056) >> 4, 0, 255);
 			}
 			pCur += dimXAlign;
 			pOut += stride;
