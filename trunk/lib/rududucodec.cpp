@@ -23,6 +23,7 @@
 #define WAV_LEVELS	5
 #define TRANSFORM	cdf97
 #define BUFFER_SIZE (SUB_IMAGE_CNT + 1)
+// #define DRAW_MV
 
 namespace rududu {
 
@@ -167,7 +168,14 @@ int CRududuCodec::decode(unsigned char * pBuffer, CImage ** outImage)
 
 	f_cnt++;
 
+#ifdef DRAW_MV
+	predImage->copy(*images[0][0]);
+	if (pBuffer[0] & 0x80)
+		obmc->draw_mv(*predImage);
+	*outImage = predImage;
+#else
 	*outImage = images[0][0];
+#endif
 	images.remove(1);
 
 	return codec.getSize();

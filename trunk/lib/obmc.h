@@ -43,6 +43,7 @@ public:
     ~COBMC();
 
 	void apply_mv(CImageBuffer & RefFrames, CImage & dstImage);
+	void draw_mv(CImage & dstImage);
 	template <bool pre>
 		void apply_intra(CImage & srcImage, CImage & dstImage);
 	template <cmode mode> void bt(CMuxCodec * inCodec);

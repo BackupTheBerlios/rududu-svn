@@ -401,6 +401,100 @@ void COBMC::apply_mv(CImageBuffer & RefFrames, CImage & dstImage)
 #endif
 }
 
+static void draw_line(short * pDst, const int stride, int x1, int y1, int x2, int y2, int value)
+{
+	int dx = x2 - x1;
+	int dy = y2 - y1;
+
+	if (dx == 0 && dy == 0) {
+		pDst[x1 + y1 * stride] = clip(pDst[x1 + y1 * stride] + value, -1 << 11, (1 << 11) - 1);
+		return;
+	}
+
+	if (abs(dx) > abs(dy)) {
+     	//handle "horizontal" lines
+		if (x2 < x1) {
+			int tmp = x1; x1 = x2; x2 = tmp;
+			tmp = y1; y1 = y2; y2 = tmp;
+		}
+		int gradient = ((dy << 16) + (dx >> 1)) / dx;
+
+		short * pCur = pDst + y1 * stride;
+		pCur[x1] = clip(pCur[x1] + value, -1 << 11, (1 << 11) - 1);
+		int intery = 0;
+		for (int x = x1 + 1; x < x2; x++) {
+			intery += gradient;
+			if (intery < 0) {
+				pCur -= stride;
+				intery += 1 << 16;
+			}
+			if (intery > (1 << 16)) {
+				pCur += stride;
+				intery -= 1 << 16;
+			}
+			int val = 0;
+			val = (value * intery) >> 16;
+			pCur[x] = clip(pCur[x] + value - val, -1 << 11, (1 << 11) - 1);
+			pCur[x + stride] = clip(pCur[x + stride] + val, -1 << 11, (1 << 11) - 1);
+		}
+		pCur = pDst + y2 * stride;
+		pCur[x2] = clip(pCur[x2] + value, -1 << 11, (1 << 11) - 1);
+	} else {
+      //handle "vertical" lines
+		if (y2 < y1) {
+			int tmp = x1; x1 = x2; x2 = tmp;
+			tmp = y1; y1 = y2; y2 = tmp;
+		}
+		int gradient = ((dx << 16) + (dy >> 1)) / dy;
+
+		short * pCur = pDst + y1 * stride;
+		short * pEnd = pDst + (y2 - 1) * stride;
+		pCur[x1] = clip(pCur[x1] + value, -1 << 11, (1 << 11) - 1);
+		int intery = 0;
+		pCur += stride;
+		for (int x = x1; pCur < pEnd; pCur += stride) {
+			intery += gradient;
+			if (intery < 0) {
+				x--;
+				intery += 1 << 16;
+			}
+			if (intery > (1 << 16)) {
+				x++;
+				intery -= 1 << 16;
+			}
+			int val = 0;
+			val = (value * intery) >> 16;
+			pCur[x] = clip(pCur[x] + value - val, -1 << 11, (1 << 11) - 1);
+			pCur[x + 1] = clip(pCur[x + 1] + val, -1 << 11, (1 << 11) - 1);
+		}
+		pCur[x2] = clip(pCur[x2] + value, -1 << 11, (1 << 11) - 1);
+	}
+}
+
+void COBMC::draw_mv(CImage & dstImage)
+{
+	const int stride = dstImage.dimXAlign;
+	const int im_x = dstImage.dimX, im_y = dstImage.dimY;
+	sMotionVector * pCurMV = pMV;
+
+	for( unsigned int j = 0; j < dimY; j++) {
+		for( unsigned int i = 0; i < dimX; i++) {
+			if (pCurMV[i].all != MV_INTRA) {
+				int x1 = (i << 3) + 4, y1 = (j << 3) + 4;
+				int x2 = x1 + pCurMV[i].x, y2 = y1 + pCurMV[i].y;
+				if (x2 > 0 && x2 < im_x - 1 && y2 > 0 && y2 < im_y - 1) {
+					draw_line(dstImage.pImage[0], stride, x1, y1, x2, y2, 512);
+				} else {
+					// TODO draw out of frame MV
+				}
+			} else {
+				// TODO draw intra block
+			}
+		}
+		pCurMV += dimX;
+	}
+}
+
 #define MV_MODEL_CNT (3 * 16)
 #define MV_CTX_CNT	4 // number of contexts to code the motion vector difference
 #define MV_CTX_SHIFT 1
