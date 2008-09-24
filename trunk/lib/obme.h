@@ -27,7 +27,7 @@ namespace rududu {
 typedef struct {
 	sMotionVector MV;
 	unsigned char ref; /// reference frame
-	unsigned char bitCost; /// bit cost of the motion vector in 1/8 bit unit
+	unsigned char cost; /// bit cost of the motion vector in 1/8 bit unit
 	unsigned short dist; /// distortion of this MV
 } sFullMV;
 
@@ -46,12 +46,6 @@ protected:
 
 private:
 	char * pData;
-
-	template <unsigned int size> inline static unsigned short SAD(const short * pSrc, const short * pDst, const int stride);
-	static inline void DiamondSearch(int cur_x, int cur_y, int im_x, int im_y, int stride, short ** pIm, sFullMV & MVBest);
-	static sFullMV EPZS(int cur_x, int cur_y, int im_x, int im_y, int stride, short ** pIm, sFullMV * MVPred, int setB, int setC, int thres);
-	template <int level> static void subpxl(int cur_x, int cur_y, int im_x, int im_y, int stride, short * pRef, short ** pSub, sFullMV & MVBest);
-
 };
 
 }
