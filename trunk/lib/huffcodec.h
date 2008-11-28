@@ -76,7 +76,7 @@ public:
 
 	inline void code(unsigned int sym, CMuxCodec * codec)
 	{
-		if (count >= UPDATE_THRES)
+		if (unlikely(count >= UPDATE_THRES))
 			update_code();
 		codec->bitsCode(pSym[sym].code, pSym[sym].len);
 		pFreq[sym] += update_step;
@@ -85,7 +85,7 @@ public:
 
 	inline unsigned int decode(CMuxCodec * codec)
 	{
-		if (count >= UPDATE_THRES)
+		if (unlikely(count >= UPDATE_THRES))
 			update_code();
 		unsigned int sym = pSymLUT[codec->huffDecode(pSym)];
 		pFreq[sym] += update_step;

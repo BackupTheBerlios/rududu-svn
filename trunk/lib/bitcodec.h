@@ -53,8 +53,8 @@ public:
 		unsigned int s = sym ^ state[ctx].mps;
 		pRange->codeBin(freq[ctx], s ^ 1);
 		freq[ctx] += (s << SPEED) - (freq[ctx] >> DECAY);
-		if ((unsigned short)(freq[ctx] - thres[state[ctx].shift + 1]) >
-		    thres[state[ctx].shift] - thres[state[ctx].shift + 1])
+		if (unlikely((unsigned short)(freq[ctx] - thres[state[ctx].shift + 1]) >
+		             thres[state[ctx].shift] - thres[state[ctx].shift + 1]))
 			shift_adj(ctx);
 		return sym;
 	}
@@ -63,8 +63,8 @@ public:
 		register unsigned int sym = pRange->getBit(freq[ctx]) ^ 1;
 		freq[ctx] += (sym << SPEED) - (freq[ctx] >> DECAY);
 		sym ^= state[ctx].mps;
-		if ((unsigned short)(freq[ctx] - thres[state[ctx].shift + 1]) >
-		    thres[state[ctx].shift] - thres[state[ctx].shift + 1])
+		if (unlikely((unsigned short)(freq[ctx] - thres[state[ctx].shift + 1]) >
+		             thres[state[ctx].shift] - thres[state[ctx].shift + 1]))
 			shift_adj(ctx);
 		return sym;
 	}

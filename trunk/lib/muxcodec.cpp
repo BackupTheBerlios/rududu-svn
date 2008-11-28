@@ -19,7 +19,6 @@
  ***************************************************************************/
 
 #include "muxcodec.h"
-#include "utils.h"
 
 namespace rududu {
 
@@ -60,7 +59,7 @@ void CMuxCodec::initDecoder(unsigned char *pInStream)
 	}
 }
 
-void CMuxCodec::normalize_enc(void)
+flatten fastcall void CMuxCodec::normalize_enc(void)
 {
 	flushBuffer<false>();
 	do{
@@ -73,7 +72,7 @@ void CMuxCodec::normalize_enc(void)
 	} while (range <= MIN_RANGE);
 }
 
-void CMuxCodec::normalize_dec(void){
+flatten fastcall void CMuxCodec::normalize_dec(void){
 	do{
 		if (((code - low + range - 1) ^ (code - low)) >= 0x01000000)
 			range = (low - code) & (MIN_RANGE - 1);
@@ -365,7 +364,7 @@ void CMuxCodec::enumCode(unsigned int bits, unsigned int k, unsigned int n_max)
 }
 
 template <unsigned int n_max>
-	void CMuxCodec::enumCode(unsigned int bits, unsigned int k)
+	flatten fastcall void CMuxCodec::enumCode(unsigned int bits, unsigned int k)
 {
 	enumCode(bits, k, n_max);
 }
@@ -405,7 +404,7 @@ unsigned int CMuxCodec::enumDecode(unsigned int k, unsigned int n_max)
 }
 
 template <unsigned int n_max>
-	unsigned int CMuxCodec::enumDecode(unsigned int k)
+	flatten fastcall unsigned int CMuxCodec::enumDecode(unsigned int k)
 {
 	return enumDecode(k, n_max);
 }
@@ -513,7 +512,7 @@ unsigned int CMuxCodec::golombLinDecode(int k, int m)
 	return nb;
 }
 
-void CMuxCodec::maxCode(unsigned int value, unsigned int max)
+fastcall void CMuxCodec::maxCode(unsigned int value, unsigned int max)
 {
 	unsigned int len = bitlen(max);
 	unsigned int lost = (1 << len) - max - 1;
@@ -523,7 +522,7 @@ void CMuxCodec::maxCode(unsigned int value, unsigned int max)
 		bitsCode(value + lost, len);
 }
 
-unsigned int CMuxCodec::maxDecode(unsigned int max)
+fastcall unsigned int CMuxCodec::maxDecode(unsigned int max)
 {
 	unsigned int value = 0;
 	unsigned int len = bitlen(max);
@@ -533,7 +532,7 @@ unsigned int CMuxCodec::maxDecode(unsigned int max)
 	return value;
 }
 
-void CMuxCodec::emptyBuffer(void)
+fastcall void CMuxCodec::emptyBuffer(void)
 {
 	do {
 		nbBits -= 8;
@@ -569,7 +568,7 @@ void CMuxCodec::flushBuffer(void)
 	}
 }
 
-void CMuxCodec::fillBuffer(const unsigned int length)
+fastcall void CMuxCodec::fillBuffer(const unsigned int length)
 {
 	do {
 		nbBits += 8;

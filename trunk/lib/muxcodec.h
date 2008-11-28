@@ -20,6 +20,8 @@
 
 #pragma once
 
+#include "utils.h"
+
 namespace rududu {
 
 #define FREQ_POWER	12
@@ -76,9 +78,6 @@ private:
 	unsigned char *pLast[ROT_BUF_SIZE]; // only for the encoder
 	unsigned int outCount; // only for the encoder
 
-	void normalize_enc(void);
-	void normalize_dec(void);
-
 	// variables for bit output
 	unsigned int nbBits;
 	unsigned int buffer;
@@ -94,9 +93,12 @@ private:
 	static const unsigned char CnkLen[16][8];
 	static const unsigned short CnkLost[16][8];
 
-	void emptyBuffer(void);
+	flatten fastcall void normalize_enc(void);
+	flatten fastcall void normalize_dec(void);
+
+	fastcall void emptyBuffer(void);
 	template <bool end> void flushBuffer(void);
-	void fillBuffer(const unsigned int length);
+	fastcall void fillBuffer(const unsigned int length);
 
 public:
 	CMuxCodec(unsigned char *pStream, unsigned short firstWord);
@@ -119,18 +121,18 @@ public:
 	unsigned int tabooDecode(void);
 
 	template <unsigned int n_max>
-		void enumCode(unsigned int bits, unsigned int k);
+		flatten fastcall void enumCode(unsigned int bits, unsigned int k);
 	void enumCode(unsigned int bits, unsigned int k, unsigned int n_max);
 	template <unsigned int n_max>
-		unsigned int enumDecode(unsigned int k);
+		flatten fastcall unsigned int enumDecode(unsigned int k);
 	unsigned int enumDecode(unsigned int k, unsigned int n_max);
 
-	void maxCode(unsigned int value, unsigned int max);
-	unsigned int maxDecode(unsigned int max);
+	fastcall void maxCode(unsigned int value, unsigned int max);
+	fastcall unsigned int maxDecode(unsigned int max);
 
 	void inline encode(const unsigned int lowFreq, const unsigned int topFreq)
 	{
-		if (range <= MIN_RANGE)
+		if (unlikely(range <= MIN_RANGE))
 			normalize_enc();
 		unsigned int tmp = range * lowFreq;
 		low += tmp >> FREQ_POWER;
@@ -139,14 +141,14 @@ public:
 
 	void inline code0(const unsigned int topFreq)
 	{
-		if (range <= MIN_RANGE)
+		if (unlikely(range <= MIN_RANGE))
 			normalize_enc();
 		range = (range * topFreq) >> FREQ_POWER;
 	}
 
 	void inline code1(const unsigned int lowFreq)
 	{
-		if (range <= MIN_RANGE)
+		if (unlikely(range <= MIN_RANGE))
 			normalize_enc();
 		const unsigned int tmp = (range * lowFreq) >> FREQ_POWER;
 		low += tmp;
@@ -155,7 +157,7 @@ public:
 
 	void inline codeBin(const unsigned int freq, const int bit)
 	{
-		if (range <= MIN_RANGE)
+		if (unlikely(range <= MIN_RANGE))
 			normalize_enc();
 		const unsigned int tmp = (range * freq) >> FREQ_POWER;
 		low += tmp & -bit;
@@ -164,7 +166,7 @@ public:
 
 	void inline codeSkew(const unsigned int shift, const unsigned int bit)
 	{
-		if (range <= MIN_RANGE)
+		if (unlikely(range <= MIN_RANGE))
 			normalize_enc();
 		const unsigned int tmp = range - (range >> shift);
 		low += tmp & -bit;
@@ -173,14 +175,14 @@ public:
 
 	void inline codeSkew0(const unsigned int shift)
 	{
-		if (range <= MIN_RANGE)
+		if (unlikely(range <= MIN_RANGE))
 			normalize_enc();
 		range -= range >> shift;
 	}
 
 	void inline codeSkew1(const unsigned int shift)
 	{
-		if (range <= MIN_RANGE)
+		if (unlikely(range <= MIN_RANGE))
 			normalize_enc();
 		const unsigned int tmp = range - (range >> shift);
 		low += tmp;
@@ -189,7 +191,7 @@ public:
 
 	unsigned int inline decode(const unsigned short * pFreqs)
 	{
-		if (range <= MIN_RANGE)
+		if (unlikely(range <= MIN_RANGE))
 			normalize_dec();
 		unsigned short freq = ((low << FREQ_POWER) + FREQ_MASK) / range;
 		unsigned int i = 1;
@@ -204,7 +206,7 @@ public:
 
 	unsigned int inline getBit(const unsigned int freq)
 	{
-		if (range <= MIN_RANGE) normalize_dec();
+		if (unlikely(range <= MIN_RANGE)) normalize_dec();
 		const unsigned int tmp = (range * freq) >> FREQ_POWER;
 		const int tst = (low < tmp) - 1;
 		low -= tmp & tst;
@@ -214,7 +216,7 @@ public:
 
 	unsigned int inline decSkew(const unsigned int shift)
 	{
-		if (range <= MIN_RANGE) normalize_dec();
+		if (unlikely(range <= MIN_RANGE)) normalize_dec();
 		const unsigned int tmp = range - (range >> shift);
 		const int tst = (low < tmp) - 1;
 		low -= tmp & tst;
@@ -224,7 +226,7 @@ public:
 
 	void inline bitsCode(unsigned int bits, unsigned int length)
 	{
-		if (nbBits + length > REG_SIZE)
+		if (unlikely(nbBits + length > REG_SIZE))
 			emptyBuffer();
 		buffer = (buffer << length) | bits;
 		nbBits += length;
@@ -258,7 +260,7 @@ public:
 		unsigned short code = (unsigned short)((((buffer << 16) | (pStream[0] << 8) | pStream[1]) >> nbBits) & 0xFFFF);
 
 		sHuffLut tmp = can->lut[code >> (16 - LUT_DEPTH)];
-		if (tmp.len != 0) {
+		if (likely(tmp.len != 0)) {
 			pStream -= (int)(nbBits - tmp.len) >> 3;
 			if (nbBits < tmp.len) buffer = pStream[-1];
 			nbBits = (nbBits - tmp.len) & 0x07;

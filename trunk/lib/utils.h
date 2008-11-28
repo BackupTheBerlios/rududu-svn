@@ -51,6 +51,19 @@ typedef enum trans {cdf97 = 0, cdf53 = 1, haar = 2};
 #define MIN(a,b)	\
 	(((a) > (b)) ? (b) : (a))
 
+#ifdef __GNUC__
+# define likely(x)		__builtin_expect((x),1)
+# define unlikely(x)	__builtin_expect((x),0)
+# define fastcall		__attribute__ ((fastcall))
+# define flatten		__attribute__ ((flatten))
+#else
+# define likely(x)		(x)
+# define unlikely(x)	(x)
+# define fastcall
+# define flatten
+#endif
+
+
 template <class a>
 a inline min(const a nb1, const a nb2) {
 	return MIN(nb1, nb2);
