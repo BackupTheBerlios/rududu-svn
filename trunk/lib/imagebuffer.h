@@ -25,7 +25,7 @@
 #include <vector>
 #include <stack>
 
-#define SUB_IMAGE_CNT	16
+#define SUB_IMAGE_CNT	4
 
 namespace rududu {
 
@@ -41,8 +41,12 @@ public:
 
 	CImage ** insert(int index);
 	void remove(unsigned int index);
-	CImage ** operator[](int index);
-	void calc_sub(int index);
+	void interpolate(int idx);
+
+	inline CImage ** operator[](int index)
+	{
+		return image_list[index].sub;
+	}
 
 private:
 	std::vector<sSubImage> image_list;

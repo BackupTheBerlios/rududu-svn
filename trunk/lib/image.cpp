@@ -215,29 +215,37 @@ void CImage::outputYV12(output_t * pOut, int stride, short offset)
 template void CImage::outputYV12<char, false>(char*, int, short);
 template void CImage::outputYV12<char, true>(char*, int, short);
 
+static inline void extend_line(short * line, int len)
+{
+	short * s1 = line - BORDER, * s2 = line + len;
+	for( int i = 0; i < BORDER; i++) {
+		s1[i] = s1[BORDER];
+		s2[i] = s2[-1];
+	}
+}
+
+static void inline extend_top(short * line, int stride)
+{
+	for( short *dest = line - BORDER, *end = line - BORDER * stride;
+	     dest > end; dest -= stride)
+		memcpy(dest - stride, dest, stride * sizeof(short));
+}
+
+static void inline extend_bottom(short * line, int stride)
+{
+	for( short *dest = line - BORDER, *end = line + (BORDER - 1) * stride;
+	     dest < end; dest += stride)
+		memcpy(dest + stride, dest, stride * sizeof(short));
+}
+
 void CImage::extend(void)
 {
-	for( int j = 0; j < component; j++) {
-		for( short * s1 = pImage[j] - BORDER, * s2 = pImage[j] + dimX, * end = pImage[j] + dimXAlign * dimY; s2 < end;) {
-			for( int i = 0; i < BORDER; i++) {
-				s1[i] = s1[BORDER];
-				s2[i] = s2[-1];
-			}
-			s1 += dimXAlign;
-			s2 += dimXAlign;
-		}
+	for( int c = 0; c < component; c++) {
+		for( short *line = pImage[c], *end = pImage[c] + dimXAlign * dimY; line < end; line += dimXAlign)
+			extend_line(line, dimX);
 
-		short * dest = pImage[j] - BORDER;
-		for( int i = 0; i < BORDER; i++) {
-			memcpy(dest - dimXAlign, dest, dimXAlign * sizeof(short));
-			dest -= dimXAlign;
-		}
-
-		dest = pImage[j] - BORDER + dimXAlign * (dimY - 1);
-		for( int i = 0; i < BORDER; i++) {
-			memcpy(dest + dimXAlign, dest, dimXAlign * sizeof(short));
-			dest += dimXAlign;
-		}
+		extend_top(pImage[c], dimXAlign);
+		extend_bottom(pImage[c] + dimXAlign * (dimY - 1), dimXAlign);
 	}
 }
 
@@ -313,69 +321,75 @@ void CImage::clear(void)
 	}
 }
 
-template <int pos>
-void CImage::interH(const CImage & In)
+#define HALF_5_1
+
+static inline void h_inter_line(const short * in, short * out, int len)
 {
-	for (int c = 0; c < component; c++) {
-		short * out = pImage[c];
-		short * in = In.pImage[c];
-		for (unsigned int j = 0; j < dimY; j++) {
-			for (unsigned int i = 0; i < dimX; i++) {
-				switch (pos) {
-				case 1:
-					out[i] = (53 * (int)in[i] + 18 * in[i+1] - 4 * in[i-1] - 3 * in[i+2] + 32) >> 6;
-					break;
-				case 2:
-					out[i] = (((int)in[i] + in[i+1]) * 9 - in[i-1] - in[i+2] + 8) >> 4;
-					break;
-				case 3:
-					out[i] = (18 * (int)in[i] + 53 * in[i+1] - 3 * in[i-1] - 4 * in[i+2] + 32) >> 6;
-				}
-			}
-			out += dimXAlign;
-			in += In.dimXAlign;
-		}
-	}
+	for (int i = 0; i < len; i++)
+#ifdef HALF_9_1
+		out[i] = (((int)in[i] + in[i + 1]) * 9 - in[i - 1] - in[i + 2] + 8) >> 4;
+#endif
+#ifdef HALF_5_1
+		out[i] = ((in[i] + in[i + 1]) * 5 - in[i - 1] - in[i + 2] + 4) >> 3;
+#endif
+	extend_line(out, len);
+
 }
 
-template void CImage::interH<1>(const CImage &);
-template void CImage::interH<2>(const CImage &);
-template void CImage::interH<3>(const CImage &);
-
-template <int pos>
-void CImage::interV(const CImage & In)
+static inline void v_inter_line(const short * in, short * out, int len, int stride)
 {
-	for (int c = 0; c < component; c++) {
-		short * out = pImage[c];
-		short * in = In.pImage[c];
-		short * in_1 = in - In.dimXAlign;
-		short * in1 = in + In.dimXAlign;
-		short * in2 = in + 2 * In.dimXAlign;
-		for (unsigned int j = 0; j < dimY; j++) {
-			for (unsigned int i = 0; i < dimX; i++) {
-				switch (pos) {
-				case 1:
-					out[i] = (53 * (int)in[i] + 18 * in1[i] - 4 * in_1[i] - 3 * in2[i] + 32) >> 6;
-					break;
-				case 2:
-					out[i] = (((int)in[i] + in1[i]) * 9 - in_1[i] - in2[i] + 8) >> 4;
-					break;
-				case 3:
-					out[i] = (18 * (int)in[i] + 53 * in1[i] - 3 * in_1[i] - 4 * in2[i] + 32) >> 6;
-				}
-			}
-			out += dimXAlign;
-			in_1 += In.dimXAlign;
-			in += In.dimXAlign;
-			in1 += In.dimXAlign;
-			in2 += In.dimXAlign;
-		}
-	}
+	const short * in_v[4] = {in - stride, in, in + stride, in + 2 * stride};
+
+	for (int i = 0; i < len; i++)
+#ifdef HALF_9_1
+		out[i] = (((int)in_v[1][i] + in_v[2][i]) * 9 - in_v[0][i] - in_v[3][i] + 8) >> 4;
+#endif
+#ifdef HALF_5_1
+		out[i] = ((in_v[1][i] + in_v[2][i]) * 5 - in_v[0][i] - in_v[3][i] + 4) >> 3;
+#endif
+	extend_line(out, len);
 }
 
-template void CImage::interV<1>(const CImage &);
-template void CImage::interV<2>(const CImage &);
-template void CImage::interV<3>(const CImage &);
+void const CImage::inter_half_pxl(CImage & out_h, CImage & out_v, CImage & out_hv)
+{
+	int c = 0;
+	const short * in_line = pImage[c];
+	short * h_line = out_h.pImage[c], * v_line = out_v.pImage[c],
+		* hv_line = out_hv.pImage[c];
+
+	// interpolation première ligne out_h
+	h_inter_line(in_line, h_line, dimX);
+	extend_top(h_line, dimXAlign);
+
+	// processing de n - 1 lignes horizontales (n = 1/2 longueur du filtre)
+	in_line += dimXAlign;
+	h_line += dimXAlign;
+	h_inter_line(in_line, h_line, dimX);
+
+	for( unsigned int i = 2; i < dimY; i++){
+		in_line += dimXAlign;
+		h_line += dimXAlign;
+		h_inter_line(in_line, h_line, dimX);
+		v_inter_line(in_line - 2 * dimXAlign, v_line, dimX, dimXAlign);
+		v_inter_line(h_line - 2 * dimXAlign, hv_line, dimX, dimXAlign);
+		v_line += dimXAlign;
+		hv_line += dimXAlign;
+	}
+
+	extend_bottom(h_line, dimXAlign);
+
+	v_inter_line(in_line - dimXAlign, v_line, dimX, dimXAlign);
+	v_inter_line(h_line - dimXAlign, hv_line, dimX, dimXAlign);
+	v_line += dimXAlign;
+	hv_line += dimXAlign;
+	v_inter_line(in_line, v_line, dimX, dimXAlign);
+	v_inter_line(h_line, hv_line, dimX, dimXAlign);
+
+	extend_bottom(v_line, dimXAlign);
+	extend_bottom(hv_line, dimXAlign);
+	extend_top(out_v.pImage[c], dimXAlign);
+	extend_top(out_hv.pImage[c], dimXAlign);
+}
 
 void CImage::write_pgm(ostream & os)
 {
@@ -383,8 +397,8 @@ void CImage::write_pgm(ostream & os)
 
 	short * pCur = pImage[0];
 
-	for( int j = 0; j < dimY; j++){
-		for( int i = 0; i < dimX; i++){
+	for( unsigned int j = 0; j < dimY; j++){
+		for( unsigned int i = 0; i < dimX; i++){
 			os.put(clip((pCur[i] + 2056) >> 4, 0, 255));
 		}
 		pCur += dimXAlign;

@@ -60,11 +60,6 @@ CImage * CImageBuffer::getFree(void)
 	return 0;
 }
 
-CImage ** CImageBuffer::operator[](int index)
-{
-	return image_list[index].sub;
-}
-
 CImage ** CImageBuffer::insert(int index)
 {
 	sSubImage tmp;
@@ -87,37 +82,15 @@ void CImageBuffer::remove(unsigned int index)
 	image_list.erase(image_list.begin() + index);
 }
 
-void CImageBuffer::calc_sub(int index)
+void CImageBuffer::interpolate(int idx)
 {
-	if (image_list[index].sub[4] == 0)
-		image_list[index].sub[4] = getFree();
-	image_list[index].sub[4]->interH<1>(*image_list[index].sub[0]);
-
-	if (image_list[index].sub[8] == 0)
-		image_list[index].sub[8] = getFree();
-	image_list[index].sub[8]->interH<2>(*image_list[index].sub[0]);
-
-	if (image_list[index].sub[12] == 0)
-		image_list[index].sub[12] = getFree();
-	image_list[index].sub[12]->interH<3>(*image_list[index].sub[0]);
-
-	for( int i = 0; i < 16; i += 4){
-		if (image_list[index].sub[i+1] == 0)
-			image_list[index].sub[i+1] = getFree();
-		image_list[index].sub[i+1]->interV<1>(*image_list[index].sub[i]);
-
-		if (image_list[index].sub[i+2] == 0)
-			image_list[index].sub[i+2] = getFree();
-		image_list[index].sub[i+2]->interV<2>(*image_list[index].sub[i]);
-
-		if (image_list[index].sub[i+3] == 0)
-			image_list[index].sub[i+3] = getFree();
-		image_list[index].sub[i+3]->interV<3>(*image_list[index].sub[i]);
+	for( int i = 1; i < SUB_IMAGE_CNT; i++) {
+		if (image_list[idx].sub[i] == 0)
+			image_list[idx].sub[i] = getFree();
 	}
-
-	for( int i = 0; i < 16; i++){
-		image_list[index].sub[i]->extend();
-	}
+	image_list[idx].sub[0]->inter_half_pxl(*image_list[idx].sub[2],
+	                                       *image_list[idx].sub[1],
+	                                       *image_list[idx].sub[3]);
 }
 
 }

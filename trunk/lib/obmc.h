@@ -49,7 +49,7 @@ public:
 	template <cmode mode> void bt(CMuxCodec * inCodec);
 	void toppm(char * file_name);
 
-	static int median_mv(sMotionVector * v, int n)
+	fastcall static int median_mv(sMotionVector * v, int n)
 	{
 		if (n <= 1)
 			return -1;
@@ -83,7 +83,6 @@ public:
 protected:
 	unsigned int dimX;
 	unsigned int dimY;
-	static const short window[8][16];
 
 	sMotionVector * pMV;
 	unsigned char * pRef;
@@ -121,19 +120,6 @@ protected:
 
 private:
 	char * pData;
-
-	static inline void obmc_block(const short * pSrc, short * pDst, const int src_stride, const int dst_stride);
-	template <int flags>
-		static void obmc_block(const short * pSrc, short * pDst,
-		                       const int src_stride, const int dst_stride);
-	template <int flags>
-		static void obmc_block_intra(short * pDst, const int dst_stride, const short value);
-	template <int flags>
-		short get_block_mean(short * pSrc, const int src_stride);
-
-	static inline int get_pos(const sMotionVector mv, const unsigned int i,
-	                   const unsigned int j, const unsigned int im_x,
-	                   const unsigned int im_y, const int stride);
 };
 
 }

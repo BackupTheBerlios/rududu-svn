@@ -53,7 +53,7 @@ COBMC::~COBMC()
 	delete[] pData;
 }
 
-const short COBMC::window[8][16] =
+static const short window[8][16] =
 {
 	{0,	0,	0,	0,	1,	1,	1,	1,	1,	1,	1,	1,	0,	0,	0,	0},
 	{0,	0,	1,	1,	1,	2,	2,	2,	2,	2,	2,	1,	1,	1,	0,	0},
@@ -63,22 +63,29 @@ const short COBMC::window[8][16] =
 	{1,	2,	3,	5,	7,	9,	9,	11,	11,	9,	9,	7,	5,	3,	2,	1},
 	{1,	2,	4,	6,	8,	9,	12,	13,	13,	12,	9,	8,	6,	4,	2,	1},
 	{1,	2,	4,	6,	9,	11,	13,	14,	14,	13,	11,	9,	6,	4,	2,	1}
+
+// 	{0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0},
+// 	{0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0},
+// 	{0,	0,	0,	1,	2,	3,	3,	3,	3,	3,	3,	2,	1,	0,	0,	0},
+// 	{0,	0,	1,	2,	4,	5,	6,	6,	6,	6,	5,	4,	2,	1,	0,	0},
+// 	{0,	0,	2,	4,	6,	8,	10,	10,	10,	10,	8,	6,	4,	2,	0,	0},
+// 	{0,	0,	3,	5,	8,	10,	13,	13,	13,	13,	10,	8,	5,	3,	0,	0},
+// 	{0,	0,	3,	6,	10,	13,	16,	16,	16,	16,	13,	10,	6,	3,	0,	0},
+// 	{0,	0,	3,	6,	10,	13,	16,	16,	16,	16,	13,	10,	6,	3,	0,	0}
+
+// 	{0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0},
+// 	{0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0},
+// 	{0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0},
+// 	{0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0,	0},
+// 	{0,	0,	0,	0,	16,	16,	16,	16,	16,	16,	16,	16,	0,	0,	0,	0},
+// 	{0,	0,	0,	0,	16,	16,	16,	16,	16,	16,	16,	16,	0,	0,	0,	0},
+// 	{0,	0,	0,	0,	16,	16,	16,	16,	16,	16,	16,	16,	0,	0,	0,	0},
+// 	{0,	0,	0,	0,	16,	16,	16,	16,	16,	16,	16,	16,	0,	0,	0,	0}
 };
 
-// const short COBMC::window[8][8] =
-// {
-// 	{0,	0,	0,	0,	0,	0,	0,	0},
-// 	{0,	0,	0,	0,	0,	0,	0,	0},
-// 	{0,	0,	0,	0,	0,	0,	0,	0},
-// 	{0,	0,	0,	0,	0,	0,	0,	0},
-// 	{0,	0,	0,	0,	16,	16,	16,	16},
-// 	{0,	0,	0,	0,	16,	16,	16,	16},
-// 	{0,	0,	0,	0,	16,	16,	16,	16},
-// 	{0,	0,	0,	0,	16,	16,	16,	16}
-// };
-
 #ifndef __MMX__
-void COBMC::obmc_block(const short * pSrc, short * pDst,
+
+static void obmc_block(const short * pSrc, short * pDst,
                        const int src_stride, const int dst_stride)
 {
 	for( int j = 0; j < 8; j++) {
@@ -101,11 +108,22 @@ void COBMC::obmc_block(const short * pSrc, short * pDst,
 	}
 }
 
+static inline void avg(const short * pSrc1, const short * pSrc2, short * pDst, const int src_stride, const int dst_stride, const int x, const int y)
+{
+	for (int j = 0; j < y; j++) {
+		for (int i = 0; i < x; i++)
+			pDst[i] = (pSrc1[i] + pSrc2[i]) >> 1;
+		pDst += dst_stride;
+		pSrc1 += src_stride;
+		pSrc2 += src_stride;
+	}
+}
+
 #else
 
 typedef short v4hi __attribute__ ((vector_size (8)));
 
-void COBMC::obmc_block(const short * pSrc, short * pDst,
+static void obmc_block(const short * pSrc, short * pDst,
                        const int src_stride, const int dst_stride)
 {
 	const v4hi rnd = {8, 8, 8, 8 };
@@ -152,10 +170,25 @@ void COBMC::obmc_block(const short * pSrc, short * pDst,
 	}
 }
 
+static inline void avg(const short * pSrc1, const short * pSrc2, short * pDst, const int src_stride, const int dst_stride, int x, int y)
+{
+	x >>= 2;
+	for (int j = 0; j < y; j++) {
+		v4hi *src1 = (v4hi *) pSrc1, *src2 = (v4hi *) pSrc2, *dst = (v4hi *) pDst;
+		for (int i = 0; i < x; i++) {
+			v4hi tmp = __builtin_ia32_paddw(src1[i], src2[i]);
+			dst[i] = __builtin_ia32_psraw(tmp, 1);
+		}
+		pDst += dst_stride;
+		pSrc1 += src_stride;
+		pSrc2 += src_stride;
+	}
+}
+
 #endif
 
 template <int flags>
-void COBMC::obmc_block(const short * pSrc, short * pDst,
+static void obmc_block(const short * pSrc, short * pDst,
                        const int src_stride, const int dst_stride)
 {
 	int is = 0, ie = 8, js = 0, je = 0;
@@ -231,8 +264,44 @@ void COBMC::obmc_block(const short * pSrc, short * pDst,
 	}
 }
 
+flatten static void obmc_block(const short * pSrc1, const short * pSrc2,
+                               short * pDst, const int src_stride,
+                               const int dst_stride)
+{
+	short tmp[16 * 16]; // FIXME : alignment
+	avg(pSrc1, pSrc2, tmp, src_stride, 16, 16, 16);
+	obmc_block(tmp, pDst, 16, dst_stride);
+}
+
 template <int flags>
-short COBMC::get_block_mean(short * pSrc, const int src_stride)
+static void obmc_block(const short * pSrc1, const short * pSrc2, short * pDst,
+                       const int src_stride, const int dst_stride)
+{
+	int offset = 0, tmp_offset = 0, x = 16, y = 16;
+
+	if (flags & TOP) {
+		offset = 4 * src_stride;
+		tmp_offset = 16 * 4;
+		y = 12;
+	}
+	if (flags & BOTTOM)
+		y -= 4;
+	if (flags & LEFT) {
+		offset += 4;
+		tmp_offset += 4;
+		x = 12;
+	}
+	if (flags & RIGHT)
+		x -= 4;
+
+	short tmp[16 * 16]; // FIXME : alignment
+	avg(pSrc1 + offset, pSrc2 + offset, tmp + tmp_offset, src_stride, 16, x, y);
+	obmc_block<flags>(tmp, pDst, 16, dst_stride);
+
+}
+
+template <int flags>
+static short get_block_mean(short * pSrc, const int src_stride)
 {
 	int s, count = 16 * 6;
 
@@ -243,7 +312,7 @@ short COBMC::get_block_mean(short * pSrc, const int src_stride)
 }
 
 template <int flags>
-void COBMC::obmc_block_intra(short * pDst, const int dst_stride, const short value)
+static void obmc_block_intra(short * pDst, const int dst_stride, const short value)
 {
 	int is = 0, ie = 8, js = 0, je = 0;
 
@@ -315,9 +384,9 @@ void COBMC::obmc_block_intra(short * pDst, const int dst_stride, const short val
 	}
 }
 
-int COBMC::get_pos(const sMotionVector mv, const unsigned int i,
-                    const unsigned int j, const unsigned int im_x,
-                    const unsigned int im_y, const int stride)
+static int get_pos(const sMotionVector mv, const unsigned int i,
+                   const unsigned int j, const unsigned int im_x,
+                   const unsigned int im_y, const int stride)
 {
 	int x = i * 8 + (mv.x >> 2) - 4;
 	int y = j * 8 + (mv.y >> 2) - 4;
@@ -331,11 +400,28 @@ int COBMC::get_pos(const sMotionVector mv, const unsigned int i,
 #define OBMC(flags)	\
 	{ \
 		if (pCurMV[i].all != MV_INTRA) { \
-			int src_pos = get_pos(pCurMV[i], i, j, im_x, im_y, stride); \
-			int pic = ((pCurMV[i].x & 3) << 2) | (pCurMV[i].y & 3); \
-			for( int c = 0; c < component; c++) \
-				obmc_block<flags>(RefFrames[pCurRef[i] + 1][pic]->pImage[c] + src_pos, \
-					dstImage.pImage[c] + dst_pos, stride, stride); \
+			if ((pCurMV[i].x | pCurMV[i].y) & 1) { \
+				sMotionVector v1 = pCurMV[i], v2 = pCurMV[i]; \
+				if (unlikely((v1.x & 3) == (v1.y & 3))) /* TODO : usefull ? */ \
+					v1.x++; \
+				else \
+					v2.x++; \
+				v2.y++; \
+				int pic1 = (v1.x & 2) | ((v1.y >> 1) & 1); \
+				int pic2 = (v2.x & 2) | ((v2.y >> 1) & 1); \
+				int src_pos1 = get_pos(v1, i, j, im_x, im_y, stride); \
+				int src_pos2 = get_pos(v2, i, j, im_x, im_y, stride); \
+				for( int c = 0; c < component; c++) \
+					obmc_block<flags>(RefFrames[pCurRef[i] + 1][pic1]->pImage[c] + src_pos1, \
+					           RefFrames[pCurRef[i] + 1][pic2]->pImage[c] + src_pos2, \
+					           dstImage.pImage[c] + dst_pos, stride, stride); \
+			} else { \
+				int src_pos = get_pos(pCurMV[i], i, j, im_x, im_y, stride); \
+				int pic = (pCurMV[i].x & 2) | ((pCurMV[i].y >> 1) & 1); \
+				for( int c = 0; c < component; c++) \
+					obmc_block<flags>(RefFrames[pCurRef[i] + 1][pic]->pImage[c] + src_pos, \
+					           dstImage.pImage[c] + dst_pos, stride, stride); \
+			} \
 		} else \
 			for( int c = 0; c < component; c++) \
 				obmc_block_intra<flags>(dstImage.pImage[c] + dst_pos, stride, 0); \
@@ -370,11 +456,28 @@ void COBMC::apply_mv(CImageBuffer & RefFrames, CImage & dstImage)
 		dst_pos += 8;
 		for( i = 1; i < dimX - 1; i++) {
 			if (pCurMV[i].all != MV_INTRA) {
-				int src_pos = get_pos(pCurMV[i], i, j, im_x, im_y, stride);
-				int pic = ((pCurMV[i].x & 3) << 2) | (pCurMV[i].y & 3);
-				for( int c = 0; c < component; c++)
-					obmc_block(RefFrames[pCurRef[i] + 1][pic]->pImage[c] + src_pos,
-					           dstImage.pImage[c] + dst_pos, stride, stride);
+				if ((pCurMV[i].x | pCurMV[i].y) & 1) {
+					sMotionVector v1 = pCurMV[i], v2 = pCurMV[i];
+					if (unlikely((v1.x & 3) == (v1.y & 3))) // TODO : usefull ?
+						v1.x++;
+					else
+						v2.x++;
+					v2.y++;
+					int pic1 = (v1.x & 2) | ((v1.y >> 1) & 1);
+					int pic2 = (v2.x & 2) | ((v2.y >> 1) & 1);
+					int src_pos1 = get_pos(v1, i, j, im_x, im_y, stride);
+					int src_pos2 = get_pos(v2, i, j, im_x, im_y, stride);
+					for( int c = 0; c < component; c++)
+						obmc_block(RefFrames[pCurRef[i] + 1][pic1]->pImage[c] + src_pos1,
+						           RefFrames[pCurRef[i] + 1][pic2]->pImage[c] + src_pos2,
+						           dstImage.pImage[c] + dst_pos, stride, stride);
+				} else {
+					int src_pos = get_pos(pCurMV[i], i, j, im_x, im_y, stride);
+					int pic = (pCurMV[i].x & 2) | ((pCurMV[i].y >> 1) & 1);
+					for( int c = 0; c < component; c++)
+						obmc_block(RefFrames[pCurRef[i] + 1][pic]->pImage[c] + src_pos,
+						           dstImage.pImage[c] + dst_pos, stride, stride);
+				}
 			} else
 				for( int c = 0; c < component; c++)
 					obmc_block_intra<0>(dstImage.pImage[c] + dst_pos, stride, get_block_mean<0>(dstImage.pImage[c] + dst_pos, stride));

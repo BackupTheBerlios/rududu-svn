@@ -112,7 +112,7 @@ int CRududuCodec::encode(unsigned char * pImage, int stride, unsigned char * pBu
 
 	if (key_count != 0) {
 		COBME * obme = (COBME *) obmc;
-		images.calc_sub(1);
+		images.interpolate(1);
 		obme->EPZS(images);
 		obme->bt<rududu::encode>(& codec);
 // 		obme->global_motion();
@@ -157,7 +157,7 @@ int CRududuCodec::decode(unsigned char * pBuffer, CImage ** outImage)
 	images.insert(0);
 
 	if (pBuffer[0] & 0x80) {
-		images.calc_sub(1);
+		images.interpolate(1);
 		obmc->bt<rududu::decode>(& codec);
 		obmc->apply_mv(images, *predImage);
 		decodeImage(images[0][0]);

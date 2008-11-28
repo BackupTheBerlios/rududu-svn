@@ -55,8 +55,7 @@ public:
 	void copy(const CImage & In);
 	void clear(void);
 
-	template <int pos> void interH(const CImage & In);
-	template <int pos> void interV(const CImage & In);
+	void const inter_half_pxl(CImage & out_h, CImage & out_v, CImage & out_hv);
 
 	void extend(void);
 
