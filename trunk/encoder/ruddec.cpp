@@ -20,6 +20,7 @@
 
 #include <fstream>
 #include <SDL/SDL.h>
+#include <unistd.h>
 
 #include "rududucodec.h"
 
@@ -86,6 +87,7 @@ int main( int argc, char *argv[] )
 
 		SDL_UnlockYUVOverlay(yuv_overlay);
 		SDL_DisplayYUVOverlay(yuv_overlay, &rect);
+// 		usleep(200*1000);
 	} while(buff_size > 0);
 
 	SDL_Quit();
