@@ -80,6 +80,16 @@ public:
 		return dist[idx];
 	}
 
+	static inline int filter_mv(sMotionVector * lst, int lst_cnt)
+	{
+		int k = 0;
+		for( int i = 0; i < lst_cnt; i++){
+			if (lst[i].all != MV_INTRA)
+				lst[k++] = lst[i];
+		}
+		return k;
+	}
+
 protected:
 	unsigned int dimX;
 	unsigned int dimY;

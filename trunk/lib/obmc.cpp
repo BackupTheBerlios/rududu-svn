@@ -602,16 +602,6 @@ void COBMC::draw_mv(CImage & dstImage)
 #define MV_CTX_CNT	4 // number of contexts to code the motion vector difference
 #define MV_CTX_SHIFT 1
 
-static inline int filter_mv(sMotionVector * lst, int lst_cnt)
-{
-	int k = 0;
-	for( int i = 0; i < lst_cnt; i++){
-		if (lst[i].all != MV_INTRA)
-			lst[k++] = lst[i];
-	}
-	return k;
-}
-
 static const char intra_conv[4][4] = {
 	{5},
 	{0, 4},
@@ -625,7 +615,7 @@ static inline void code_mv(sMotionVector mv, sMotionVector * lst, int lst_cnt,
                            CMuxCodec * codec)
 {
 	int intra_ctx = lst_cnt, mv_ctx;
-	lst_cnt = filter_mv(lst, lst_cnt);
+	lst_cnt = COBMC::filter_mv(lst, lst_cnt);
 
 	if (intra_ctx != 4)
 		intra_ctx = intra_conv[intra_ctx][intra_ctx - lst_cnt];
@@ -679,7 +669,7 @@ static inline sMotionVector decode_mv(sMotionVector * lst, int lst_cnt,
                                       CMuxCodec * codec)
 {
 	int intra_ctx = lst_cnt, mv_ctx;
-	lst_cnt = filter_mv(lst, lst_cnt);
+	lst_cnt = COBMC::filter_mv(lst, lst_cnt);
 
 	if (intra_ctx != 4)
 		intra_ctx = intra_conv[intra_ctx][intra_ctx - lst_cnt];

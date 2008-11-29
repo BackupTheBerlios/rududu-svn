@@ -255,7 +255,7 @@ static void DiamondSearch(int cur_x, int cur_y, int im_x, int im_y, int stride,
 				int src_pos;
 				CHECK_MV(MVTemp);
 				unsigned int dist = SAD<size>(pIm[1] + src_pos, pCur, stride);
-				unsigned int cost = mv_bit_estimate(MVTemp, MVPred);
+				unsigned int cost = mv_bit_estimate(MVTemp, MVPred); // FIXME : shift to quarter pxl ?
 				if (MVBest.dist + lambda * MVBest.cost > dist + lambda * cost) {
 					MVBest.MV = MVTemp;
 					MVBest.cost = cost;
@@ -270,70 +270,52 @@ static void DiamondSearch(int cur_x, int cur_y, int im_x, int im_y, int stride,
 	}while(LastMove);
 }
 
-template <int level>
-static void subpxl(int cur_x, int cur_y, int im_x, int im_y, int stride,
-                   short * pRef, short ** pSub, sFullMV & MVBest)
-{
-	const short * pCur = pRef + cur_x + cur_y * stride;
-	static const short x_mov[8] = {1,  0,-1,-1, 0, 0, 1, 1};
-	static const short y_mov[8] = {0, -1, 0, 0, 1, 1, 0, 0};
-	const unsigned int size = 8;
-
-	sFullMV MVTemp = MVBest;
-	for (int i = 0; i < 8; i++) {
-		MVTemp.MV.x += x_mov[i] << level;
-		MVTemp.MV.y += y_mov[i] << level;
-
-		int src_pos;
-		int pic = ((MVTemp.MV.x & 3) << 2) | (MVTemp.MV.y & 3);
-		sMotionVector tmp;
-		tmp.x = MVTemp.MV.x >> 2;
-		tmp.y = MVTemp.MV.y >> 2;
-		CHECK_MV(tmp);
-		MVTemp.dist = SAD<8>(pSub[pic] + src_pos, pCur, stride);
-		if (MVBest.dist > MVTemp.dist) MVBest = MVTemp;
-	}
-}
-
 static void halfpxl(int cur_x, int cur_y, int im_x, int im_y, int stride,
-                    short * pRef, short ** pSub, sFullMV & MVBest)
+                    short * pRef, short ** pSub, sFullMV & MVBest,
+                    sMotionVector pred, unsigned int lambda)
 {
 	const short * pCur = pRef + cur_x + cur_y * stride;
 	static const short x_mov[8] = {2,  0,-2,-2, 0, 0, 2, 2};
 	static const short y_mov[8] = {0, -2, 0, 0, 2, 2, 0, 0};
 	const unsigned int size = 8;
 
-	sFullMV MVTemp = MVBest;
+	sMotionVector MVTemp = MVBest.MV;
 	for (int i = 0; i < 8; i++) {
-		MVTemp.MV.x += x_mov[i];
-		MVTemp.MV.y += y_mov[i];
+		MVTemp.x += x_mov[i];
+		MVTemp.y += y_mov[i];
 
 		int src_pos;
-		int pic = (MVTemp.MV.x & 2) | ((MVTemp.MV.y & 2) >> 1);
+		int pic = (MVTemp.x & 2) | ((MVTemp.y & 2) >> 1);
 		sMotionVector tmp;
-		tmp.x = MVTemp.MV.x >> 2;
-		tmp.y = MVTemp.MV.y >> 2;
+		tmp.x = MVTemp.x >> 2;
+		tmp.y = MVTemp.y >> 2;
 		CHECK_MV(tmp);
-		MVTemp.dist = SAD<8>(pSub[pic] + src_pos, pCur, stride);
-		if (MVBest.dist > MVTemp.dist) MVBest = MVTemp;
+		unsigned int dist = SAD<8>(pSub[pic] + src_pos, pCur, stride);
+		unsigned int cost = mv_bit_estimate(MVTemp, pred);
+		if (MVBest.dist + lambda * MVBest.cost > dist + lambda * cost) {
+			MVBest.MV = MVTemp;
+			MVBest.cost = cost;
+			MVBest.dist = dist;
+		}
 	}
 }
 
 static void quarterpxl(int cur_x, int cur_y, int im_x, int im_y, int stride,
-                       short * pRef, short ** pSub, sFullMV & MVBest)
+                       short * pRef, short ** pSub, sFullMV & MVBest,
+                       sMotionVector pred, unsigned int lambda)
 {
 	const short * pCur = pRef + cur_x + cur_y * stride;
 	static const short x_mov[8] = {1,  0,-1,-1, 0, 0, 1, 1};
 	static const short y_mov[8] = {0, -1, 0, 0, 1, 1, 0, 0};
 	const unsigned int size = 8;
 
-	sFullMV MVTemp = MVBest;
+	sMotionVector MVTemp = MVBest.MV;
 	for (int i = 0; i < 8; i++) {
-		MVTemp.MV.x += x_mov[i];
-		MVTemp.MV.y += y_mov[i];
+		MVTemp.x += x_mov[i];
+		MVTemp.y += y_mov[i];
 
 		int src_pos;
-		sMotionVector tmp = MVTemp.MV, tmp2 = MVTemp.MV;
+		sMotionVector tmp = MVTemp, tmp2 = MVTemp;
 		int pic1 = (tmp.x & 2) | ((tmp.y & 2) >> 1);
 		int pic2 = ((tmp.x + 1) & 2) | (((tmp.y + 1) & 2) >> 1);
 		if ((pic1 ^ pic2) == 3 && (pic1 & 1) == (pic1 >> 1)) {
@@ -355,8 +337,13 @@ static void quarterpxl(int cur_x, int cur_y, int im_x, int im_y, int stride,
 		tmp2.x >>= 2;
 		tmp2.y >>= 2;
 		CHECK_MV(tmp2);
-		MVTemp.dist = SAD<8>(src1, pSub[pic2] + src_pos, pCur, stride);
-		if (MVBest.dist > MVTemp.dist) MVBest = MVTemp;
+		unsigned int dist = SAD<8>(src1, pSub[pic2] + src_pos, pCur, stride);
+		unsigned int cost = mv_bit_estimate(MVTemp, pred);
+		if (MVBest.dist + lambda * MVBest.cost > dist + lambda * cost) {
+			MVBest.MV = MVTemp;
+			MVBest.cost = cost;
+			MVBest.dist = dist;
+		}
 	}
 }
 
@@ -507,11 +494,27 @@ void COBME::EPZS(CImageBuffer & Images)
 	for( unsigned int j = 0; j < dimY; j++){
 		for( unsigned int i = 0; i < dimX; i++){
 			if (pCurDist[i] < THRES_D) {
+				sMotionVector lst[4] = {{0}};
 				sFullMV MVBest = {pCurMV[i], pCurRef[i], 0, pCurDist[i]};
+				unsigned int n = 0, lambda = 0;
+				if (i > 0)
+					lst[n++] = pCurMV[i - 1];
+				if (j >= 1) {
+					lst[n++] = pCurMV[i - dimX];
+					if (i < dimX - 1)
+						lst[n++] = pCurMV[i - dimX + 1];
+					if (i > 0)
+						lst[n++] = pCurMV[i - dimX - 1];
+				}
+				n = filter_mv(lst, n);
+				if (n > 0)
+					median_mv(lst, n);
+				else
+					lambda = 0;
 				MVBest.MV.x <<= 2;
 				MVBest.MV.y <<= 2;
-				halfpxl(8 * i, 8 * j, im_x, im_y, stride, pIm[0], pSub, MVBest);
-				quarterpxl(8 * i, 8 * j, im_x, im_y, stride, pIm[0], pSub, MVBest);
+				halfpxl(8 * i, 8 * j, im_x, im_y, stride, pIm[0], pSub, MVBest, lst[0], lambda);
+				quarterpxl(8 * i, 8 * j, im_x, im_y, stride, pIm[0], pSub, MVBest, lst[0], lambda);
 				pCurMV[i] = MVBest.MV;
 				pCurDist[i] = MVBest.dist;
 			} else
