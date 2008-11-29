@@ -86,8 +86,8 @@ int main ( int argc, char *argv[] )
 
 			if ( frameFinished ) {
 				// encode it !
-				int size_enc = encoder.encode(pFrame->data[0], pFrame->linesize[0], pStream, 0);
-				cerr << size_enc << endl;
+				CImage * dummy;
+				int size_enc = encoder.encode(pFrame->data[0], pFrame->linesize[0], pStream, &dummy);
 				outfile.write((char *)pStream, size_enc);
 			}
 		}

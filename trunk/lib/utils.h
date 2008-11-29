@@ -63,6 +63,17 @@ typedef enum trans {cdf97 = 0, cdf53 = 1, haar = 2};
 # define flatten
 #endif
 
+#ifdef __MMX__
+	typedef union mmx_t {
+		short v __attribute__ ((vector_size (8)));
+		unsigned char b[8];
+		short w[4];
+		int sd[2];
+		unsigned int ud[2];
+		unsigned long long q;
+	};
+#endif
+
 
 template <class a>
 a inline min(const a nb1, const a nb2) {

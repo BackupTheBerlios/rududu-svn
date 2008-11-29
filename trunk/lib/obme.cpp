@@ -72,7 +72,7 @@ static unsigned int SAD(const short * pSrc1, const short * pSrc2,
 
 #ifdef __MMX__
 
-typedef unsigned short v4hi __attribute__ ((vector_size (8)));
+typedef short v4hi __attribute__ ((vector_size (8)));
 union vect4us {
 	v4hi v;
 	unsigned short s[4];

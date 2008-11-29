@@ -119,7 +119,7 @@ int CRududuCodec::encode(unsigned char * pImage, int stride, unsigned char * pBu
 // 		char f_name[32];
 // 		sprintf(f_name, "/home/nico/f_%03i.ppm", f_cnt);
 // 		obme->toppm(f_name);
-// 		cerr << codec.getSize() << endl;
+ 		cerr << codec.getSize() << "\t";
 		obme->apply_mv(images, *predImage);
 		*images[0][0] -= *predImage;
 		encodeImage(images[0][0]);
@@ -128,7 +128,9 @@ int CRududuCodec::encode(unsigned char * pImage, int stride, unsigned char * pBu
 		pBuffer[0] |= 0x80;
 	} else {
 		encodeImage(images[0][0]);
+		cerr << 0 << "\t";
 	}
+	images.remove(1);
 
 	f_cnt++;
 
@@ -138,12 +140,17 @@ int CRududuCodec::encode(unsigned char * pImage, int stride, unsigned char * pBu
 // 	if (key_count == 10)
 // 		key_count = 0;
 
-	if (outImage != 0)
-		*outImage = images[0][0];
-// 	*outImage = predImage;
-	images.remove(1);
+	int ret = codec.endCoding() - pBuffer;
+	cerr << ret;
 
-	return codec.endCoding() - pBuffer;
+	if (outImage != 0) {
+		*outImage = images[0][0];
+		float psnr = (*outImage)->psnr(pImage, stride, 0);
+		cerr << "\t" << psnr;
+	}
+	cerr << endl;
+
+	return ret;
 }
 
 int CRududuCodec::decode(unsigned char * pBuffer, CImage ** outImage)

@@ -281,23 +281,69 @@ CImage & CImage::operator+= (const CImage & In)
 	return *this;
 }
 
-void CImage::psnr(const CImage & In, float * ret)
+#ifdef __MMX__
+
+float CImage::psnr(const CImage & In, int c)
 {
-	for (int c = 0; c < component; c++) {
-		short * out = pImage[c];
-		short * in = In.pImage[c];
-		long long sum = 0;
-		for (unsigned int j = 0; j < dimY; j++) {
-			for (unsigned int i = 0; i < dimX; i++) {
-				int tmp = in[i] - out[i];
-				tmp *= tmp;
-				sum += tmp;
-			}
-			out += dimXAlign;
-			in += In.dimXAlign;
+	short * out = pImage[c];
+	short * in = In.pImage[c];
+	long long sum = 0;
+	mmx_t zero;
+	zero.v = __builtin_ia32_pxor(zero.v, zero.v);
+	for (unsigned int j = 0; j < dimY; j++) {
+		mmx_t *v1 = (mmx_t*) in, *v2 = (mmx_t*) out;
+		for (unsigned int i = 0; i < (dimX >> 2); i++) {
+			mmx_t tmp, r;
+			tmp.v = __builtin_ia32_psubsw(v1[i].v, v2[i].v);
+			tmp.v = __builtin_ia32_pmaddwd(tmp.v, tmp.v);
+			r.q = __builtin_ia32_psrlq(tmp.q, 32);
+			tmp.v = __builtin_ia32_paddd(tmp.v, r.v);
+			sum += tmp.ud[1];
 		}
-		ret[c] = (float)(10. * (log(1 << (12 * 2)) - log((double)sum / (dimX * dimY))) / log(10.));
+		out += dimXAlign;
+		in += In.dimXAlign;
 	}
+	return (float)(10. * (log(1 << (12 * 2)) - log((double)sum / (dimX * dimY))) / log(10.));
+}
+
+#else
+
+float CImage::psnr(const CImage & In, int c)
+{
+
+	short * out = pImage[c];
+	short * in = In.pImage[c];
+	long long sum = 0;
+	for (unsigned int j = 0; j < dimY; j++) {
+		for (unsigned int i = 0; i < dimX; i++) {
+			int tmp = in[i] - out[i];
+			tmp *= tmp;
+			sum += tmp;
+		}
+		out += dimXAlign;
+		in += In.dimXAlign;
+	}
+	return (float)(10. * (log(1 << (12 * 2)) - log((double)sum / (dimX * dimY))) / log(10.));
+}
+
+#endif
+
+float CImage::psnr(const unsigned char * in, int stride, int c)
+{
+
+	short * out = pImage[c];
+	long long sum = 0;
+	for (unsigned int j = 0; j < dimY; j++) {
+		for (unsigned int i = 0; i < dimX; i++) {
+			int tmp = ((in[i] << 4) | (in[i] >> 4)) - 2048;
+			tmp -= out[i];
+			tmp *= tmp;
+			sum += tmp;
+		}
+		out += dimXAlign;
+		in += stride;
+	}
+	return (float)(10. * (log(1 << (12 * 2)) - log((double)sum / (dimX * dimY))) / log(10.));
 }
 
 void CImage::copy(const CImage & In)

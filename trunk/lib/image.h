@@ -51,7 +51,8 @@ public:
 
 	CImage & operator-= (const CImage & In);
 	CImage & operator+= (const CImage & In);
-	void psnr(const CImage & In, float * ret);
+	float psnr(const CImage & In, int c);
+	float psnr(const unsigned char * in, int stride, int c);
 	void copy(const CImage & In);
 	void clear(void);
 
