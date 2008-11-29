@@ -13,26 +13,26 @@
     <ignoreparts>
       <part>kdevfileview</part>
       <part>kdevdocumentation</part>
-      <part>kdevscripting</part>
-      <part>kdevbookmarks</part>
-      <part>kdevfilegroups</part>
       <part>kdevfilelist</part>
       <part>kdevsnippet</part>
+      <part>kdevfilegroups</part>
       <part>kdevquickopen</part>
+      <part>kdevscripting</part>
       <part>kdevfileselector</part>
+      <part>kdevbookmarks</part>
       <part>kdevtexttools</part>
     </ignoreparts>
     <projectdirectory>.</projectdirectory>
     <absoluteprojectpath>false</absoluteprojectpath>
-    <description/>
+    <description></description>
     <projectname>rududu</projectname>
-    <defaultencoding/>
-    <versioncontrol/>
+    <defaultencoding></defaultencoding>
+    <versioncontrol></versioncontrol>
   </general>
   <kdevautoproject>
     <general>
       <activetarget>encoder/rudenc</activetarget>
-      <useconfiguration>optimized</useconfiguration>
+      <useconfiguration>profiling</useconfiguration>
     </general>
     <run>
       <mainprogram>/home/nico/src/rududu/debug</mainprogram>
@@ -44,11 +44,11 @@
         <testmotion>&lt; /home/nico/films/video_test/ParkJoy.rgb 2> /home/nico/testmotion</testmotion>
         <sgi2rgb>/home/nico/films/video_test/CrowdRun/0711*.sgi > /home/nico/films/video_test/test.rgb</sgi2rgb>
         <huffgen/>
-        <rudenc>/home/nico/films/video_test/sunflower_536.avi /home/nico/test.rdd</rudenc>
-        <ruddec>/home/nico/test.rdd</ruddec>
+        <rudenc>/home/nico/films/video_test/sunflower_528.avi /home/nico/test.rdd 2> /home/nico/enc_size.dat > /home/nico/enc.txt</rudenc>
+        <ruddec>/home/nico/test.rdd > /home/nico/dec.txt 2> /home/nico/dec_size.dat</ruddec>
       </runarguments>
       <customdirectory>/</customdirectory>
-      <programargs/>
+      <programargs></programargs>
       <autocompile>true</autocompile>
       <envvars/>
       <debugarguments>
@@ -56,18 +56,18 @@
         <sgi2rgb>/home/nico/films/video_test/CrowdRun/0711*.sgi > /home/nico/films/video_test/test.rgb</sgi2rgb>
         <ric>-i &quot;/home/nico/Documents/Images/Images test/lena_ext.pgm&quot; -o &quot;/home/nico/Documents/Images/Images test/lena_ext.ric&quot;</ric>
         <huffgen>&lt; &quot;/home/nico/Documents/Images/Images test/huff_in&quot;</huffgen>
-        <rudenc>/home/nico/films/video_test/sunflower_536.avi /home/nico/test.rdd</rudenc>
-        <ruddec>/home/nico/test.rdd</ruddec>
+        <rudenc>/home/nico/films/video_test/sunflower_528.avi /home/nico/test.rdd 2> /home/nico/enc_size.dat</rudenc>
+        <ruddec>/home/nico/test.rdd 2> /home/nico/dec_size.dat</ruddec>
       </debugarguments>
       <cwd>
         <testmotion>/home/nico/src/rududu/debug/./utils</testmotion>
         <sgi2rgb>/home/nico/src/rududu/debug/./utils</sgi2rgb>
         <ric>/home/nico/src/rududu/debug/./ric</ric>
         <huffgen>/home/nico/src/rududu/optimized/./utils</huffgen>
-        <rudenc>/home/nico/src/rududu/debug/./encoder</rudenc>
-        <ruddec>/home/nico/src/rududu/optimized/./encoder</ruddec>
+        <rudenc>/home/nico/</rudenc>
+        <ruddec>/home/nico/</ruddec>
       </cwd>
-      <globaldebugarguments/>
+      <globaldebugarguments></globaldebugarguments>
       <globalcwd>/home/nico/src/rududu/debug</globalcwd>
       <useglobalprogram>false</useglobalprogram>
       <autoinstall>false</autoinstall>
@@ -79,17 +79,17 @@
         <ccompiler>kdevgccoptions</ccompiler>
         <cxxcompiler>kdevgppoptions</cxxcompiler>
         <f77compiler>kdevg77options</f77compiler>
-        <cxxflags>-O3 -g0 -fomit-frame-pointer -Wall -funroll-loops -ftree-vectorize -msse -m3dnow -march=athlon-xp -ftree-vectorizer-verbose=0</cxxflags>
+        <cxxflags>-O3 -g0 -Wall -fomit-frame-pointer -funroll-loops -msse -m3dnow -march=athlon-xp -ftree-vectorizer-verbose=0</cxxflags>
         <envvars/>
-        <configargs/>
-        <topsourcedir/>
-        <cppflags/>
-        <ldflags/>
-        <ccompilerbinary/>
-        <cxxcompilerbinary/>
-        <f77compilerbinary/>
-        <cflags/>
-        <f77flags/>
+        <configargs></configargs>
+        <topsourcedir></topsourcedir>
+        <cppflags></cppflags>
+        <ldflags></ldflags>
+        <ccompilerbinary></ccompilerbinary>
+        <cxxcompilerbinary></cxxcompilerbinary>
+        <f77compilerbinary></f77compilerbinary>
+        <cflags></cflags>
+        <f77flags></f77flags>
       </optimized>
       <debug>
         <configargs>--enable-debug=full</configargs>
@@ -125,6 +125,23 @@
         <cxxflags>-O1 -g0 -Wall</cxxflags>
         <f77flags/>
       </mingw>
+      <profiling>
+        <envvars/>
+        <configargs></configargs>
+        <builddir>profiling</builddir>
+        <topsourcedir></topsourcedir>
+        <cppflags></cppflags>
+        <ldflags></ldflags>
+        <ccompiler>kdevgccoptions</ccompiler>
+        <cxxcompiler>kdevgppoptions</cxxcompiler>
+        <f77compiler>kdevg77options</f77compiler>
+        <ccompilerbinary></ccompilerbinary>
+        <cxxcompilerbinary></cxxcompilerbinary>
+        <f77compilerbinary></f77compilerbinary>
+        <cflags></cflags>
+        <cxxflags>-O3 -g2 -pg -Wall -funroll-loops -msse -m3dnow -march=athlon-xp -ftree-vectorizer-verbose=0</cxxflags>
+        <f77flags></f77flags>
+      </profiling>
     </configurations>
     <make>
       <envvars>
@@ -132,10 +149,10 @@
         <envvar value="1" name="WANT_AUTOMAKE_1_6" />
       </envvars>
       <abortonerror>true</abortonerror>
-      <runmultiplejobs>false</runmultiplejobs>
-      <numberofjobs>1</numberofjobs>
+      <runmultiplejobs>true</runmultiplejobs>
+      <numberofjobs>2</numberofjobs>
       <dontact>false</dontact>
-      <makebin/>
+      <makebin></makebin>
       <prio>0</prio>
     </make>
   </kdevautoproject>
@@ -255,7 +272,7 @@
       <resolveIncludePathsUsingMakeExperimental>false</resolveIncludePathsUsingMakeExperimental>
     </codecompletion>
     <creategettersetter>
-      <prefixGet/>
+      <prefixGet></prefixGet>
       <prefixSet>set</prefixSet>
       <prefixVariable>m_,_</prefixVariable>
       <parameterName>theValue</parameterName>
@@ -287,11 +304,11 @@
   <kdevdebugger>
     <general>
       <programargs>-i &quot;/home/nico/Documents/Images/Images test/lena.pgm&quot;</programargs>
-      <gdbpath/>
+      <gdbpath></gdbpath>
       <dbgshell>libtool</dbgshell>
-      <configGdbScript/>
-      <runShellScript/>
-      <runGdbScript/>
+      <configGdbScript></configGdbScript>
+      <runShellScript></runShellScript>
+      <runGdbScript></runGdbScript>
       <breakonloadinglibs>true</breakonloadinglibs>
       <separatetty>false</separatetty>
       <floatingtoolbar>false</floatingtoolbar>
@@ -304,7 +321,7 @@
     </display>
   </kdevdebugger>
   <ctagspart>
-    <customArguments/>
+    <customArguments></customArguments>
     <customTagfilePath>/home/nico/src/rududu/tags</customTagfilePath>
     <activeTagsFiles/>
   </ctagspart>
