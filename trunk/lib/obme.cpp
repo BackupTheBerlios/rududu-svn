@@ -201,27 +201,27 @@ static unsigned int SAD<16>(const short * pSrc1, const short * pSrc2,
 
 #endif
 
-#define CHECK_MV(mv)	\
+#define BEST_MV(mv_result, mv_test, mv_pred, action)	\
 {	\
-	int x = cur_x + (mv.x >> 2);	\
-	int y = cur_y + (mv.y >> 2);	\
-	if (x < 1 - (int)size) x = 1 - (int)size;	\
-	if (x >= im_x) x = im_x - 1;	\
-	if (y < 1 - (int)size) y = 1 - (int)size;	\
-	if (y >= im_y) y = im_y - 1;	\
-	src_pos = x + y * stride; \
-}
-
-#define BEST_MV(mv_result, mv_test, mv_pred)	\
-{	\
-	int src_pos;	\
-	CHECK_MV(mv_test);	\
-	unsigned int dist = SAD<size>(pIm[1] + src_pos, pCur, stride);	\
-	unsigned int cost = mv_bit_estimate(mv_test, mv_pred); \
+	sMotionVector v1 = mv_test, v2 = mv_test; \
+	int yx = (v1.x & 3) | ((v1.y & 3) << 2); \
+	int pic1 = COBMC::qpxl_lut[yx].pic1; \
+	int pic2 = COBMC::qpxl_lut[yx].pic2; \
+	v1.x++; v2.y++; \
+	int src_pos1 = COBMC::get_pos<size, 0>(v1, cur_x, cur_y, im_x, im_y, stride);	\
+	uint dist; \
+	if (pic2 == -1) { \
+		dist = SAD<size>(pSub[pic1] + src_pos1, pCur, stride);	\
+	} else { \
+		int src_pos2 = COBMC::get_pos<size, 0>(v2, cur_x, cur_y, im_x, im_y, stride);	\
+		dist = SAD<size>(pSub[pic1] + src_pos1, pSub[pic2] + src_pos2, pCur, stride);	\
+	} \
+	uint cost = mv_bit_estimate(mv_test, mv_pred); \
 	if (mv_result.dist + lambda * mv_result.cost > dist + lambda * cost) {	\
 		mv_result.MV = mv_test;	\
 		mv_result.cost = cost; \
 		mv_result.dist = dist; \
+		action; \
 	} \
 }
 
@@ -236,111 +236,48 @@ static int mv_bit_estimate(sMotionVector mv, sMotionVector pred)
 
 template <unsigned int size>
 static void DiamondSearch(int cur_x, int cur_y, int im_x, int im_y, int stride,
-                          short ** pIm, sFullMV & MVBest, sMotionVector MVPred,
-                          unsigned int lambda)
+                          short * pRef, short ** pSub, sFullMV & MVBest,
+                          sMotionVector MVPred, uint lambda)
 {
-	unsigned int LastMove = 0, Last2Moves = 0, CurrentMove = 0;
-	const short * pCur = pIm[0] + cur_x + cur_y * stride;
-	static const short x_mov[4] = {0, 0, -4, 8};
-	static const short y_mov[4] = {-4, 8, -4, 0};
+	const short * pCur = pRef + cur_x + cur_y * stride;
+	static const short x_mov[4] = {0, 0, -1, 2};
+	static const short y_mov[4] = {-1, 2, -1, 0};
 	static const unsigned int tst[4] = {DOWN, UP, RIGHT, LEFT};
 	static const unsigned int step[4] = {UP, DOWN, LEFT, RIGHT};
+	static const short x_mov_diag[4] = {0, -2, 0, 2};
+	static const short y_mov_diag[4] = {-1, 0, 2, 0};
+	static const unsigned int step_diag[4] = {UP|RIGHT, UP|LEFT, DOWN|LEFT, DOWN|RIGHT};
+	int shift = 3;
+	sMotionVector MVTemp;
 
-	do {
-		sMotionVector MVTemp = MVBest.MV;
-		for (int i = 0; i < 4; i++) {
-			MVTemp.x += x_mov[i];
-			MVTemp.y += y_mov[i];
-			if (!(Last2Moves & tst[i])){
-				int src_pos;
-				CHECK_MV(MVTemp);
-				unsigned int dist = SAD<size>(pIm[1] + src_pos, pCur, stride);
-				unsigned int cost = mv_bit_estimate(MVTemp, MVPred);
-				if (MVBest.dist + lambda * MVBest.cost > dist + lambda * cost) {
-					MVBest.MV = MVTemp;
-					MVBest.cost = cost;
-					MVBest.dist = dist;
-					CurrentMove = step[i];
+	MVTemp.x = (MVBest.MV.x + 2) & (~3);
+	MVTemp.y = (MVBest.MV.y + 2) & (~3);
+
+	for (; shift >= 0; shift--){
+		uint LastMove = 0, Last2Moves = 0, CurrentMove = 0;
+		do {
+			for (int i = 0; i < 4; i++) {
+				MVTemp.x += x_mov[i] << shift;
+				MVTemp.y += y_mov[i] << shift;
+				if (!(Last2Moves & tst[i]))
+					BEST_MV(MVBest, MVTemp, MVPred, CurrentMove = step[i]);
+			}
+			if (CurrentMove == 0) {
+				for (int i = 0; i < 4; i++) {
+					MVTemp.x += x_mov_diag[i] << shift;
+					MVTemp.y += y_mov_diag[i] << shift;
+					BEST_MV(MVBest, MVTemp, MVPred, CurrentMove = LastMove = step_diag[i]);
 				}
 			}
-		}
-		Last2Moves = CurrentMove | LastMove;
-		LastMove = CurrentMove;
-		CurrentMove = 0;
-	}while(LastMove);
-}
-
-template <unsigned int size>
-static void halfpxl(int cur_x, int cur_y, int im_x, int im_y, int stride,
-                    short * pRef, short ** pSub, sFullMV & MVBest,
-                    sMotionVector pred, unsigned int lambda)
-{
-	const short * pCur = pRef + cur_x + cur_y * stride;
-	static const short x_mov[8] = {2,  0,-2,-2, 0, 0, 2, 2};
-	static const short y_mov[8] = {0, -2, 0, 0, 2, 2, 0, 0};
-
-	sMotionVector MVTemp = MVBest.MV;
-	for (int i = 0; i < 8; i++) {
-		MVTemp.x += x_mov[i];
-		MVTemp.y += y_mov[i];
-
-		int src_pos;
-		int pic = (MVTemp.x & 2) | ((MVTemp.y & 2) >> 1);
-		CHECK_MV(MVTemp);
-		unsigned int dist = SAD<size>(pSub[pic] + src_pos, pCur, stride);
-		unsigned int cost = mv_bit_estimate(MVTemp, pred);
-		if (MVBest.dist + lambda * MVBest.cost > dist + lambda * cost) {
-			MVBest.MV = MVTemp;
-			MVBest.cost = cost;
-			MVBest.dist = dist;
-		}
+			Last2Moves = CurrentMove | LastMove;
+			LastMove = CurrentMove;
+			CurrentMove = 0;
+			MVTemp = MVBest.MV;
+		}while(LastMove);
 	}
 }
 
-template <unsigned int size>
-static void quarterpxl(int cur_x, int cur_y, int im_x, int im_y, int stride,
-                       short * pRef, short ** pSub, sFullMV & MVBest,
-                       sMotionVector pred, unsigned int lambda)
-{
-	const short * pCur = pRef + cur_x + cur_y * stride;
-	static const short x_mov[8] = {1,  0,-1,-1, 0, 0, 1, 1};
-	static const short y_mov[8] = {0, -1, 0, 0, 1, 1, 0, 0};
-
-	sMotionVector MVTemp = MVBest.MV;
-	for (int i = 0; i < 8; i++) {
-		MVTemp.x += x_mov[i];
-		MVTemp.y += y_mov[i];
-
-		int src_pos;
-		sMotionVector tmp = MVTemp, tmp2 = MVTemp;
-		int pic1 = (tmp.x & 2) | ((tmp.y & 2) >> 1);
-		int pic2 = ((tmp.x + 1) & 2) | (((tmp.y + 1) & 2) >> 1);
-		if ((pic1 ^ pic2) == 3 && (pic1 & 1) == (pic1 >> 1)) {
-			// TODO : check if it's really usefull
-			if (pic1 == 3) {
-				tmp.x += 1;
-				tmp2.y += 1;
-			}
-			pic1 = 1;
-			pic2 = 2;
-		} else {
-			tmp2.x += 1;
-			tmp2.y += 1;
-		}
-		CHECK_MV(tmp);
-		short * src1 = pSub[pic1] + src_pos;
-		CHECK_MV(tmp2);
-		unsigned int dist = SAD<size>(src1, pSub[pic2] + src_pos, pCur, stride);
-		unsigned int cost = mv_bit_estimate(MVTemp, pred);
-		if (MVBest.dist + lambda * MVBest.cost > dist + lambda * cost) {
-			MVBest.MV = MVTemp;
-			MVBest.cost = cost;
-			MVBest.dist = dist;
-		}
-	}
-}
-
-#define THRES_A	1024
+#define THRES_A	0
 #define THRES_B (thres + (thres >> 2))
 #define THRES_C (thres + (thres >> 2))
 #define THRES_D 65535
@@ -362,10 +299,10 @@ static void quarterpxl(int cur_x, int cur_y, int im_x, int im_y, int stride,
  */
 template <unsigned int size>
 static sFullMV EPZS(int cur_x, int cur_y, int im_x, int im_y, int stride,
-                    short ** pIm, sMotionVector * lst, int setB, int setC,
-                    int thres, unsigned int lambda)
+                    short * pRef, short ** pSub, sMotionVector * lst, int setB,
+                    int setC, int thres, uint lambda)
 {
-	const short * pCur = pIm[0] + cur_x + cur_y * stride;
+	const short * pCur = pRef + cur_x + cur_y * stride;
 	// test predictors
 	sFullMV MVBest;
 	sMotionVector MVPred = MVBest.MV = lst[0];
@@ -373,29 +310,36 @@ static sFullMV EPZS(int cur_x, int cur_y, int im_x, int im_y, int stride,
 	MVBest.cost = 255;
 	if (MVBest.MV.all == MV_INTRA)
 		MVBest.MV.all = 0;
-	BEST_MV(MVBest, MVBest.MV, MVPred);
+	BEST_MV(MVBest, lst[0], MVPred,);
 	if (MVBest.dist < ((THRES_A * size * size) >> 6))
 		return MVBest;
 
 	for( int i = 1; i <= setB; i++){
 		if (lst[i].all != MV_INTRA)
-			BEST_MV(MVBest, lst[i], MVPred);
+			BEST_MV(MVBest, lst[i], MVPred,);
 	}
 	if (MVBest.dist < ((THRES_B * size * size) >> 6))
 		return MVBest;
 
 	for( int i = setB + 1; i <= setB + setC; i++){
 		if (lst[i].all != MV_INTRA)
-			BEST_MV(MVBest, lst[i], MVPred);
+			BEST_MV(MVBest, lst[i], MVPred,);
 	}
 	if (MVBest.dist < ((THRES_C * size * size) >> 6))
 		return MVBest;
 
-	DiamondSearch<size>(cur_x, cur_y, im_x, im_y, stride, pIm, MVBest, MVPred, lambda);
+	DiamondSearch<size>(cur_x, cur_y, im_x, im_y, stride, pRef, pSub, MVBest, MVPred, lambda);
 	return MVBest;
 }
 
 #define MAX_PREDS	16
+#define BMC_STEP 2
+#define APPLY_EPZS(mv, dst) \
+	COBMC::median_mv(lst, n); \
+	lst[n++] = mv; \
+	sFullMV MVBest = rududu::EPZS<8>(8 * i, 8 * j, im_x, im_y, stride, pIm, pSub, lst, n - 1, 0, 0, lambda); \
+	mv = MVBest.MV; \
+	dst = MVBest.dist;
 
 void COBME::EPZS(CImageBuffer & Images)
 {
@@ -405,20 +349,17 @@ void COBME::EPZS(CImageBuffer & Images)
 	unsigned short * pCurDist = pDist;
 	int im_x = Images[0][0]->dimX, im_y = Images[0][0]->dimY,
 		stride = Images[0][0]->dimXAlign;
-	short * pIm[2] = {Images[0][0]->pImage[0], Images[1][0]->pImage[0]};
+	short * pIm = Images[0][0]->pImage[0];
 	short * pSub[SUB_IMAGE_CNT];
 	for (int i = 0; i < SUB_IMAGE_CNT; i++)
 		pSub[i] = Images[1][i]->pImage[0];
 
-
-#define BMC_STEP 1
-
 	for( unsigned int j = 0; j < dimY; j += BMC_STEP){
 		for( unsigned int i = 0; i < dimX; i += BMC_STEP){
-			int n = 1, lambda = 12;
+			int n = 1, lambda = 0;
 			lst[0].all = 0;
 			if (i > 0)
-				lst[n++] = pCurMV[i - 1];
+				lst[n++] = lst[0] = pCurMV[i - 1];
 			if (j > 0) {
 				lst[n++] = pCurMV[i - dimX];
 				if (i != 0) {
@@ -427,18 +368,15 @@ void COBME::EPZS(CImageBuffer & Images)
 						s = -1;
 					lst[n++] = pCurMV[i - dimX + s];
 					lst[0] = median_mv(lst[1], lst[2], lst[3]);
-				}
+				} else
+					lst[0] = lst[--n];
 			}
 
 			if (n == 1) lambda = 0;
-			if (n == 4) lst[n++].all = 0;
+			else lst[n++].all = 0;
 			lst[n++] = pCurMV[i];
 
-			sFullMV MVBest = rududu::EPZS<8 * BMC_STEP>(8 * i, 8 * j, im_x, im_y, stride, pIm, lst, n - 2, 1, 0, lambda);
-			MVBest.MV.x &= ~3;
-			MVBest.MV.y &= ~3;
-			halfpxl<8 * BMC_STEP>(8 * i, 8 * j, im_x, im_y, stride, pIm[0], pSub, MVBest, lst[0], lambda);
-			quarterpxl<8 * BMC_STEP>(8 * i, 8 * j, im_x, im_y, stride, pIm[0], pSub, MVBest, lst[0], lambda);
+			sFullMV MVBest = rududu::EPZS<8 * BMC_STEP>(8 * i, 8 * j, im_x, im_y, stride, pIm, pSub, lst, n - 2, 1, 0, lambda);
 
 #if BMC_STEP == 1
 			pCurMV[i] = MVBest.MV;
@@ -447,12 +385,76 @@ void COBME::EPZS(CImageBuffer & Images)
 #else
 			pCurMV[i] = pCurMV[i + 1] = pCurMV[i + dimX] = pCurMV[i + dimX + 1] = MVBest.MV;
 			pCurRef[i] = pCurRef[i + 1] = pCurRef[i + dimX] = pCurRef[i + dimX + 1] = 0;
-			pCurDist[i] = pCurDist[i + 1] = pCurDist[i + dimX] = pCurDist[i + dimX + 1] = MVBest.dist;
+			pCurDist[i] = pCurDist[i + 1] = pCurDist[i + dimX] = pCurDist[i + dimX + 1] = MVBest.dist >> 2;
 #endif
 		}
 		pCurMV += dimX * BMC_STEP;
 		pCurRef += dimX * BMC_STEP;
 		pCurDist += dimX * BMC_STEP;
+	}
+
+	uint step = 8, lambda_max = 256, lambda;
+	uint line_step = step * dimX;
+	pCurMV = pMV + line_step - dimX;
+	pCurDist = pDist + line_step - dimX;
+
+	lambda = lambda_max / (step * step * 2);
+	for( uint j = step - 1; j < dimY; j += step) {
+		for( uint i = 0; i < dimX; i += step) {
+			int n = 0;
+			if (i > 0)
+				lst[n++] = pCurMV[i - step];
+			if (j >= step) {
+				lst[n++] = pCurMV[i - line_step];
+				if (i < dimX - step)
+					lst[n++] = pCurMV[i - line_step + step];
+				if (i > 0)
+					lst[n++] = pCurMV[i - line_step - step];
+			}
+			APPLY_EPZS(pCurMV[i], pCurDist[i]);
+		}
+		pCurMV += line_step;
+		pCurDist += line_step;
+	}
+
+	for( ; step >= 2; step >>= 1){
+		lambda = lambda_max / (step * step);
+		uint step_2 = step >> 1;
+		for( uint j = step_2 - 1; j < dimY; j += step){
+			for( uint i = step_2; i < dimX; i += step){
+				int n = 0;
+				if (j >= step_2) {
+					if (i >= step_2)
+						lst[n++] = pMV[(j - step_2) * dimX + i - step_2];
+					if (i + step_2 < dimX)
+						lst[n++] = pMV[(j - step_2) * dimX + i + step_2];
+				}
+				if (j + step_2 < dimY) {
+					if (i >= step_2)
+						lst[n++] = pMV[(j + step_2) * dimX + i - step_2];
+					if (i + step_2 < dimX)
+						lst[n++] = pMV[(j + step_2) * dimX + i + step_2];
+				}
+				APPLY_EPZS(pMV[j * dimX + i], pDist[j * dimX + i]);
+			}
+		}
+		lambda = lambda_max * 2 / (step * step);
+		uint istart = 0;
+		for( uint j = step_2 - 1; j < dimY; j += step_2){
+			for( uint i = istart; i < dimX; i += step){
+				int n = 0;
+				if (i >= step_2)
+					lst[n++] = pMV[j * dimX + i - step_2];
+				if (i + step_2 < dimX)
+					lst[n++] = pMV[j * dimX + i + step_2];
+				if (j >= step_2)
+					lst[n++] = pMV[(j - step_2) * dimX + i];
+				if (j + step_2 < dimX)
+					lst[n++] = pMV[(j + step_2) * dimX + i];
+				APPLY_EPZS(pMV[j * dimX + i], pDist[j * dimX + i]);
+			}
+			istart = step_2 - istart;
+		}
 	}
 
 	pCurMV = pMV;

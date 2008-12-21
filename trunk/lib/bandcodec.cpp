@@ -535,6 +535,8 @@ template <cmode mode, bool high_band, class C, class P>
 			if ((mode == encode && treeCodec.code(pCur1[i] == INSIGNIF_BLOCK, ctx)) || (mode == decode && treeCodec.decode(ctx))) {
 				pCur1[i] = pCur1[i + (BLK_SIZE >> 1)] = pCur2[i] = pCur2[i + (BLK_SIZE >> 1)] = -(pChild != 0) & INSIGNIF_BLOCK;
 			} else {
+				// TODO : try a k estimate using tarp filter
+				// also is merging tree leaf efficient here ?
 				int idx = (k_mean[ctx] + (1 << (K_SHIFT - 1))) >> K_SHIFT;
 				unsigned int k = block_enum<mode, high_band>(&pCur1[i], DimXAlign, pCodec, geoCodec, idx);
 				k_mean[ctx] += (k << K_SPEED) - (k_mean[ctx] >> K_DECAY);

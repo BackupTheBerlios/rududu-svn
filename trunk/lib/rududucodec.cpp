@@ -25,6 +25,9 @@
 #define BUFFER_SIZE (SUB_IMAGE_CNT + 1)
 // #define DRAW_MV
 
+#include <fstream>
+using namespace std;
+
 namespace rududu {
 
 CRududuCodec::CRududuCodec(cmode mode, int width, int height, int component):
@@ -121,7 +124,20 @@ int CRududuCodec::encode(unsigned char * pImage, int stride, unsigned char * pBu
 // 		obme->toppm(f_name);
  		cerr << codec.getSize() << "\t";
 		obme->apply_mv(images, *predImage);
+
+// 		char f_name[256];
+// 		sprintf(f_name, "/home/nico/im%04i.pgm", f_cnt);
+// 		ofstream outfile(f_name, ios_base::out | ios_base::binary | ios_base::trunc);
+// 		images[0][0]->write_pgm(outfile);
+// 		outfile.close();
+
 		*images[0][0] -= *predImage;
+
+// 		sprintf(f_name, "/home/nico/diff%04i.pgm", f_cnt);
+// 		outfile.open(f_name, ios_base::out | ios_base::binary | ios_base::trunc);
+// 		images[0][0]->write_pgm(outfile);
+// 		outfile.close();
+
 		encodeImage(images[0][0]);
 		*images[0][0] += *predImage;
 

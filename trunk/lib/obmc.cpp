@@ -83,6 +83,13 @@ static const short window[8][16] =
 // 	{0,	0,	0,	0,	16,	16,	16,	16,	16,	16,	16,	16,	0,	0,	0,	0}
 };
 
+const pic_lut_t COBMC::qpxl_lut[4 * 4] = {
+	{0, -1}, {0, 2}, {2, -1}, {0, 2},
+	{0, 1},	 {1, 2}, {2, 3},  {1, 2},
+	{1, -1}, {1, 3}, {3, -1}, {1, 3},
+	{1, 0},  {1, 2}, {3, 2},  {1, 2}
+};
+
 #ifndef __MMX__
 
 static void obmc_block(const short * pSrc, short * pDst,
@@ -384,43 +391,23 @@ static void obmc_block_intra(short * pDst, const int dst_stride, const short val
 	}
 }
 
-static int get_pos(const sMotionVector mv, const unsigned int i,
-                   const unsigned int j, const unsigned int im_x,
-                   const unsigned int im_y, const int stride)
-{
-	int x = i * 8 + (mv.x >> 2) - 4;
-	int y = j * 8 + (mv.y >> 2) - 4;
-	if (x < -15) x = -15;
-	if (x >= (int)im_x) x = im_x - 1;
-	if (y < -15) y = -15;
-	if (y >= (int)im_y) y = im_y - 1;
-	return x + y * stride;
-}
-
 #define OBMC(flags)	\
 	{ \
-		if (pCurMV[i].all != MV_INTRA) { \
-			if ((pCurMV[i].x | pCurMV[i].y) & 1) { \
-				sMotionVector v1 = pCurMV[i], v2 = pCurMV[i]; \
-				if (unlikely((v1.x & 3) == (v1.y & 3))) /* TODO : usefull ? */ \
-					v1.x++; \
-				else \
-					v2.x++; \
-				v2.y++; \
-				int pic1 = (v1.x & 2) | ((v1.y >> 1) & 1); \
-				int pic2 = (v2.x & 2) | ((v2.y >> 1) & 1); \
-				int src_pos1 = get_pos(v1, i, j, im_x, im_y, stride); \
-				int src_pos2 = get_pos(v2, i, j, im_x, im_y, stride); \
-				for( int c = 0; c < component; c++) \
-					obmc_block<flags>(RefFrames[pCurRef[i] + 1][pic1]->pImage[c] + src_pos1, \
-					           RefFrames[pCurRef[i] + 1][pic2]->pImage[c] + src_pos2, \
-					           dstImage.pImage[c] + dst_pos, stride, stride); \
+		if (likely(pCurMV[i].all != MV_INTRA)) { \
+			sMotionVector v1 = pCurMV[i], v2 = pCurMV[i]; \
+			int yx = (v1.x & 3) | ((v1.y & 3) << 2); \
+			v1.x++; v2.y++; \
+			int src_pos1 = get_pos<16, 4>(v1, i * 8, j * 8, im_x, im_y, stride); \
+			if (unlikely(qpxl_lut[yx].pic2 == -1)) { \
+				for (int c = 0; c < component; c++) \
+					obmc_block<flags>(RefFrames[pCurRef[i] + 1][qpxl_lut[yx].pic1]->pImage[c] + src_pos1, \
+								dstImage.pImage[c] + dst_pos, stride, stride); \
 			} else { \
-				int src_pos = get_pos(pCurMV[i], i, j, im_x, im_y, stride); \
-				int pic = (pCurMV[i].x & 2) | ((pCurMV[i].y >> 1) & 1); \
-				for( int c = 0; c < component; c++) \
-					obmc_block<flags>(RefFrames[pCurRef[i] + 1][pic]->pImage[c] + src_pos, \
-					           dstImage.pImage[c] + dst_pos, stride, stride); \
+				int src_pos2 = get_pos<16, 4>(v2, i * 8, j * 8, im_x, im_y, stride); \
+				for (int c = 0; c < component; c++) \
+					obmc_block<flags>(RefFrames[pCurRef[i] + 1][qpxl_lut[yx].pic1]->pImage[c] + src_pos1, \
+								RefFrames[pCurRef[i] + 1][qpxl_lut[yx].pic2]->pImage[c] + src_pos2, \
+								dstImage.pImage[c] + dst_pos, stride, stride); \
 			} \
 		} else \
 			for( int c = 0; c < component; c++) \
@@ -455,27 +442,20 @@ void COBMC::apply_mv(CImageBuffer & RefFrames, CImage & dstImage)
 		OBMC(LEFT);
 		dst_pos += 8;
 		for( i = 1; i < dimX - 1; i++) {
-			if (pCurMV[i].all != MV_INTRA) {
-				if ((pCurMV[i].x | pCurMV[i].y) & 1) {
-					sMotionVector v1 = pCurMV[i], v2 = pCurMV[i];
-					if (unlikely((v1.x & 3) == (v1.y & 3))) // TODO : usefull ?
-						v1.x++;
-					else
-						v2.x++;
-					v2.y++;
-					int pic1 = (v1.x & 2) | ((v1.y >> 1) & 1);
-					int pic2 = (v2.x & 2) | ((v2.y >> 1) & 1);
-					int src_pos1 = get_pos(v1, i, j, im_x, im_y, stride);
-					int src_pos2 = get_pos(v2, i, j, im_x, im_y, stride);
-					for( int c = 0; c < component; c++)
-						obmc_block(RefFrames[pCurRef[i] + 1][pic1]->pImage[c] + src_pos1,
-						           RefFrames[pCurRef[i] + 1][pic2]->pImage[c] + src_pos2,
+			if (likely(pCurMV[i].all != MV_INTRA)) {
+				sMotionVector v1 = pCurMV[i], v2 = pCurMV[i];
+				int yx = (v1.x & 3) | ((v1.y & 3) << 2);
+				v1.x++; v2.y++;
+				int src_pos1 = get_pos<16, 4>(v1, i * 8, j * 8, im_x, im_y, stride);
+				if (unlikely(qpxl_lut[yx].pic2 == -1)) {
+					for (int c = 0; c < component; c++)
+						obmc_block(RefFrames[pCurRef[i] + 1][qpxl_lut[yx].pic1]->pImage[c] + src_pos1,
 						           dstImage.pImage[c] + dst_pos, stride, stride);
 				} else {
-					int src_pos = get_pos(pCurMV[i], i, j, im_x, im_y, stride);
-					int pic = (pCurMV[i].x & 2) | ((pCurMV[i].y >> 1) & 1);
-					for( int c = 0; c < component; c++)
-						obmc_block(RefFrames[pCurRef[i] + 1][pic]->pImage[c] + src_pos,
+					int src_pos2 = get_pos<16, 4>(v2, i * 8, j * 8, im_x, im_y, stride);
+					for (int c = 0; c < component; c++)
+						obmc_block(RefFrames[pCurRef[i] + 1][qpxl_lut[yx].pic1]->pImage[c] + src_pos1,
+						           RefFrames[pCurRef[i] + 1][qpxl_lut[yx].pic2]->pImage[c] + src_pos2,
 						           dstImage.pImage[c] + dst_pos, stride, stride);
 				}
 			} else
@@ -721,11 +701,18 @@ static inline sMotionVector decode_mv(sMotionVector * lst, int lst_cnt,
 #define CODE_DECODE_MV(mv)	\
 	if (mode == rududu::encode) \
 		code_mv(mv, lst, n, bCodec, huff, codec); \
-	else \
+	else { \
 		mv = decode_mv(lst, n, bCodec, huff, codec); \
+		if (STEP_STOP == 4 && step == 4) \
+			pMV[j * dimX + i + 1] = pMV[(j - 1) * dimX + i] = pMV[(j - 1) * dimX + i + 1] = mv; \
+	}
+
+#define STEP_STOP 2
 
 /**
  * binary tree coding of the motion vectors
+ * something like :
+ * http://intuac.com/userport/john/btpc5/
  * @param codec the CMuxCodec where you want to send bits
  */
 template <cmode mode>
@@ -746,7 +733,7 @@ void COBMC::bt(CMuxCodec * codec)
 	uint line_step = step * dimX;
 	sMotionVector * pCurMV = pMV + line_step - dimX;
 
-	for( uint j = step - 1; j < dimY; j += step) {
+	for (uint j = step - 1; j < dimY; j += step) {
 		for( uint i = 0; i < dimX; i += step) {
 			int n = 0;
 			if (i > 0)
@@ -763,7 +750,7 @@ void COBMC::bt(CMuxCodec * codec)
 		pCurMV += line_step;
 	}
 
-	for( ; step >= 2; step >>= 1){
+	for (; step >= STEP_STOP; step >>= 1) {
 		uint step_2 = step >> 1;
 		for( uint j = step_2 - 1; j < dimY; j += step){
 			for( uint i = step_2; i < dimX; i += step){
@@ -784,8 +771,8 @@ void COBMC::bt(CMuxCodec * codec)
 			}
 		}
 		uint istart = 0;
-		for( uint j = step_2 - 1; j < dimY; j += step_2){
-			for( uint i = istart; i < dimX; i += step){
+		for (uint j = step_2 - 1; j < dimY; j += step_2) {
+			for (uint i = istart; i < dimX; i += step) {
 				int n = 0;
 				if (i >= step_2)
 					lst[n++] = pMV[j * dimX + i - step_2];
@@ -800,7 +787,7 @@ void COBMC::bt(CMuxCodec * codec)
 			istart = step_2 - istart;
 		}
 	}
-	for(int i = 0; i < MV_CTX_CNT; i++) {
+	for (int i = 0; i < MV_CTX_CNT; i++) {
 		huff->~CHuffCodec();
 		huff++;
 	}

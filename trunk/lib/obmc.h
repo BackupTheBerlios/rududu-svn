@@ -34,6 +34,11 @@ typedef union {
 	};
 } sMotionVector;
 
+typedef struct {
+	char pic1;
+	char pic2;
+} pic_lut_t;
+
 #define MV_INTRA	0x80008000
 
 class COBMC{
@@ -89,6 +94,21 @@ public:
 		}
 		return k;
 	}
+
+	template <int size, int offset>
+	static int get_pos(const sMotionVector mv, int x, int y,
+	                   const int im_x, const int im_y, const int stride)
+	{
+		x += (mv.x >> 2) - offset;
+		y += (mv.y >> 2) - offset;
+		if (x < 1 - size) x = 1 - size;
+		if (x >= im_x) x = im_x - 1;
+		if (y < 1 - size) y = 1 - size;
+		if (y >= im_y) y = im_y - 1;
+		return x + y * stride;
+	}
+
+	static const pic_lut_t qpxl_lut[4 * 4];
 
 protected:
 	unsigned int dimX;
