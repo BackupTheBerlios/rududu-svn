@@ -24,15 +24,15 @@
     </ignoreparts>
     <projectdirectory>.</projectdirectory>
     <absoluteprojectpath>false</absoluteprojectpath>
-    <description></description>
+    <description/>
     <projectname>rududu</projectname>
-    <defaultencoding></defaultencoding>
-    <versioncontrol></versioncontrol>
+    <defaultencoding/>
+    <versioncontrol/>
   </general>
   <kdevautoproject>
     <general>
       <activetarget>encoder/rudenc</activetarget>
-      <useconfiguration>profiling</useconfiguration>
+      <useconfiguration>optimized</useconfiguration>
     </general>
     <run>
       <mainprogram>/home/nico/src/rududu/debug</mainprogram>
@@ -48,7 +48,7 @@
         <ruddec>/home/nico/test.rdd > /home/nico/dec.txt 2> /home/nico/dec_size.dat</ruddec>
       </runarguments>
       <customdirectory>/</customdirectory>
-      <programargs></programargs>
+      <programargs/>
       <autocompile>true</autocompile>
       <envvars/>
       <debugarguments>
@@ -67,7 +67,7 @@
         <rudenc>/home/nico/</rudenc>
         <ruddec>/home/nico/</ruddec>
       </cwd>
-      <globaldebugarguments></globaldebugarguments>
+      <globaldebugarguments/>
       <globalcwd>/home/nico/src/rududu/debug</globalcwd>
       <useglobalprogram>false</useglobalprogram>
       <autoinstall>false</autoinstall>
@@ -81,15 +81,15 @@
         <f77compiler>kdevg77options</f77compiler>
         <cxxflags>-O3 -g0 -Wall -fomit-frame-pointer -funroll-loops -msse -m3dnow -march=athlon-xp -ftree-vectorizer-verbose=0</cxxflags>
         <envvars/>
-        <configargs></configargs>
-        <topsourcedir></topsourcedir>
-        <cppflags></cppflags>
-        <ldflags></ldflags>
-        <ccompilerbinary></ccompilerbinary>
-        <cxxcompilerbinary></cxxcompilerbinary>
-        <f77compilerbinary></f77compilerbinary>
-        <cflags></cflags>
-        <f77flags></f77flags>
+        <configargs/>
+        <topsourcedir/>
+        <cppflags/>
+        <ldflags/>
+        <ccompilerbinary/>
+        <cxxcompilerbinary/>
+        <f77compilerbinary/>
+        <cflags/>
+        <f77flags/>
       </optimized>
       <debug>
         <configargs>--enable-debug=full</configargs>
@@ -127,20 +127,20 @@
       </mingw>
       <profiling>
         <envvars/>
-        <configargs></configargs>
+        <configargs/>
         <builddir>profiling</builddir>
-        <topsourcedir></topsourcedir>
-        <cppflags></cppflags>
-        <ldflags></ldflags>
+        <topsourcedir/>
+        <cppflags/>
+        <ldflags/>
         <ccompiler>kdevgccoptions</ccompiler>
         <cxxcompiler>kdevgppoptions</cxxcompiler>
         <f77compiler>kdevg77options</f77compiler>
-        <ccompilerbinary></ccompilerbinary>
-        <cxxcompilerbinary></cxxcompilerbinary>
-        <f77compilerbinary></f77compilerbinary>
-        <cflags></cflags>
+        <ccompilerbinary/>
+        <cxxcompilerbinary/>
+        <f77compilerbinary/>
+        <cflags/>
         <cxxflags>-O3 -g2 -pg -Wall -funroll-loops -msse -m3dnow -march=athlon-xp -ftree-vectorizer-verbose=0</cxxflags>
-        <f77flags></f77flags>
+        <f77flags/>
       </profiling>
     </configurations>
     <make>
@@ -152,7 +152,7 @@
       <runmultiplejobs>true</runmultiplejobs>
       <numberofjobs>2</numberofjobs>
       <dontact>false</dontact>
-      <makebin></makebin>
+      <makebin/>
       <prio>0</prio>
     </make>
   </kdevautoproject>
@@ -272,7 +272,7 @@
       <resolveIncludePathsUsingMakeExperimental>false</resolveIncludePathsUsingMakeExperimental>
     </codecompletion>
     <creategettersetter>
-      <prefixGet></prefixGet>
+      <prefixGet/>
       <prefixSet>set</prefixSet>
       <prefixVariable>m_,_</prefixVariable>
       <parameterName>theValue</parameterName>
@@ -304,11 +304,11 @@
   <kdevdebugger>
     <general>
       <programargs>-i &quot;/home/nico/Documents/Images/Images test/lena.pgm&quot;</programargs>
-      <gdbpath></gdbpath>
+      <gdbpath/>
       <dbgshell>libtool</dbgshell>
-      <configGdbScript></configGdbScript>
-      <runShellScript></runShellScript>
-      <runGdbScript></runGdbScript>
+      <configGdbScript/>
+      <runShellScript/>
+      <runGdbScript/>
       <breakonloadinglibs>true</breakonloadinglibs>
       <separatetty>false</separatetty>
       <floatingtoolbar>false</floatingtoolbar>
@@ -321,7 +321,7 @@
     </display>
   </kdevdebugger>
   <ctagspart>
-    <customArguments></customArguments>
+    <customArguments/>
     <customTagfilePath>/home/nico/src/rududu/tags</customTagfilePath>
     <activeTagsFiles/>
   </ctagspart>
