@@ -19,9 +19,11 @@
  ***************************************************************************/
 
 #include <fstream>
+extern "C" {
 #include <ffmpeg/avcodec.h>
 #include <ffmpeg/avformat.h>
 #include <ffmpeg/swscale.h>
+}
 
 #include "rududucodec.h"
 
