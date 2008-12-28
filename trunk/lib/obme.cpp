@@ -103,7 +103,7 @@ static inline v4hi _SAD(v4hi * s11, v4hi * s12, v4hi * s2, v4hi sum)
 }
 
 template <>
-static unsigned int SAD<8>(const short * pSrc, const short * pDst, const int stride)
+unsigned int SAD<8>(const short * pSrc, const short * pDst, const int stride)
 {
 	unsigned int ret = 0;
 	union vect4us sum;
@@ -124,7 +124,7 @@ static unsigned int SAD<8>(const short * pSrc, const short * pDst, const int str
 }
 
 template <>
-static unsigned int SAD<16>(const short * pSrc, const short * pDst, const int stride)
+unsigned int SAD<16>(const short * pSrc, const short * pDst, const int stride)
 {
 	unsigned int ret = 0;
 	union vect4us sum[2];
@@ -149,7 +149,7 @@ static unsigned int SAD<16>(const short * pSrc, const short * pDst, const int st
 }
 
 template <>
-static unsigned int SAD<8>(const short * pSrc1, const short * pSrc2,
+unsigned int SAD<8>(const short * pSrc1, const short * pSrc2,
                            const short * pDst, const int stride)
 {
 	unsigned int ret = 0;
@@ -172,7 +172,7 @@ static unsigned int SAD<8>(const short * pSrc1, const short * pSrc2,
 }
 
 template <>
-static unsigned int SAD<16>(const short * pSrc1, const short * pSrc2,
+unsigned int SAD<16>(const short * pSrc1, const short * pSrc2,
                             const short * pDst, const int stride)
 {
 	unsigned int ret = 0;
