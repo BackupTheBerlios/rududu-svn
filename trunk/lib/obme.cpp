@@ -42,12 +42,14 @@ COBME::~COBME()
 	delete[] pData;
 }
 
-template <unsigned int size>
-static unsigned int SAD(const short * pSrc, const short * pDst, const int stride)
+#ifndef __MMX__
+
+static inline uint SAD(const short * pSrc, const short * pDst,
+                       const int stride, const uint size)
 {
-	unsigned int ret = 0;
-	for (unsigned int j = 0; j < size; j++) {
-		for (unsigned int i = 0; i < size; i++)
+	uint ret = 0;
+	for (uint j = 0; j < size; j++) {
+		for (uint i = 0; i < size; i++)
 			ret += abs(pDst[i] - pSrc[i]);
 		pDst += stride;
 		pSrc += stride;
@@ -55,13 +57,12 @@ static unsigned int SAD(const short * pSrc, const short * pDst, const int stride
 	return ret;
 }
 
-template <unsigned int size>
-static unsigned int SAD(const short * pSrc1, const short * pSrc2,
-                        const short * pDst, const int stride)
+static inline uint SAD(const short * pSrc1, const short * pSrc2,
+                       const short * pDst, const int stride, const uint size)
 {
-	unsigned int ret = 0;
-	for (unsigned int j = 0; j < size; j++) {
-		for (unsigned int i = 0; i < size; i++)
+	uint ret = 0;
+	for (uint j = 0; j < size; j++) {
+		for (uint i = 0; i < size; i++)
 			ret += abs(pDst[i] - ((pSrc1[i] + pSrc2[i]) >> 1));
 		pDst += stride;
 		pSrc1 += stride;
@@ -70,7 +71,7 @@ static unsigned int SAD(const short * pSrc1, const short * pSrc2,
 	return ret;
 }
 
-#ifdef __MMX__
+#else
 
 typedef short v4hi __attribute__ ((vector_size (8)));
 union vect4us {
@@ -102,102 +103,76 @@ static inline v4hi _SAD(v4hi * s11, v4hi * s12, v4hi * s2, v4hi sum)
 	return __builtin_ia32_paddusw(sum, tmp[0]);
 }
 
-template <>
-unsigned int SAD<8>(const short * pSrc, const short * pDst, const int stride)
+static inline uint SAD(const short * pSrc, const short * pDst,
+                       const int stride, const uint size)
 {
-	unsigned int ret = 0;
-	union vect4us sum;
-	sum.v = __builtin_ia32_pxor(sum.v, sum.v);
+	uint ret = 0, cnt = 0;
+	union vect4us sum[2];
 
- 	for (unsigned int j = 0; j < 8; j++) {
+	sum[0].v = __builtin_ia32_pxor(sum[0].v, sum[0].v);
+	sum[1].v = __builtin_ia32_pxor(sum[1].v, sum[1].v);
+
+ 	for (uint j = 0; j < size; j++) {
 	 	v4hi * s1 = (v4hi*)pSrc, * s2 = (v4hi*)pDst;
-	 	sum.v = _SAD(s1++, s2++, sum.v);
-	 	sum.v = _SAD(s1, s2, sum.v);
+		for (uint i = 0; i < size; i += 8) {
+			sum[0].v = _SAD(s1++, s2++, sum[0].v);
+			sum[1].v = _SAD(s1++, s2++, sum[1].v);
+		}
+
+		cnt += size;
+		if (cnt >= 8*8) {
+			ret += (uint) sum[0].s[0] + sum[0].s[1] + sum[0].s[2] + sum[0].s[3] +
+					sum[1].s[1] + sum[1].s[2] + sum[1].s[2] + sum[1].s[3];
+			sum[0].v = __builtin_ia32_pxor(sum[0].v, sum[0].v);
+			sum[1].v = __builtin_ia32_pxor(sum[1].v, sum[1].v);
+			cnt = 0;
+		}
 
 		pDst += stride;
 		pSrc += stride;
 	}
 
-	ret = (unsigned int) sum.s[0] + sum.s[1] + sum.s[2] + sum.s[3];
+	ret += (uint) sum[0].s[0] + sum[0].s[1] + sum[0].s[2] + sum[0].s[3] +
+			sum[1].s[1] + sum[1].s[2] + sum[1].s[2] + sum[1].s[3];
 
 	return ret;
 }
 
-template <>
-unsigned int SAD<16>(const short * pSrc, const short * pDst, const int stride)
+static inline uint SAD(const short * pSrc1, const short * pSrc2,
+                       const short * pDst, const int stride, const uint size)
 {
-	unsigned int ret = 0;
+	uint ret = 0, cnt = 0;
 	union vect4us sum[2];
+
 	sum[0].v = __builtin_ia32_pxor(sum[0].v, sum[0].v);
 	sum[1].v = __builtin_ia32_pxor(sum[1].v, sum[1].v);
 
-	for (unsigned int j = 0; j < 16; j++) {
-		v4hi * s1 = (v4hi*)pSrc, * s2 = (v4hi*)pDst;
-		sum[0].v = _SAD(s1++, s2++, sum[0].v);
-		sum[1].v = _SAD(s1++, s2++, sum[1].v);
-		sum[0].v = _SAD(s1++, s2++, sum[0].v);
-		sum[1].v = _SAD(s1, s2, sum[1].v);
-
-		pDst += stride;
-		pSrc += stride;
-	}
-
-	ret = (unsigned int) sum[0].s[0] + sum[0].s[1] + sum[0].s[2] + sum[0].s[3] +
-		sum[1].s[1] + sum[1].s[2] + sum[1].s[2] + sum[1].s[3];
-
-	return ret;
-}
-
-template <>
-unsigned int SAD<8>(const short * pSrc1, const short * pSrc2,
-                           const short * pDst, const int stride)
-{
-	unsigned int ret = 0;
-	union vect4us sum;
-	sum.v = __builtin_ia32_pxor(sum.v, sum.v);
-
-	for (unsigned int j = 0; j < 8; j++) {
+	for (uint j = 0; j < size; j++) {
 		v4hi *s11 = (v4hi*)pSrc1, *s12 = (v4hi*)pSrc2, *s2 = (v4hi*)pDst;
-		sum.v = _SAD(s11++, s12++, s2++, sum.v);
-		sum.v = _SAD(s11, s12, s2, sum.v);
+		for (uint i = 0; i < size; i += 8) {
+			sum[0].v = _SAD(s11++, s12++, s2++, sum[0].v);
+			sum[1].v = _SAD(s11++, s12++, s2++, sum[1].v);
+		}
+
+		cnt += size;
+		if (cnt >= 8*8) {
+			ret += (uint) sum[0].s[0] + sum[0].s[1] + sum[0].s[2] + sum[0].s[3] +
+					sum[1].s[1] + sum[1].s[2] + sum[1].s[2] + sum[1].s[3];
+			sum[0].v = __builtin_ia32_pxor(sum[0].v, sum[0].v);
+			sum[1].v = __builtin_ia32_pxor(sum[1].v, sum[1].v);
+			cnt = 0;
+		}
 
 		pDst += stride;
 		pSrc1 += stride;
 		pSrc2 += stride;
 	}
 
-	ret = (unsigned int) sum.s[0] + sum.s[1] + sum.s[2] + sum.s[3];
+	ret += (uint) sum[0].s[0] + sum[0].s[1] + sum[0].s[2] + sum[0].s[3] +
+			sum[1].s[1] + sum[1].s[2] + sum[1].s[2] + sum[1].s[3];
 
 	return ret;
 }
-
-template <>
-unsigned int SAD<16>(const short * pSrc1, const short * pSrc2,
-                            const short * pDst, const int stride)
-{
-	unsigned int ret = 0;
-	union vect4us sum[2];
-	sum[0].v = __builtin_ia32_pxor(sum[0].v, sum[0].v);
-	sum[1].v = __builtin_ia32_pxor(sum[1].v, sum[1].v);
-
-	for (unsigned int j = 0; j < 16; j++) {
-		v4hi *s11 = (v4hi*)pSrc1, *s12 = (v4hi*)pSrc2, *s2 = (v4hi*)pDst;
-		sum[0].v = _SAD(s11++, s12++, s2++, sum[0].v);
-		sum[1].v = _SAD(s11++, s12++, s2++, sum[1].v);
-		sum[0].v = _SAD(s11++, s12++, s2++, sum[0].v);
-		sum[1].v = _SAD(s11, s12, s2, sum[1].v);
-
-		pDst += stride;
-		pSrc1 += stride;
-		pSrc2 += stride;
-	}
-
-	ret = (unsigned int) sum[0].s[0] + sum[0].s[1] + sum[0].s[2] + sum[0].s[3] +
-		sum[1].s[1] + sum[1].s[2] + sum[1].s[2] + sum[1].s[3];
-
-	return ret;
-}
-
 
 #endif
 
@@ -211,10 +186,10 @@ unsigned int SAD<16>(const short * pSrc1, const short * pSrc2,
 	int src_pos1 = COBMC::get_pos<size, 0>(v1, cur_x, cur_y, im_x, im_y, stride);	\
 	uint dist; \
 	if (pic2 == -1) { \
-		dist = SAD<size>(pSub[pic1] + src_pos1, pCur, stride);	\
+		dist = SAD(pSub[pic1] + src_pos1, pCur, stride, size);	\
 	} else { \
 		int src_pos2 = COBMC::get_pos<size, 0>(v2, cur_x, cur_y, im_x, im_y, stride);	\
-		dist = SAD<size>(pSub[pic1] + src_pos1, pSub[pic2] + src_pos2, pCur, stride);	\
+		dist = SAD(pSub[pic1] + src_pos1, pSub[pic2] + src_pos2, pCur, stride, size);	\
 	} \
 	uint cost = mv_bit_estimate(mv_test, mv_pred); \
 	if (mv_result.dist + lambda * mv_result.cost > dist + lambda * cost) {	\
