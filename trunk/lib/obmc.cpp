@@ -400,13 +400,13 @@ static void obmc_block_intra(short * pDst, const int dst_stride, const short val
 			int src_pos1 = get_pos<16, 4>(v1, i * 8, j * 8, im_x, im_y, stride); \
 			if (unlikely(qpxl_lut[yx].pic2 == -1)) { \
 				for (int c = 0; c < component; c++) \
-					obmc_block<flags>(RefFrames[pCurRef[i] + 1][qpxl_lut[yx].pic1]->pImage[c] + src_pos1, \
+					obmc_block<flags>(RefFrames[pCurRef[i] + 1][(int)qpxl_lut[yx].pic1]->pImage[c] + src_pos1, \
 								dstImage.pImage[c] + dst_pos, stride, stride); \
 			} else { \
 				int src_pos2 = get_pos<16, 4>(v2, i * 8, j * 8, im_x, im_y, stride); \
 				for (int c = 0; c < component; c++) \
-					obmc_block<flags>(RefFrames[pCurRef[i] + 1][qpxl_lut[yx].pic1]->pImage[c] + src_pos1, \
-								RefFrames[pCurRef[i] + 1][qpxl_lut[yx].pic2]->pImage[c] + src_pos2, \
+					obmc_block<flags>(RefFrames[pCurRef[i] + 1][(int)qpxl_lut[yx].pic1]->pImage[c] + src_pos1, \
+								RefFrames[pCurRef[i] + 1][(int)qpxl_lut[yx].pic2]->pImage[c] + src_pos2, \
 								dstImage.pImage[c] + dst_pos, stride, stride); \
 			} \
 		} else \
@@ -449,13 +449,13 @@ void COBMC::apply_mv(CImageBuffer & RefFrames, CImage & dstImage)
 				int src_pos1 = get_pos<16, 4>(v1, i * 8, j * 8, im_x, im_y, stride);
 				if (unlikely(qpxl_lut[yx].pic2 == -1)) {
 					for (int c = 0; c < component; c++)
-						obmc_block(RefFrames[pCurRef[i] + 1][qpxl_lut[yx].pic1]->pImage[c] + src_pos1,
+						obmc_block(RefFrames[pCurRef[i] + 1][(int)qpxl_lut[yx].pic1]->pImage[c] + src_pos1,
 						           dstImage.pImage[c] + dst_pos, stride, stride);
 				} else {
 					int src_pos2 = get_pos<16, 4>(v2, i * 8, j * 8, im_x, im_y, stride);
 					for (int c = 0; c < component; c++)
-						obmc_block(RefFrames[pCurRef[i] + 1][qpxl_lut[yx].pic1]->pImage[c] + src_pos1,
-						           RefFrames[pCurRef[i] + 1][qpxl_lut[yx].pic2]->pImage[c] + src_pos2,
+						obmc_block(RefFrames[pCurRef[i] + 1][(int)qpxl_lut[yx].pic1]->pImage[c] + src_pos1,
+						           RefFrames[pCurRef[i] + 1][(int)qpxl_lut[yx].pic2]->pImage[c] + src_pos2,
 						           dstImage.pImage[c] + dst_pos, stride, stride);
 				}
 			} else

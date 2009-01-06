@@ -126,7 +126,7 @@ void CWavelet2D::CodeBand(CMuxCodec * pCodec, int Quant, int lambda)
 	}
 	while( pCurWav->pHigh ) {
 		if (pCurWav->DBand.type == sshort) {
-			if (pCurWav->pLow && pCurWav->pLow->DBand.type == sshort || pCurWav->pLow == 0) {
+			if ((pCurWav->pLow && pCurWav->pLow->DBand.type == sshort) || pCurWav->pLow == 0) {
 				pCurWav->VBand.tree<encode, false, short, short>(pCodec);
 				pCurWav->HBand.tree<encode, false, short, short>(pCodec);
 				pCurWav->DBand.tree<encode, false, short, short>(pCodec);
@@ -143,7 +143,7 @@ void CWavelet2D::CodeBand(CMuxCodec * pCodec, int Quant, int lambda)
 		pCurWav = pCurWav->pHigh;
 	}
 	if (pCurWav->DBand.type == sshort) {
-		if (pCurWav->pLow && pCurWav->pLow->DBand.type == sshort || pCurWav->pLow == 0) {
+		if ((pCurWav->pLow && pCurWav->pLow->DBand.type == sshort) || pCurWav->pLow == 0) {
 			pCurWav->VBand.tree<encode, true, short, short>(pCodec);
 			pCurWav->HBand.tree<encode, true, short, short>(pCodec);
 			pCurWav->DBand.tree<encode, true, short, short>(pCodec);
@@ -188,7 +188,7 @@ void CWavelet2D::DecodeBand(CMuxCodec * pCodec)
 	}
 	while( pCurWav->pHigh ) {
 		if (pCurWav->DBand.type == sshort) {
-			if (pCurWav->pLow && pCurWav->pLow->DBand.type == sshort || pCurWav->pLow == 0) {
+			if ((pCurWav->pLow && pCurWav->pLow->DBand.type == sshort) || pCurWav->pLow == 0) {
 				pCurWav->VBand.tree<decode, false, short, short>(pCodec);
 				pCurWav->HBand.tree<decode, false, short, short>(pCodec);
 				pCurWav->DBand.tree<decode, false, short, short>(pCodec);
@@ -205,7 +205,7 @@ void CWavelet2D::DecodeBand(CMuxCodec * pCodec)
 		pCurWav = pCurWav->pHigh;
 	}
 	if (pCurWav->DBand.type == sshort) {
-		if (pCurWav->pLow && pCurWav->pLow->DBand.type == sshort || pCurWav->pLow == 0) {
+		if ((pCurWav->pLow && pCurWav->pLow->DBand.type == sshort) || pCurWav->pLow == 0) {
 			pCurWav->VBand.tree<decode, true, short, short>(pCodec);
 			pCurWav->HBand.tree<decode, true, short, short>(pCodec);
 			pCurWav->DBand.tree<decode, true, short, short>(pCodec);

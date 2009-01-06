@@ -531,7 +531,7 @@ template <cmode mode, bool high_band, class C, class P>
 				continue;
 			}
 
-			if (pPar) ctx = maxLen<BLK_SIZE >> 1, mode>(&pPar[k], pParent->DimXAlign);
+			if (pPar) ctx = maxLen<(BLK_SIZE >> 1), mode>(&pPar[k], pParent->DimXAlign);
 			if ((mode == encode && treeCodec.code(pCur1[i] == INSIGNIF_BLOCK, ctx)) || (mode == decode && treeCodec.decode(ctx))) {
 				pCur1[i] = pCur1[i + (BLK_SIZE >> 1)] = pCur2[i] = pCur2[i + (BLK_SIZE >> 1)] = -(pChild != 0) & INSIGNIF_BLOCK;
 			} else {

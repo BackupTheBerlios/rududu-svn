@@ -32,7 +32,7 @@ namespace rududu {
 
 #define ALIGN	32
 
-typedef enum band_t {sshort, sint};
+enum band_t {sshort, sint};
 
 class CBand
 {

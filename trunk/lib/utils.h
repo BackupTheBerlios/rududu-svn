@@ -24,8 +24,10 @@
 
 namespace rududu {
 
-typedef enum cmode {encode, decode};
-typedef enum trans {cdf97 = 0, cdf53 = 1, haar = 2};
+enum cmode {encode, decode};
+enum trans {cdf97 = 0, cdf53 = 1, haar = 2};
+
+typedef unsigned int uint;
 
 #define TOP		1
 #define UP		1
@@ -64,7 +66,7 @@ typedef enum trans {cdf97 = 0, cdf53 = 1, haar = 2};
 #endif
 
 #ifdef __MMX__
-	typedef union mmx_t {
+	union mmx_t {
 		short v __attribute__ ((vector_size (8)));
 		unsigned char b[8];
 		short w[4];
@@ -141,7 +143,7 @@ unsigned int inline U(int s)
 
 int inline abs(int s)
 {
-	int const m = s >> sizeof(int) * 8 - 1;
+	int const m = s >> (sizeof(int) * 8 - 1);
 	return (s + m) ^ m;
 }
 
@@ -150,7 +152,7 @@ int inline bitcnt(int v)
 {
 	v -= (v >> 1) & 0x55555555;
 	v = (v & 0x33333333) + ((v >> 2) & 0x33333333);
-	return ((v + (v >> 4) & 0xF0F0F0F) * 0x1010101) >> 24;
+	return (((v + (v >> 4)) & 0xF0F0F0F) * 0x1010101) >> 24;
 }
 
 static const char log_int[32] =

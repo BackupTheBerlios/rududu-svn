@@ -24,7 +24,7 @@
 
 namespace rududu {
 
-typedef enum cspace {rvb, yuv, yog, yv12, i420};
+enum cspace {rvb, yuv, yog, yv12, i420};
 
 #define BORDER	15
 #define MAX_COMPONENT	3
