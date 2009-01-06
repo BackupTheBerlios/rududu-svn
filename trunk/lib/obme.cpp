@@ -183,12 +183,12 @@ static inline uint SAD(const short * pSrc1, const short * pSrc2,
 	int pic1 = COBMC::qpxl_lut[yx].pic1; \
 	int pic2 = COBMC::qpxl_lut[yx].pic2; \
 	v1.x++; v2.y++; \
-	int src_pos1 = COBMC::get_pos<size, 0>(v1, cur_x, cur_y, im_x, im_y, stride);	\
+	int src_pos1 = COBMC::get_pos<0>(v1, cur_x, cur_y, im_x, im_y, stride, size);	\
 	uint dist; \
 	if (pic2 == -1) { \
 		dist = SAD(pSub[pic1] + src_pos1, pCur, stride, size);	\
 	} else { \
-		int src_pos2 = COBMC::get_pos<size, 0>(v2, cur_x, cur_y, im_x, im_y, stride);	\
+		int src_pos2 = COBMC::get_pos<0>(v2, cur_x, cur_y, im_x, im_y, stride, size);	\
 		dist = SAD(pSub[pic1] + src_pos1, pSub[pic2] + src_pos2, pCur, stride, size);	\
 	} \
 	uint cost = mv_bit_estimate(mv_test, mv_pred); \
@@ -209,10 +209,9 @@ static int mv_bit_estimate(sMotionVector mv, sMotionVector pred)
 	return l * 8; /* estimated bit length in 1/8 bit unit */
 }
 
-template <unsigned int size>
 static void DiamondSearch(int cur_x, int cur_y, int im_x, int im_y, int stride,
-                          short * pRef, short ** pSub, sFullMV & MVBest,
-                          sMotionVector MVPred, uint lambda)
+                          uint size, short * pRef, short ** pSub,
+                          sFullMV & MVBest, sMotionVector MVPred, uint lambda)
 {
 	const short * pCur = pRef + cur_x + cur_y * stride;
 	static const short x_mov[4] = {0, 0, -1, 2};
@@ -272,10 +271,9 @@ static void DiamondSearch(int cur_x, int cur_y, int im_x, int im_y, int stride,
  * @param lambda
  * @return
  */
-template <unsigned int size>
 static sFullMV EPZS(int cur_x, int cur_y, int im_x, int im_y, int stride,
-                    short * pRef, short ** pSub, sMotionVector * lst, int setB,
-                    int setC, int thres, uint lambda)
+                    uint size, short * pRef, short ** pSub, sMotionVector * lst,
+                    int setB, int setC, int thres, uint lambda)
 {
 	const short * pCur = pRef + cur_x + cur_y * stride;
 	// test predictors
@@ -303,7 +301,7 @@ static sFullMV EPZS(int cur_x, int cur_y, int im_x, int im_y, int stride,
 	if (MVBest.dist < ((THRES_C * size * size) >> 6))
 		return MVBest;
 
-	DiamondSearch<size>(cur_x, cur_y, im_x, im_y, stride, pRef, pSub, MVBest, MVPred, lambda);
+	DiamondSearch(cur_x, cur_y, im_x, im_y, stride, size, pRef, pSub, MVBest, MVPred, lambda);
 	return MVBest;
 }
 
@@ -312,7 +310,7 @@ static sFullMV EPZS(int cur_x, int cur_y, int im_x, int im_y, int stride,
 #define APPLY_EPZS(mv, dst) \
 	COBMC::median_mv(lst, n); \
 	lst[n++] = mv; \
-	sFullMV MVBest = rududu::EPZS<8>(8 * i, 8 * j, im_x, im_y, stride, pIm, pSub, lst, n - 1, 0, 0, lambda); \
+	sFullMV MVBest = rududu::EPZS(8 * i, 8 * j, im_x, im_y, stride, 8, pIm, pSub, lst, n - 1, 0, 0, lambda); \
 	mv = MVBest.MV; \
 	dst = MVBest.dist;
 
@@ -351,7 +349,7 @@ void COBME::EPZS(CImageBuffer & Images)
 			else lst[n++].all = 0;
 			lst[n++] = pCurMV[i];
 
-			sFullMV MVBest = rududu::EPZS<8 * BMC_STEP>(8 * i, 8 * j, im_x, im_y, stride, pIm, pSub, lst, n - 2, 1, 0, lambda);
+			sFullMV MVBest = rududu::EPZS(8 * i, 8 * j, im_x, im_y, stride, 8 * BMC_STEP, pIm, pSub, lst, n - 2, 1, 0, lambda);
 
 #if BMC_STEP == 1
 			pCurMV[i] = MVBest.MV;

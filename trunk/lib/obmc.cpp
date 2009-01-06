@@ -397,13 +397,13 @@ static void obmc_block_intra(short * pDst, const int dst_stride, const short val
 			sMotionVector v1 = pCurMV[i], v2 = pCurMV[i]; \
 			int yx = (v1.x & 3) | ((v1.y & 3) << 2); \
 			v1.x++; v2.y++; \
-			int src_pos1 = get_pos<16, 4>(v1, i * 8, j * 8, im_x, im_y, stride); \
+			int src_pos1 = get_pos<4>(v1, i * 8, j * 8, im_x, im_y, stride, 16); \
 			if (unlikely(qpxl_lut[yx].pic2 == -1)) { \
 				for (int c = 0; c < component; c++) \
 					obmc_block<flags>(RefFrames[pCurRef[i] + 1][(int)qpxl_lut[yx].pic1]->pImage[c] + src_pos1, \
 								dstImage.pImage[c] + dst_pos, stride, stride); \
 			} else { \
-				int src_pos2 = get_pos<16, 4>(v2, i * 8, j * 8, im_x, im_y, stride); \
+				int src_pos2 = get_pos<4>(v2, i * 8, j * 8, im_x, im_y, stride, 16); \
 				for (int c = 0; c < component; c++) \
 					obmc_block<flags>(RefFrames[pCurRef[i] + 1][(int)qpxl_lut[yx].pic1]->pImage[c] + src_pos1, \
 								RefFrames[pCurRef[i] + 1][(int)qpxl_lut[yx].pic2]->pImage[c] + src_pos2, \
@@ -446,13 +446,13 @@ void COBMC::apply_mv(CImageBuffer & RefFrames, CImage & dstImage)
 				sMotionVector v1 = pCurMV[i], v2 = pCurMV[i];
 				int yx = (v1.x & 3) | ((v1.y & 3) << 2);
 				v1.x++; v2.y++;
-				int src_pos1 = get_pos<16, 4>(v1, i * 8, j * 8, im_x, im_y, stride);
+				int src_pos1 = get_pos<4>(v1, i * 8, j * 8, im_x, im_y, stride, 16);
 				if (unlikely(qpxl_lut[yx].pic2 == -1)) {
 					for (int c = 0; c < component; c++)
 						obmc_block(RefFrames[pCurRef[i] + 1][(int)qpxl_lut[yx].pic1]->pImage[c] + src_pos1,
 						           dstImage.pImage[c] + dst_pos, stride, stride);
 				} else {
-					int src_pos2 = get_pos<16, 4>(v2, i * 8, j * 8, im_x, im_y, stride);
+					int src_pos2 = get_pos<4>(v2, i * 8, j * 8, im_x, im_y, stride, 16);
 					for (int c = 0; c < component; c++)
 						obmc_block(RefFrames[pCurRef[i] + 1][(int)qpxl_lut[yx].pic1]->pImage[c] + src_pos1,
 						           RefFrames[pCurRef[i] + 1][(int)qpxl_lut[yx].pic2]->pImage[c] + src_pos2,

@@ -95,9 +95,9 @@ public:
 		return k;
 	}
 
-	template <int size, int offset>
-	static int get_pos(const sMotionVector mv, int x, int y,
-	                   const int im_x, const int im_y, const int stride)
+	template <int offset>
+	static int get_pos(const sMotionVector mv, int x, int y, const int im_x,
+	                   const int im_y, const int stride, const int size)
 	{
 		x += (mv.x >> 2) - offset;
 		y += (mv.y >> 2) - offset;
