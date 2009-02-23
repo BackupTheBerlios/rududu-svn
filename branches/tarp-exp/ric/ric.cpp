@@ -201,16 +201,16 @@ void DecompressImage(string & infile, string & outfile, bool Dither)
 
 	Wavelet.DecodeBand(&Codec);
 	if (Head.Quant != 0)
-		Wavelet.TSUQi(Quants(Head.Quant + SHIFT * 5));
+		Wavelet.TSUQi(Quants(Head.Quant + SHIFT * 5), true);
 	if (Head.Color) {
 		Wavelet.TransformI(img.ptr() + width * heigth * 3, width, Trans);
 		Wavelet.DecodeBand(&Codec);
 		if (Head.Quant != 0)
-			Wavelet.TSUQi(Quants(Head.Quant + SHIFT * 5 + C_Q_BOOST));
+			Wavelet.TSUQi(Quants(Head.Quant + SHIFT * 5 + C_Q_BOOST), true);
 		Wavelet.TransformI(img.ptr() + width * heigth * 2, width, Trans);
 		Wavelet.DecodeBand(&Codec);
 		if (Head.Quant != 0)
-			Wavelet.TSUQi(Quants(Head.Quant + SHIFT * 5 + C_Q_BOOST));
+			Wavelet.TSUQi(Quants(Head.Quant + SHIFT * 5 + C_Q_BOOST), true);
 	}
 	Wavelet.TransformI(img.ptr() + width * heigth, width, Trans);
 
