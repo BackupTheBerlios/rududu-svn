@@ -26,8 +26,6 @@
 using namespace std;
 #endif
 
-#include <string.h>
-
 namespace rududu {
 
 CBandCodec::CBandCodec(void):
@@ -148,11 +146,15 @@ int CBandCodec::clen(int coef, unsigned int cnt)
 	return (k[cnt] + 1 + l * lps_len[cnt]) * 5 + mps_len[cnt];
 }
 
+const char len_1[BLK_SIZE * BLK_SIZE] = {
+	5, 5, 5, 6, 6, 6, 6, 6, 7, 7, 8, 10, 12, 14, 17, 20
+};
+
 template <class C>
 	void CBandCodec::makeThres(C * thres, const C quant, const int lambda)
 {
 	for( int i = 0; i < BLK_SIZE * BLK_SIZE; i++){
-		thres[i] = (quant + ((lambda * (blen[i + 1] - blen[i] + clen(1, i + 1)) + 8) >> 4)) & 0xFFFE;
+		thres[i] = (quant + ((lambda * (blen[i + 1] - blen[i] + len_1[i]/*clen(1, i + 1)*/) + 8) >> 4)) & 0xFFFE;
 		if (thres[i] > quant * 2) thres[i] = quant * 2;
 		if (thres[i] < (quant & 0xFFFE)) thres[i] = quant & 0xFFFE;
 	}
@@ -373,7 +375,7 @@ template <cmode mode, bool high_band, class C>
 }
 
 #define K_SHIFT		10
-#define K_DECAY 	3
+#define K_DECAY 	2
 #define K_SPEED		(K_SHIFT - K_DECAY)
 #define K_THRES 	2
 #define K_DECAY_2	3
@@ -451,28 +453,31 @@ template <cmode mode, bool high_band, class C, class P>
 
 			if (ctx == INSIGNIF_BLOCK) {
 				pPar[k] = 0;
-				pCur1[i] = pCur1[i + (BLK_SIZE >> 1)] = pCur2[i] = pCur2[i + (BLK_SIZE >> 1)] = -(pChild != 0) & INSIGNIF_BLOCK;
-				continue;
-			}
-
-			if (pPar) ctx = maxLen<(BLK_SIZE >> 1), encode>(&pPar[k], pParent->DimXAlign);
-			if ((mode == encode && treeCodec.code(pCur1[i] == INSIGNIF_BLOCK, ctx)) || (mode == decode && treeCodec.decode(ctx))) {
-				pCur1[i] = pCur1[i + (BLK_SIZE >> 1)] = pCur2[i] = pCur2[i + (BLK_SIZE >> 1)] = -(pChild != 0) & INSIGNIF_BLOCK;
+				if (!high_band)
+					pCur1[i] = pCur1[i + (BLK_SIZE >> 1)] = pCur2[i] = pCur2[i + (BLK_SIZE >> 1)] = INSIGNIF_BLOCK;
 			} else {
-				int k_estimate_2 = (k_mean[ctx] + (1 << (K_SHIFT - 1))) >> K_SHIFT;
-				k_estimate += k_estimate_2;
-				if (k_last == -1) {
-					k_estimate = k_estimate_2;
-				} else
-					k_estimate = (k_estimate + 1) >> 1;
-				if (k_last == -1)
-					k_estimate = -1;
+				if (pPar) ctx = maxLen<(BLK_SIZE >> 1), encode>(&pPar[k], pParent->DimXAlign);
+				if ((high_band /*&& ctx < 4*/ || ctx < 2) && ((mode == encode && treeCodec.code(pCur1[i] == INSIGNIF_BLOCK, ctx)) || (mode == decode && treeCodec.decode(ctx)))) {
+					if (!high_band)
+						pCur1[i] = pCur1[i + (BLK_SIZE >> 1)] = pCur2[i] = pCur2[i + (BLK_SIZE >> 1)] = INSIGNIF_BLOCK;
+				} else {
+					int k_estimate_2 = (k_mean[ctx] + (1 << (K_SHIFT - 1))) >> K_SHIFT;
+					k_estimate += k_estimate_2;
+					if (k_last == -1) {
+						k_estimate = k_estimate_2;
+					} else
+						k_estimate = (k_estimate + 1) >> 1;
+					if (k_last == -1)
+						k_estimate = -1;
 
-				k_block = block_enum<mode, high_band>(&pCur1[i], DimXAlign, pCodec, geoCodec, k_estimate_2);
+					pCur1[i] &= ~INSIGNIF_BLOCK;
 
-				k_mean[ctx] += (k_block << K_SPEED_2) - (k_mean[ctx] >> K_DECAY_2);
+					k_block = block_enum<mode, high_band>(&pCur1[i], DimXAlign, pCodec, geoCodec, k_estimate);
 
-				k_last_est[l] = k_estimate;
+					k_mean[ctx] += (k_block << K_SPEED_2) - (k_mean[ctx] >> K_DECAY_2);
+
+					k_last_est[l] = k_estimate;
+				}
 			}
 
 			if (k_last == -1)

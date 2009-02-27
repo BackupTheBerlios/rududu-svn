@@ -27,7 +27,7 @@
 
 #define BLK_PWR		2
 #define BLK_SIZE	(1 << BLK_PWR)
-// #define GENERATE_HUFF_STATS
+#define GENERATE_HUFF_STATS
 
 namespace rududu {
 
