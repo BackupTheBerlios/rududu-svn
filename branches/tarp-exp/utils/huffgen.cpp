@@ -36,7 +36,7 @@ int main( int argc, char *argv[] )
 {
 	string progname = argv[0];
 	sHuffSym input[MAX_HUFF_SYM];
-	unsigned int counts[MAX_HUFF_SYM], tab_idx = 0;
+	unsigned int counts[MAX_HUFF_SYM], tab_idx = 0, gran_cnt = 0;
 	double huff_size = 0, theo_size = 0;
 
 	cin.peek();
@@ -67,8 +67,6 @@ int main( int argc, char *argv[] )
 			char name[16];
 			sprintf(name, "enc%02i", tab_idx);
 			CHuffCodec::print(input, sym_cnt, 0, name);
-			sprintf(name, "dec%02i", tab_idx);
-			CHuffCodec::print(input, sym_cnt, 2, name);
 
 			double total_cnt = 0, total_size = 0, optim_size = 0;
 			for( int i = 0; i < sym_cnt; i++) {
@@ -78,20 +76,24 @@ int main( int argc, char *argv[] )
 					optim_size += counts[i] * log2(counts[i]);
 			}
 			optim_size = total_cnt * log2(total_cnt) - optim_size;
+
+			sprintf(name, "dec%02i", tab_idx);
+			CHuffCodec::print(input, sym_cnt, 2, name);
 			cout << "count : " << total_cnt << endl;
 			if (total_cnt > 0) {
-				cout << "huff : " << total_size / total_cnt << " bps" << endl;
-				cout << "opt : " << optim_size / total_cnt << " bps" << endl;
+				cout << "huff : " << total_size / total_cnt << " bps, " << total_size << " bits" << endl;
+				cout << "opt : " << optim_size / total_cnt << " bps, " << optim_size << " bits" << endl;
 				cout << "loss : " << (total_size - optim_size) / total_cnt << " bps (" << (total_size - optim_size) * 100 / optim_size << "%)\n" << endl;
 				double mult = 1;
 				if (shift != 0) mult = (double) sum / total_cnt;
 				huff_size += total_size * mult;
 				theo_size += optim_size * mult;
+				gran_cnt += sum;
 			}
 			tab_idx++;
 		} else tab_idx = 0;
 	}
-	cout << "total size : " << huff_size << " bits" << endl;
+	cout << gran_cnt << " symbols, total size : " << huff_size << " bits (" << huff_size / gran_cnt <<" bps)" << endl;
 	cout << "loss : " << (huff_size - theo_size) * 100 / theo_size << "%" << endl;
 
 	return 0;
