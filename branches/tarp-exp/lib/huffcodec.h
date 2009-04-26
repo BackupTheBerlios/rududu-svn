@@ -44,7 +44,7 @@ public:
 
     ~CHuffCodec();
 
-	static void make_huffman(sHuffSym * sym, int n);
+	static void make_huffman(sHuffSym * sym, int n, int max_len);
 	static void init_lut(sHuffCan * data, const int bits);
 
 	static void print(sHuffSym * sym, int n, int print_type, char * name);

@@ -345,12 +345,22 @@ void CHuffCodec::update_code(void)
 	update_step = MAX(update_step, UPDATE_STEP_MIN);
 }
 
-void CHuffCodec::make_huffman(sHuffSym * sym, int n)
+void CHuffCodec::make_huffman(sHuffSym * sym, int n, int max_len)
 {
-	qsort(sym, n, sizeof(sHuffSym),
-	      (int (*)(const void *, const void *)) comp_freq);
-
-	make_len(sym, n);
+	if (max_len <= 0) {
+		qsort(sym, n, sizeof(sHuffSym),
+		      (int (*)(const void *, const void *)) comp_freq);
+		make_len(sym, n);
+	} else {
+		qsort(sym, n, sizeof(sHuffSym),
+		      (int (*)(const void *, const void *)) _comp_freq);
+		make_len(sym, n, max_len);
+		for( unsigned int i = 0; i < (n >> 1); i++){
+			sHuffSym tmp = sym[i];
+			sym[i] = sym[n - 1 - i];
+			sym[n - 1 - i] = tmp;
+		}
+	}
 	make_codes(sym, n);
 }
 

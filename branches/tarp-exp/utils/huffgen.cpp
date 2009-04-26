@@ -38,6 +38,10 @@ int main( int argc, char *argv[] )
 	sHuffSym input[MAX_HUFF_SYM];
 	unsigned int counts[MAX_HUFF_SYM], tab_idx = 0, gran_cnt = 0;
 	double huff_size = 0, theo_size = 0;
+	int huff_len = 0;
+
+	if (argc > 1)
+		huff_len = atoi(argv[1]);
 
 	cin.peek();
 	while(! cin.eof()) {
@@ -63,7 +67,7 @@ int main( int argc, char *argv[] )
 		}
 
 		if (sym_cnt != 0) {
-			CHuffCodec::make_huffman(input, sym_cnt);
+			CHuffCodec::make_huffman(input, sym_cnt, huff_len);
 			char name[16];
 			sprintf(name, "enc%02i", tab_idx);
 			CHuffCodec::print(input, sym_cnt, 0, name);
