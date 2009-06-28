@@ -173,6 +173,13 @@ void CWavelet2D::CodeBand(CMuxCodec * pCodec, int Quant, int lambda)
 		cout << endl;
 	}
 	cout << endl;
+	for( int i = 0; i <= 8; i++){
+		for( int j = 0; j < 17; j++){
+			cout << CBandCodec::bit_cnt[i][j] << "\t";
+		}
+// 		cout << endl;
+	}
+	cout << endl;
 #endif
 }
 

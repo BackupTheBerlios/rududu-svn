@@ -45,6 +45,7 @@ public:
 #ifdef GENERATE_HUFF_STATS
 	static unsigned int histo_l[17][17];
 	static unsigned int histo_h[17][16];
+	static uint bit_cnt[32][32];
 #endif
 
 private :
@@ -55,7 +56,7 @@ private :
 		static inline int maxLen(C * pBlock, int stride);
 	template <cmode mode, bool high_band, class C>
 		static unsigned int block_enum(C * pBlock, int stride, CMuxCodec * pCodec,
-		                       CGeomCodec & geoCodec, int idx);
+									   CBitCodec & lenCodec, int idx);
 	static inline int clen(int coef, unsigned int cnt);
 	template <class C>
 		static void inSort (C ** pKeys, int len);

@@ -718,7 +718,7 @@ static inline sMotionVector decode_mv(sMotionVector * lst, int lst_cnt,
 template <cmode mode>
 void COBMC::bt(CMuxCodec * codec)
 {
-	CBitCodec bCodec(codec);
+	CBitCodec bCodec(MV_CTX_CNT * 2, codec);
 	char * mem[MV_CTX_CNT * sizeof(CHuffCodec)];
 	sMotionVector lst[4];
 	CHuffCodec * huff = (CHuffCodec *) mem;

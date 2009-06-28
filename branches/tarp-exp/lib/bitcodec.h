@@ -25,7 +25,8 @@
 namespace rududu {
 
 // TODO : faire une allocation dynamique pour toute la classe
-#define BIT_CONTEXT_NB	16
+#define DEPRECATED_BIT_CONTEXT_NB	16 // FIXME : remove it
+#define BIT_CONTEXT_NB	240
 #define MAX_SPEED	9
 #define SPEED	(MAX_SPEED - state[ctx].shift)
 #define DECAY	(FREQ_POWER - SPEED)
@@ -38,7 +39,7 @@ typedef struct  {
 class CBitCodec
 {
 public:
-	CBitCodec(CMuxCodec * RangeCodec = 0);
+	CBitCodec(uint nb_ctx, CMuxCodec * RangeCodec = 0);
 	void InitModel(void);
 
 	void inline code0(const unsigned int ctx = 0){
@@ -49,7 +50,8 @@ public:
 		code(1, ctx);
 	}
 
-	unsigned int inline code(unsigned int sym, const unsigned int ctx = 0){
+	unsigned int inline code(unsigned int sym, unsigned int ctx = 0) {
+		ctx += ctx_offset;
 		unsigned int s = sym ^ state[ctx].mps;
 		pRange->codeBin(freq[ctx], s ^ 1);
 		freq[ctx] += (s << SPEED) - (freq[ctx] >> DECAY);
@@ -59,7 +61,8 @@ public:
 		return sym;
 	}
 
-	unsigned int inline decode(const unsigned int ctx = 0){
+	unsigned int inline decode(unsigned int ctx = 0) {
+		ctx += ctx_offset;
 		register unsigned int sym = pRange->getBit(freq[ctx]) ^ 1;
 		freq[ctx] += (sym << SPEED) - (freq[ctx] >> DECAY);
 		sym ^= state[ctx].mps;
@@ -73,10 +76,12 @@ public:
 	CMuxCodec * getRange(void){ return pRange;}
 
 private:
-	unsigned short freq[BIT_CONTEXT_NB];
-	sState state[BIT_CONTEXT_NB];
 	CMuxCodec *pRange;
 	static const unsigned short thres[11];
+	static uint last_offset;
+	static unsigned short freq[BIT_CONTEXT_NB]; /// global array to store context frequencies
+	static sState state[BIT_CONTEXT_NB];
+	const uint ctx_offset; /// offset to the first ctx of this instance
 
 	void inline shift_adj(const unsigned int ctx)
 	{
