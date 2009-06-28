@@ -88,14 +88,22 @@ private:
 	void inline shift_adj(const unsigned int ctx)
 	{
 		unsigned char s = shift[idx[ctx]];
-		if (freq[ctx] < thres[s - 1])
+		if (freq[ctx] < thres[s - 1]) {
 			idx[ctx]++;
-		else if (idx[ctx] > 0)
+			s = shift[idx[ctx]];
+			if (idx[ctx] >= GEO_MAX_SHIFT - 2) {
+				if (K[idx[ctx]] > 0)
+					freq[ctx] = (2465 * 3 + HALF_FREQ_COUNT) >> 2;
+				else if (freq[ctx] > ((thres[s - 1] + thres[s]) >> 1))
+					freq[ctx] = (thres[s - 1] + thres[s]) >> 1; // I don't know why, but it works better this way ...
+			}
+		} else if (idx[ctx] > 0) {
 			idx[ctx]--;
-		if (idx[ctx] >= GEO_MAX_SHIFT - 1)
-			freq[ctx] = HALF_FREQ_COUNT;
+			s = shift[idx[ctx]];
+			if (idx[ctx] >= GEO_MAX_SHIFT - 1)
+				freq[ctx] = (1608 * 3 + HALF_FREQ_COUNT) >> 2;
+		}
 	}
-
 };
 
 }
