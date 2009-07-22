@@ -28,6 +28,7 @@ enum cmode {encode, decode};
 enum trans {cdf97 = 0, cdf53 = 1, haar = 2};
 
 typedef unsigned int uint;
+typedef unsigned char uchar;
 
 #define TOP		1
 #define UP		1
