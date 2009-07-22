@@ -18,6 +18,7 @@
  *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.             *
  ***************************************************************************/
 
+#include <string.h>
 #include "muxcodec.h"
 
 namespace rududu {
@@ -25,11 +26,13 @@ namespace rududu {
 CMuxCodec::CMuxCodec(unsigned char *pStream, unsigned short firstWord){
 	initCoder(firstWord, pStream);
 	initTaboo(2);
+	initEnum();
 }
 
 CMuxCodec::CMuxCodec(unsigned char *pStream){
 	initDecoder(pStream);
 	initTaboo(2);
+	initEnum();
 }
 
 void CMuxCodec::initCoder(unsigned short firstWord,
@@ -278,7 +281,7 @@ unsigned int CMuxCodec::tabooDecode(void)
 	return nb;
 }
 
-const unsigned short CMuxCodec::Cnk[8][16] =
+const unsigned short CMuxCodec::Cnk[MAX_Q >> 1][MAX_Q] =
 {
 	{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15},
 	{0, 0, 1, 3, 6, 10, 15, 21, 28, 36, 45, 55, 66, 78, 91, 105},
@@ -290,7 +293,7 @@ const unsigned short CMuxCodec::Cnk[8][16] =
 	{0, 0, 0, 0, 0, 0, 0, 0, 1, 9, 45, 165, 495, 1287, 3003, 6435}
 };
 
-const unsigned char CMuxCodec::CnkLen[16][8] =
+const unsigned char CMuxCodec::CnkLen[MAX_Q][MAX_Q >> 1] =
 {
 	{0, 0, 0, 0, 0, 0, 0, 0},
 	{1, 0, 0, 0, 0, 0, 0, 0},
@@ -310,7 +313,7 @@ const unsigned char CMuxCodec::CnkLen[16][8] =
 	{4, 7, 10, 11, 13, 13, 14, 14}
 };
 
-const unsigned short CMuxCodec::CnkLost[16][8] =
+const unsigned short CMuxCodec::CnkLost[MAX_Q][MAX_Q >> 1] =
 {
 	{0, 0, 0, 0, 0, 0, 0, 0},
 	{0, 0, 0, 0, 0, 0, 0, 0},
@@ -409,6 +412,80 @@ template <unsigned int n_max>
 	return enumDecode(k, n_max);
 }
 
+unsigned long CMuxCodec::G_p_q[MAX_P][MAX_Q];
+unsigned char CMuxCodec::len[MAX_P];
+unsigned long CMuxCodec::lost[MAX_P];
+
+void CMuxCodec::initEnum(void)
+{
+	int i, j;
+	for (i = 0; i < MAX_Q; i++)
+		G_p_q[0][i] = 1;
+
+	for (j = 1; j < MAX_P; j++) {
+		G_p_q[j][0] = 0;
+		if (j <= MAX_VAL)
+			G_p_q[j][0] = 1;
+
+		for (i = 1; i < MAX_Q; i++) {
+			G_p_q[j][i] = G_p_q[j][i - 1] + G_p_q[j - 1][i];
+			if (j > MAX_VAL)
+				G_p_q[j][i] -= G_p_q[j - MAX_VAL - 1][i - 1];
+		}
+		len[j] = bitlen(G_p_q[j][MAX_Q - 1] - 1);
+		lost[j] = (1 << len[j]) - G_p_q[j][MAX_Q - 1];
+	}
+	for (j = 1; j < MAX_P; j++) {
+		for (i = 0; i < MAX_Q; i++) {
+			G_p_q[j][i] += G_p_q[j - 1][i];
+		}
+	}
+}
+
+void CMuxCodec::enumCode(short * values, int sum)
+{
+	unsigned long code = 0;
+	int sum_sav = sum;
+
+	if (sum <= 0)
+		return;
+
+	for (int i = MAX_Q - 2; i >= 0; i--) {
+		code += G_p_q[sum][i];
+		sum -= values[i];
+		code -= G_p_q[sum][i];
+	}
+
+	if (code < lost[sum_sav])
+		bitsCode(code, len[sum_sav] - 1);
+	else
+		bitsCode(code + lost[sum_sav], len[sum_sav]);
+}
+
+void CMuxCodec::enumDecode(short * values, int sum)
+{
+	memset(values, 0, sizeof(short) * MAX_Q);
+
+	if (sum <= 0)
+		return;
+
+	unsigned long code = bitsDecode(len[sum] - 1);
+	if (code >= lost[sum])
+		code = ((code << 1) | bitsDecode(1)) - lost[sum];
+
+	for (int i = MAX_Q - 2; i >= 0; i--) {
+		if (code >= G_p_q[sum][i] - G_p_q[sum - 1][i]) {
+			do {
+				values[i]++;
+			} while (code >= G_p_q[sum][i] - G_p_q[sum - values[i] - 1][i]); // FIXME : test if value < sum ?
+			code -= G_p_q[sum][i] - G_p_q[sum - values[i]][i];
+			sum -= values[i];
+		}
+	}
+	values[MAX_Q - 1] = sum;
+}
+
+
 template unsigned int CMuxCodec::enumDecode<16>(unsigned int);
 
 void CMuxCodec::golombCode(unsigned int nb, const int k)
@@ -434,7 +511,8 @@ void CMuxCodec::golombCode(unsigned int nb, const int k)
 		buffer |= 1;
 		nbBits += l;
 
-		bitsCode(nb, k);
+		if (k > 0)
+			bitsCode(nb, k);
 	}
 }
 
@@ -457,8 +535,9 @@ unsigned int CMuxCodec::golombDecode(const int k)
 		while( (buffer & (1 << --nbBits)) == 0 )
 			l++;
 
-		unsigned int nb = (l << k) | bitsDecode(k);
-		return nb;
+		if (k > 0)
+			return (l << k) | bitsDecode(k);
+		return l;
 	}
 }
 
@@ -527,7 +606,7 @@ fastcall unsigned int CMuxCodec::maxDecode(unsigned int max)
 	unsigned int value = 0;
 	unsigned int len = bitlen(max);
 	unsigned int lost = (1 << len) - max - 1;
-	if ( len > 1) value = bitsDecode(len - 1);
+	if (len > 1) value = bitsDecode(len - 1);
 	if (value >= lost) value = ((value << 1) | bitsDecode(1)) - lost;
 	return value;
 }

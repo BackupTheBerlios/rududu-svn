@@ -37,6 +37,11 @@ namespace rududu {
 
 #define REG_SIZE (sizeof(unsigned int) * 8)
 
+// enumerative coding parameters
+#define MAX_Q 16 // max length
+#define MAX_P 21 // max sum
+#define MAX_VAL MAX_P // max value (in the vector)
+
 // LUT size parameter, LUT size is 1 << LUT_DEPTH
 #define LUT_DEPTH 4
 
@@ -89,9 +94,12 @@ private:
 	unsigned int nTaboo;
 
 	static const unsigned int nbFibo[32];
-	static const unsigned short Cnk[8][16];
-	static const unsigned char CnkLen[16][8];
-	static const unsigned short CnkLost[16][8];
+	static const unsigned short Cnk[MAX_Q >> 1][MAX_Q];
+	static const unsigned char CnkLen[MAX_Q][MAX_Q >> 1];
+	static const unsigned short CnkLost[MAX_Q][MAX_Q >> 1];
+	static unsigned long G_p_q[MAX_P][MAX_Q]; // last column is not used (only for init)
+	static unsigned char len[MAX_P]; // nb of bits to send
+	static unsigned long lost[MAX_P]; // nb of lost index TODO : merge with CnkLost ?
 
 	flatten fastcall void normalize_enc(void);
 	flatten fastcall void normalize_dec(void);
@@ -99,6 +107,8 @@ private:
 	fastcall void emptyBuffer(void);
 	template <bool end> void flushBuffer(void);
 	fastcall void fillBuffer(const unsigned int length);
+
+	static void initEnum(void);
 
 public:
 	CMuxCodec(unsigned char *pStream, unsigned short firstWord);
@@ -126,6 +136,8 @@ public:
 	template <unsigned int n_max>
 		flatten fastcall unsigned int enumDecode(unsigned int k);
 	unsigned int enumDecode(unsigned int k, unsigned int n_max);
+	void enumCode(short * values, int sum);
+	void enumDecode(short * values, int sum);
 
 	fastcall void maxCode(unsigned int value, unsigned int max);
 	fastcall unsigned int maxDecode(unsigned int max);
@@ -226,18 +238,29 @@ public:
 
 	void inline bitsCode(unsigned int bits, unsigned int length)
 	{
-		if (unlikely(nbBits + length > REG_SIZE))
+		if (unlikely(nbBits + length >= REG_SIZE)) {
+			length += nbBits - REG_SIZE;
+			buffer <<= 1;
+			buffer = (buffer << (REG_SIZE - 1 - nbBits)) | (bits >> length);
+			nbBits = REG_SIZE;
 			emptyBuffer();
+		}
 		buffer = (buffer << length) | bits;
 		nbBits += length;
 	}
 
-	unsigned int inline bitsDecode(unsigned int length)
+	uint inline bitsDecode(unsigned int length)
 	{
-		if (nbBits < length)
+		if (nbBits < length) {
+			uint ret = buffer & ((1 << nbBits) - 1);
+			length -= nbBits;
+			nbBits = 0;
 			fillBuffer(length);
+			nbBits -= length;
+			return (ret << length) | ((buffer >> nbBits) & (-1u >> (-length & 31)));
+		}
 		nbBits -= length;
-		return (buffer >> nbBits) & ((1 << length) - 1);
+		return (buffer >> nbBits) & (-1u >> (-length & 31));
 	}
 
 	// canonical huffman codes decoding
