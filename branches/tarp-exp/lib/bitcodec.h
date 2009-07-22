@@ -24,23 +24,37 @@
 
 namespace rududu {
 
-// TODO : faire une allocation dynamique pour toute la classe
 #define DEPRECATED_BIT_CONTEXT_NB	16 // FIXME : remove it
-#define BIT_CONTEXT_NB	240
 #define MAX_SPEED	9
-#define SPEED	(MAX_SPEED - state[ctx].shift)
+#define SPEED	(MAX_SPEED - ctxs[ctx].shift)
 #define DECAY	(FREQ_POWER - SPEED)
 
-typedef struct  {
-	unsigned char shift : 4;
-	unsigned char mps : 1;
-}sState;
+extern const unsigned short bitcodec_thres[11];
 
+typedef struct  {
+	unsigned short freq;
+	uchar shift;
+	uchar mps;
+}sCtx;
+
+template<int size>
 class CBitCodec
 {
 public:
-	CBitCodec(uint nb_ctx, CMuxCodec * RangeCodec = 0);
-	void InitModel(void);
+	CBitCodec(CMuxCodec * RangeCodec)
+	{
+		setRange(RangeCodec);
+		InitModel();
+	}
+
+	void InitModel(void)
+	{
+		for (int i = 0; i < size; i++) {
+			ctxs[i].freq = HALF_FREQ_COUNT;
+			ctxs[i].mps = 0;
+			ctxs[i].shift = 0;
+		}
+	}
 
 	void inline code0(const unsigned int ctx = 0){
 		code(0, ctx);
@@ -51,23 +65,21 @@ public:
 	}
 
 	unsigned int inline code(unsigned int sym, unsigned int ctx = 0) {
-		ctx += ctx_offset;
-		unsigned int s = sym ^ state[ctx].mps;
-		pRange->codeBin(freq[ctx], s ^ 1);
-		freq[ctx] += (s << SPEED) - (freq[ctx] >> DECAY);
-		if (unlikely((unsigned short)(freq[ctx] - thres[state[ctx].shift + 1]) >
-		             thres[state[ctx].shift] - thres[state[ctx].shift + 1]))
+		unsigned int s = sym ^ ctxs[ctx].mps;
+		pRange->codeBin(ctxs[ctx].freq, s ^ 1);
+		ctxs[ctx].freq += (s << SPEED) - (ctxs[ctx].freq >> DECAY);
+		if (unlikely((unsigned short)(ctxs[ctx].freq - bitcodec_thres[ctxs[ctx].shift + 1]) >
+		             bitcodec_thres[ctxs[ctx].shift] - bitcodec_thres[ctxs[ctx].shift + 1]))
 			shift_adj(ctx);
 		return sym;
 	}
 
 	unsigned int inline decode(unsigned int ctx = 0) {
-		ctx += ctx_offset;
-		register unsigned int sym = pRange->getBit(freq[ctx]) ^ 1;
-		freq[ctx] += (sym << SPEED) - (freq[ctx] >> DECAY);
-		sym ^= state[ctx].mps;
-		if (unlikely((unsigned short)(freq[ctx] - thres[state[ctx].shift + 1]) >
-		             thres[state[ctx].shift] - thres[state[ctx].shift + 1]))
+		register unsigned int sym = pRange->getBit(ctxs[ctx].freq) ^ 1;
+		ctxs[ctx].freq += (sym << SPEED) - (ctxs[ctx].freq >> DECAY);
+		sym ^= ctxs[ctx].mps;
+		if (unlikely((unsigned short)(ctxs[ctx].freq - bitcodec_thres[ctxs[ctx].shift + 1]) >
+		             bitcodec_thres[ctxs[ctx].shift] - bitcodec_thres[ctxs[ctx].shift + 1]))
 			shift_adj(ctx);
 		return sym;
 	}
@@ -77,23 +89,20 @@ public:
 
 private:
 	CMuxCodec *pRange;
-	static const unsigned short thres[11];
 	static uint last_offset;
-	static unsigned short freq[BIT_CONTEXT_NB]; /// global array to store context frequencies
-	static sState state[BIT_CONTEXT_NB];
-	const uint ctx_offset; /// offset to the first ctx of this instance
+	sCtx ctxs[size];
 
 	void inline shift_adj(const unsigned int ctx)
 	{
-		if (freq[ctx] > thres[state[ctx].shift]) {
-			if (state[ctx].shift == 0) {
-				state[ctx].mps ^= 1;
-				freq[ctx] = FREQ_COUNT - freq[ctx];
-				state[ctx].shift = 1;
+		if (ctxs[ctx].freq > bitcodec_thres[ctxs[ctx].shift]) {
+			if (ctxs[ctx].shift == 0) {
+				ctxs[ctx].mps ^= 1;
+				ctxs[ctx].freq = FREQ_COUNT - ctxs[ctx].freq;
+				ctxs[ctx].shift = 1;
 			} else
-				state[ctx].shift--;
-		} else if (state[ctx].shift < MAX_SPEED)
-			state[ctx].shift++;
+				ctxs[ctx].shift--;
+		} else if (ctxs[ctx].shift < MAX_SPEED)
+			ctxs[ctx].shift++;
 	}
 };
 

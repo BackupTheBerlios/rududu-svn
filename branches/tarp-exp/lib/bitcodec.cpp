@@ -18,40 +18,12 @@
  *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.             *
  ***************************************************************************/
 
-#include <iostream>
 #include "bitcodec.h"
-
-using namespace std;
 
 namespace rududu {
 
-CBitCodec::CBitCodec(uint nb_ctx, CMuxCodec * RangeCodec):
-		ctx_offset(last_offset)
-{
-	last_offset += nb_ctx;
-	if (last_offset > BIT_CONTEXT_NB) {
-		cerr << "missing context memory : at least " << last_offset;
-		cerr << "contexts are needed" << endl;
-	}
-	InitModel(); // FIXME : do not delete all ctx
-	setRange(RangeCodec);
-}
-
-void CBitCodec::InitModel(void)
-{
-	for (int i = 0; i < BIT_CONTEXT_NB; i++){
-		freq[i] = HALF_FREQ_COUNT;
-		state[i].mps = 0;
-		state[i].shift = 0;
-	}
-}
-
-const unsigned short CBitCodec::thres[11] = {
+const unsigned short bitcodec_thres[11] = {
 	2584, 1512, 745, 371, 185, 92, 46, 23, 12, 6, 3
 };
-
-uint CBitCodec::last_offset = 0;
-unsigned short CBitCodec::freq[BIT_CONTEXT_NB]; /// global array to store context frequencies
-sState CBitCodec::state[BIT_CONTEXT_NB];
 
 }

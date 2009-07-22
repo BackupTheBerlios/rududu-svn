@@ -31,10 +31,13 @@ using namespace std;
 namespace rududu {
 
 CBandCodec::CBandCodec(void):
-		CBand(),
-		pRD(0)
+	CBand(),
+	pRD(0)
 {
 	init_lut();
+#ifdef ERR_SH
+	q_err = 0;
+#endif
 }
 
 CBandCodec::~CBandCodec()
@@ -170,6 +173,12 @@ template <class C>
 	int var_cnt = 0, cnt = 0, dist = 0, rate = 0;
 	C T = Quant >> 1;
 	C * var[BLK_SIZE * BLK_SIZE];
+	int cor = (1 << 15);
+#ifdef ERR_SH
+	cor -= (q_err >> ERR_SH);
+	if (cor > (1 << 15))
+		cor = (1 << 15);
+#endif
 	for (int j = 0; j < BLK_SIZE; j++) {
 		for ( int i = 0; i < BLK_SIZE; i++ ) {
 			if (U(pCur[i] + T) <= U(2 * T)) {
@@ -181,9 +190,14 @@ template <class C>
 				else {
 					cnt++;
 					int tmp = U(pCur[i]) >> 1;
-					int qtmp = (tmp * iQuant + (1 << 15)) >> 16;
+					int qtmp = (tmp * iQuant + cor) >> 16;
+					if (qtmp <= 0) qtmp = 1;
 					int diff = qtmp * Quant;
-					if (diff > tmp) diff = 2 * tmp - diff;
+#ifdef ERR_SH
+					if (qtmp > 1)
+						q_err += diff - tmp;
+#endif
+					if (diff > tmp) diff = 2 * tmp - diff; // FIXME c'est quoi ce calcul de distorsion bidon ?
 					dist += diff;
 					pCur[i] = (qtmp << 1) | (pCur[i] & 1);
 				}
@@ -199,7 +213,8 @@ template <class C>
 			*var[i--] = 0;
 		cnt += i + 1;
 		for (; i >= 0; i--) {
-			dist += (pCur[i] & (C)0xFFFFFFFE) - Quant;
+			int diff = Quant - (pCur[i] & (C)0xFFFFFFFE); // FIXME : pkoi x2 ?
+			dist += diff;
 			*var[i] = 2 | (*var[i] & 1);
 		}
 	}
@@ -323,6 +338,13 @@ static int get_best_k_estimate(int sum) {
 	return s;
 }
 
+/**
+ * find the best k (shift factor) for Rice coding for a 4x4 bloc using
+ *
+ * @param s samples array
+ * @param k number of samples (<= 16, only samples != 0)
+ * @return the best shift factor + 2 (0 is 2, 0 and 1 allows k = -2 and -1)
+ */
 template <class C>
 static int get_best_k(C * s, int k) {
 	int ibest = 0, best_len = 0xFFFF;
@@ -339,7 +361,7 @@ static int get_best_k(C * s, int k) {
 	for (int i = 1; i < 13; i++) {
 		int len = 16 * i;
 		for (uint j = 0; j < k; j++)
-			len += U(tmp[j]) >> i;
+			len += U(s[j]) >> i;
 		len <<= 3;
 		if (len <= best_len) {
 			best_len = len;
@@ -350,148 +372,67 @@ static int get_best_k(C * s, int k) {
 }
 
 template <cmode mode, bool high_band, class C>
-	unsigned int CBandCodec::block_enum(C * pBlock, int stride, CMuxCodec * pCodec,
-	                                        CBitCodec & lenCodec, int idx)
+	unsigned int CBandCodec::block_enum(C * pBlock, int stride,
+	                                    CMuxCodec * pCodec, int idx)
 {
-	unsigned int k = 0;
+	uint k = 0;
+	short enu[16];
+	C tmp[16];
 	if (mode == encode) {
-		C tmp[16];
 		int sum = 0;
 
 		for (int j = 0; j < 4; j++){
 			for (C * pEnd = pBlock + 4; pBlock < pEnd; pBlock++){
-				if (pBlock[0] != 0) {
-					tmp[k] = pBlock[0];
-					sum += pBlock[0] >> 1;
-					k++;
-				}
+				tmp[k++] = pBlock[0];
+				sum += pBlock[0] >> 1;
 			}
 			pBlock += stride - 4;
 		}
 
-		if (high_band || k != 0) {
-			int r_k = get_best_k(tmp, k); // get k for rice coding
-			uint sh = (r_k >= 2 ? r_k - 1 : 1);
-#define RICE_MAX_LEN 64
-			uchar bit_hist[RICE_MAX_LEN];
-			memset(bit_hist, 0, sizeof(bit_hist));
-			for (uint i = 0; i < k; i++) {
-				int len = U(tmp[i]) >> sh;
-				if (len < RICE_MAX_LEN)
-					bit_hist[len]++;
-				else
-					cerr << "len too long : " << len << " with k = " << ibest << endl;
-			}
-			// TODO : code k using idx
-			pCodec->tabooCode(k);
-			for (int i = 0; i < RICE_MAX_LEN; i++){
-
-			}
-			int ctx = 0
-			cout << endl;
-			bit_hist[0] += 16 - k;
-			if (ibest > 4) {
-				if (bit_hist[1] <= 8)
-					bit_cnt[bit_hist[1]][bit_hist[0] + bit_hist[1]]++;
-				else
-					bit_cnt[17 - bit_hist[1]][16 - bit_hist[0] - bit_hist[1]]++;
-			}
-		}
-	} else {
-
-	}
-	return k - (high_band == true);
-}
-/*
-template <cmode mode, bool high_band, class C>
-	unsigned int CBandCodec::block_enum(C * pBlock, int stride, CMuxCodec * pCodec,
-	                                    CGeomCodec & geoCodec, int idx)
-{
-	unsigned int k = 0;
-	if (mode == encode) {
-		C tmp[16];
-		unsigned int signif = 0;
-
-		for( int j = 0; j < 4; j++){
-			for( C * pEnd = pBlock + 4; pBlock < pEnd; pBlock++){
-				signif <<= 1;
-				if (pBlock[0] != 0) {
-					tmp[k] = pBlock[0];
-					k++;
-					signif |= 1;
-				}
-			}
-			pBlock += stride - 4;
+		k = 0;
+		while (sum >= MAX_P) {
+			sum = 0;
+			k++;
+			for (int i = 0; i < 16; i++)
+				sum += tmp[i] >> (k + 1);
 		}
 
-		if (high_band) {
-			if (idx >= 0)
-				pCodec->bitsCode(huff_hk_enc[idx][k-1].code, huff_hk_enc[idx][k-1].len);
-			else
-				pCodec->bitsCode(k-1, 4);
-		} else {
-			if (idx >= 0)
-				pCodec->bitsCode(huff_lk_enc[idx][k].code, huff_lk_enc[idx][k].len);
-			else
-				pCodec->maxCode(k, 16);
-		}
+		for (int i = 0; i < 16; i++)
+			enu[i] = tmp[i] >> (k + 1);
 
-		if (high_band || k != 0) {
-			if (k != 16)
-				pCodec->template enumCode<16>(signif, k);
-			for (unsigned int i = 0; i < k; i++){
-				geoCodec.code((U(tmp[i]) >> 1) - 1,  k - 1);
+		pCodec->golombCode(k, 0);
+		pCodec->maxCode(sum, 20);
+		pCodec->enumCode(enu, sum);
+		uint mask = ((1 << k) - 1);
+		for (int i = 0; i < 16; i++) {
+			if (k > 0)
+				pCodec->bitsCode((tmp[i] >> 1) & mask, k);
+			if (tmp[i] != 0)
 				pCodec->bitsCode(tmp[i] & 1, 1);
-			}
 		}
-#ifdef GENERATE_HUFF_STATS
-		if (idx >= 0) {
-			if (high_band)
-				histo_h[idx][k-1]++;
-			else
-				histo_l[idx][k]++;
-		}
-#endif
 	} else {
-		if (high_band) {
-			if (idx >= 0)
-				k = huff_hk_dec[idx].sym[pCodec->huffDecode(huff_hk_dec[idx].table)] + 1;
-			else
-				k = pCodec->bitsDecode(4) + 1;
-		} else {
-			if (idx >= 0)
-				k = huff_lk_dec[idx].sym[pCodec->huffDecode(huff_lk_dec[idx].table)];
-			else
-				k = pCodec->maxDecode(16);
+		k = pCodec->golombDecode(0);
+		pCodec->enumDecode(enu, pCodec->maxDecode(20));
+		for (int i = 0; i < 16; i++) {
+			tmp[i] = enu[i];
+			if (k > 0)
+				tmp[i] = (tmp[i] << k) | pCodec->bitsDecode(k);
+			if (tmp[i] != 0)
+				tmp[i] = (tmp[i] << 1) | pCodec->bitsDecode(1);
 		}
 
-		if (high_band || k != 0) {
-			unsigned int signif = 0xFFFF;
-			if (k != 16)
-				signif = pCodec->template enumDecode<16>(k);
-
-			for( int j = 0; j < 4; j++){
-				for( C * pEnd = pBlock + 4; pBlock < pEnd; pBlock++){
-					if (signif & (1 << 15)) {
-						pBlock[0] = ((geoCodec.decode(k - 1) + 1) << 1) | pCodec->bitsDecode(1);
-					}
-					signif <<= 1;
-				}
-				pBlock += stride - 4;
+		int i = 0;
+		for (int j = 0; j < 4; j++){
+			for (C * pEnd = pBlock + 4; pBlock < pEnd; pBlock++){
+				pBlock[0] = tmp[i++];
 			}
+			pBlock += stride - 4;
 		}
 	}
-	return k - (high_band == true);
+	return k;
 }
-*/
-#define K_SHIFT		10
-#define K_DECAY_2	3
-#define K_SPEED_2	(K_SHIFT - K_DECAY_2)
-#define K_THRES 	2
 
 #define TREE_CTX_NB	16
-#define LEN_MAX		5
-#define LEN_CTX_NB	(16 * LEN_MAX)
 
 template <cmode mode, bool high_band, class C, class P>
 	void CBandCodec::tree(CMuxCodec * pCodec)
@@ -511,8 +452,7 @@ template <cmode mode, bool high_band, class C, class P>
 
 	if (mode == decode) Clear(false);
 
-	CBitCodec lenCodec(LEN_CTX_NB, pCodec);
-	CBitCodec treeCodec(TREE_CTX_NB, pCodec);
+	CBitCodec<TREE_CTX_NB> treeCodec(pCodec);
 
 	// TODO : pb rate-distortion : c'est quoi cette courbe ?
 	// TODO : utiliser le prédicteur comme un predicteur (coder l'erreur) ?
@@ -527,7 +467,7 @@ template <cmode mode, bool high_band, class C, class P>
 			i = (DimX & (-1 << BLK_PWR)) + bs;
 		}
 		for( ; (uint)i <= DimX - BLK_SIZE; i += bs){
-			int ctx = 15, k = i >> 1, l = i >> BLK_PWR;
+			int ctx = 15, k = i >> 1;
 			if (pPar) ctx = pPar[k];
 
 			if (ctx == INSIGNIF_BLOCK) {
@@ -553,7 +493,7 @@ template <cmode mode, bool high_band, class C, class P>
 
 					pCur1[i] &= ~INSIGNIF_BLOCK;
 
-					block_enum<mode, high_band>(&pCur1[i], DimXAlign, pCodec, lenCodec, est);
+					block_enum<mode, high_band>(&pCur1[i], DimXAlign, pCodec, est);
 				}
 			}
 		}

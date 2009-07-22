@@ -591,7 +591,7 @@ static const char intra_conv[4][4] = {
 
 // TODO remove maxCode/maxDecode as they recompute bitlen(max)
 static inline void code_mv(sMotionVector mv, sMotionVector * lst, int lst_cnt,
-                           CBitCodec & bCodec, CHuffCodec * huff,
+                           CBitCodec<MV_CTX_CNT * 2> & bCodec, CHuffCodec * huff,
                            CMuxCodec * codec)
 {
 	int intra_ctx = lst_cnt, mv_ctx;
@@ -645,7 +645,7 @@ static inline void code_mv(sMotionVector mv, sMotionVector * lst, int lst_cnt,
 }
 
 static inline sMotionVector decode_mv(sMotionVector * lst, int lst_cnt,
-                                      CBitCodec & bCodec, CHuffCodec * huff,
+                                      CBitCodec<MV_CTX_CNT * 2> & bCodec, CHuffCodec * huff,
                                       CMuxCodec * codec)
 {
 	int intra_ctx = lst_cnt, mv_ctx;
@@ -718,7 +718,7 @@ static inline sMotionVector decode_mv(sMotionVector * lst, int lst_cnt,
 template <cmode mode>
 void COBMC::bt(CMuxCodec * codec)
 {
-	CBitCodec bCodec(MV_CTX_CNT * 2, codec);
+	CBitCodec<MV_CTX_CNT * 2> bCodec(codec);
 	char * mem[MV_CTX_CNT * sizeof(CHuffCodec)];
 	sMotionVector lst[4];
 	CHuffCodec * huff = (CHuffCodec *) mem;

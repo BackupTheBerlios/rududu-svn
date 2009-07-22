@@ -27,7 +27,11 @@
 
 #define BLK_PWR		2
 #define BLK_SIZE	(1 << BLK_PWR)
-#define GENERATE_HUFF_STATS
+// #define GENERATE_HUFF_STATS
+
+// define this to track the quantization error mean and try to make it don't
+// go too far from zero
+// #define ERR_SH 2
 
 namespace rududu {
 
@@ -56,7 +60,7 @@ private :
 		static inline int maxLen(C * pBlock, int stride);
 	template <cmode mode, bool high_band, class C>
 		static unsigned int block_enum(C * pBlock, int stride, CMuxCodec * pCodec,
-									   CBitCodec & lenCodec, int idx);
+									   int idx);
 	static inline int clen(int coef, unsigned int cnt);
 	template <class C>
 		static void inSort (C ** pKeys, int len);
@@ -64,6 +68,9 @@ private :
 		static void makeThres(C * thres, const C quant, const int lambda);
 
 	unsigned int * pRD;
+#ifdef ERR_SH
+	int q_err; /// sum of the quantization error (for quant bin > 1)
+#endif
 
 	static sHuffSym const * const huff_lk_enc[17];
 	static sHuffSym const * const huff_hk_enc[16];
