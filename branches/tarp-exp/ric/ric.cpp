@@ -63,7 +63,7 @@ void dither(short * pIn, int width, int heigth)
 	}
 }
 
-template <uint shift, class T>
+template <rududu::uint shift, class T>
 void RGBtoYCoCg(CImg<T> & img)
 {
 	// 0 (R) -> Co, 1 (G) -> Cg, 2 (B) -> Y
@@ -80,7 +80,7 @@ void RGBtoYCoCg(CImg<T> & img)
 	}
 }
 
-template <uint shift, class T>
+template <rududu::uint shift, class T>
 void YCoCgtoRGB(CImg<T> & img)
 {
 	cimg_forXYZ(img,x,y,z) {
