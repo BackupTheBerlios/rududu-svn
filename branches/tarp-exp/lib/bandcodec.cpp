@@ -289,26 +289,19 @@ template <bool high_band, class C>
 template void CBandCodec::buildTree<true, short>(short, int);
 template void CBandCodec::buildTree<true, int>(int, int);
 
-template <int block_size, cmode mode, class C>
+template <int block_size, class C>
 	int CBandCodec::maxLen(C * pBlock, int stride)
 {
 	if (block_size == 1)
 		return bitlen(ABS(pBlock[0]));
 
-	C max = 0, min = 0;
-	for( int j = 0; j < block_size; j++){
-		for( int i = 0; i < block_size; i++){
+	C max = 0;
+	for( int j = 0; j < block_size; j++) {
+		for( int i = 0; i < block_size; i++)
 			max = MAX(max, pBlock[i]);
-			if (mode == decode)
-				min = MIN(min, pBlock[i]);
-		}
 		pBlock += stride;
 	}
-	if (mode == encode)
-		return bitlen(U(max) >> 1);
-	min = ABS(min);
-	max = MAX(max, min);
-	return bitlen(max);
+	return bitlen(U(max) >> 1);
 }
 
 /**
@@ -372,8 +365,8 @@ static int get_best_k(C * s, int k) {
 }
 
 template <cmode mode, bool high_band, class C>
-	unsigned int CBandCodec::block_enum(C * pBlock, int stride,
-	                                    CMuxCodec * pCodec, int idx)
+	unsigned int CBandCodec::block_enum(C * pBlock, int stride, CMuxCodec * pCodec,
+	                                    CBitCodec<ZBLOCK_CTX_NB> & zblockCodec, int idx)
 {
 	uint k = 0;
 	short enu[16];
@@ -389,6 +382,9 @@ template <cmode mode, bool high_band, class C>
 			pBlock += stride - 4;
 		}
 
+		if (!high_band && zblockCodec.code(sum == 0, 0))
+			return 0;
+
 		k = 0;
 		while (sum >= MAX_P) {
 			sum = 0;
@@ -401,7 +397,10 @@ template <cmode mode, bool high_band, class C>
 			enu[i] = tmp[i] >> (k + 1);
 
 		pCodec->golombCode(k, 0);
-		pCodec->maxCode(sum, 20);
+		if (k == 0)
+			pCodec->maxCode(sum - 1, MAX_P - 2);
+		else
+			pCodec->maxCode(sum, MAX_P - 1);
 		pCodec->enumCode(enu, sum);
 		uint mask = ((1 << k) - 1);
 		for (int i = 0; i < 16; i++) {
@@ -411,8 +410,15 @@ template <cmode mode, bool high_band, class C>
 				pCodec->bitsCode(tmp[i] & 1, 1);
 		}
 	} else {
+		if (!high_band && zblockCodec.decode(0))
+			return 0;
 		k = pCodec->golombDecode(0);
-		pCodec->enumDecode(enu, pCodec->maxDecode(20));
+		int sum;
+		if (k == 0)
+			sum = pCodec->maxDecode(MAX_P - 2) + 1;
+		else
+			sum = pCodec->maxDecode(MAX_P - 1);
+		pCodec->enumDecode(enu, sum);
 		for (int i = 0; i < 16; i++) {
 			tmp[i] = enu[i];
 			if (k > 0)
@@ -453,6 +459,7 @@ template <cmode mode, bool high_band, class C, class P>
 	if (mode == decode) Clear(false);
 
 	CBitCodec<TREE_CTX_NB> treeCodec(pCodec);
+	CBitCodec<ZBLOCK_CTX_NB> zblockCodec(pCodec);
 
 	// TODO : pb rate-distortion : c'est quoi cette courbe ?
 	// TODO : utiliser le prédicteur comme un predicteur (coder l'erreur) ?
@@ -475,7 +482,7 @@ template <cmode mode, bool high_band, class C, class P>
 				if (!high_band)
 					pCur1[i] = pCur1[i + (BLK_SIZE >> 1)] = pCur2[i] = pCur2[i + (BLK_SIZE >> 1)] = INSIGNIF_BLOCK;
 			} else {
-				if (pPar) ctx = maxLen<(BLK_SIZE >> 1), encode>(&pPar[k], pParent->DimXAlign);
+				if (pPar) ctx = maxLen<(BLK_SIZE >> 1)>(&pPar[k], pParent->DimXAlign);
 				if ((high_band || ctx < 2) &&
 					((mode == encode && treeCodec.code(pCur1[i] == INSIGNIF_BLOCK, ctx))
 					|| (mode == decode && treeCodec.decode(ctx)))) {
@@ -493,7 +500,7 @@ template <cmode mode, bool high_band, class C, class P>
 
 					pCur1[i] &= ~INSIGNIF_BLOCK;
 
-					block_enum<mode, high_band>(&pCur1[i], DimXAlign, pCodec, est);
+					block_enum<mode, high_band>(&pCur1[i], DimXAlign, pCodec, zblockCodec, est);
 				}
 			}
 		}

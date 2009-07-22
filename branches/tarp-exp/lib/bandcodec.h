@@ -33,6 +33,8 @@
 // go too far from zero
 // #define ERR_SH 2
 
+#define ZBLOCK_CTX_NB 1 // TODO use more contexts !
+
 namespace rududu {
 
 class CBandCodec : public CBand
@@ -56,11 +58,11 @@ private :
 	template <class C> int tsuqBlock(C * pCur, int stride, C Quant, int iQuant,
 	                                 int lambda, C * rd_thres);
 
-	template <int block_size, cmode mode, class C>
+	template <int block_size, class C>
 		static inline int maxLen(C * pBlock, int stride);
 	template <cmode mode, bool high_band, class C>
 		static unsigned int block_enum(C * pBlock, int stride, CMuxCodec * pCodec,
-									   int idx);
+		                               CBitCodec<ZBLOCK_CTX_NB> & zblockCodec, int idx);
 	static inline int clen(int coef, unsigned int cnt);
 	template <class C>
 		static void inSort (C ** pKeys, int len);
