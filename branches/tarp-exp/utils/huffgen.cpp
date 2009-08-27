@@ -1,5 +1,5 @@
 /***************************************************************************
- *   Copyright (C) 2008 by Nicolas Botti                                   *
+ *   Copyright (C) 2009 by Nicolas Botti                                   *
  *   <rududu@laposte.net>                                                  *
  *                                                                         *
  *   This program is free software; you can redistribute it and/or modify  *
@@ -22,14 +22,28 @@
 #include <fstream>
 #include <iostream>
 #include <math.h>
+#include <stdlib.h>
 
 #include "huffcodec.h"
 
 using namespace std;
 using namespace rududu;
 
-void usage(string & progname)
+#ifdef _WIN32
+#define BOLD
+#define NORM
+#else
+#define BOLD	"\x1B[1m"
+#define NORM	"\x1B[0m"
+#endif // _WIN32
+
+void usage(void)
 {
+	printf(
+		   BOLD "--- Huffman code generator --- " NORM " built " __DATE__
+			" " __TIME__ "\n(c) 2006-2009 Nicolas BOTTI\n"	BOLD "Usage : "
+			NORM "huffgen [max_code_size] < stat_file > huff_code.c\n"
+		  );
 }
 
 int main( int argc, char *argv[] )
@@ -40,8 +54,17 @@ int main( int argc, char *argv[] )
 	double huff_size = 0, theo_size = 0;
 	int huff_len = 0;
 
-	if (argc > 1)
-		huff_len = atoi(argv[1]);
+	if (argc > 1) {
+		char* end;
+		huff_len = strtol(argv[1], &end, 0);
+		if ((end - argv[1]) == 0)
+			huff_len = -1;
+	}
+
+	if (argc > 2 || huff_len < 0) {
+		usage();
+		return 1;
+	}
 
 	cin.peek();
 	while(! cin.eof()) {
@@ -83,11 +106,11 @@ int main( int argc, char *argv[] )
 
 			sprintf(name, "dec%02i", tab_idx);
 			CHuffCodec::print(input, sym_cnt, 2, name);
-			cout << "count : " << total_cnt << endl;
+			cout << "// count : " << total_cnt << endl;
 			if (total_cnt > 0) {
-				cout << "huff : " << total_size / total_cnt << " bps, " << total_size << " bits" << endl;
-				cout << "opt : " << optim_size / total_cnt << " bps, " << optim_size << " bits" << endl;
-				cout << "loss : " << (total_size - optim_size) / total_cnt << " bps (" << (total_size - optim_size) * 100 / optim_size << "%)\n" << endl;
+				cout << "// huff : " << total_size / total_cnt << " bps, " << total_size << " bits" << endl;
+				cout << "// opt : " << optim_size / total_cnt << " bps, " << optim_size << " bits" << endl;
+				cout << "// loss : " << (total_size - optim_size) / total_cnt << " bps (" << (total_size - optim_size) * 100 / optim_size << "%)\n" << endl;
 				double mult = 1;
 				if (shift != 0) mult = (double) sum / total_cnt;
 				huff_size += total_size * mult;
@@ -97,8 +120,8 @@ int main( int argc, char *argv[] )
 			tab_idx++;
 		} else tab_idx = 0;
 	}
-	cout << gran_cnt << " symbols, total size : " << huff_size << " bits (" << huff_size / gran_cnt <<" bps)" << endl;
-	cout << "loss : " << (huff_size - theo_size) * 100 / theo_size << "%" << endl;
+	cout << "// " << gran_cnt << " symbols, total size : " << huff_size << " bits (" << huff_size / gran_cnt <<" bps)" << endl;
+	cout << "// loss : " << (huff_size - theo_size) * 100 / theo_size << "%" << endl;
 
 	return 0;
 }
