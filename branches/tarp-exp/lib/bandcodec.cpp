@@ -18,6 +18,8 @@
  *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.             *
  ***************************************************************************/
 
+#include <math.h>
+
 #include "bandcodec.h"
 #include "huffcodec.h"
 
@@ -50,19 +52,18 @@ void CBandCodec::init_lut(void)
 	static bool init = false;
 	if (init)
 		return;
-	for( unsigned int i = 0; i < sizeof(huff_lk_dec) / sizeof(sHuffCan); i++){
-		CHuffCodec::init_lut(&huff_lk_dec[i], LUT_DEPTH);
+	for( unsigned int i = 0; i < sizeof(huff_0_dec) / sizeof(sHuffCan); i++){
+		CHuffCodec::init_lut(&huff_0_dec[i], LUT_DEPTH);
 	}
-	for( unsigned int i = 0; i < sizeof(huff_hk_dec) / sizeof(sHuffCan); i++){
-		CHuffCodec::init_lut(&huff_hk_dec[i], LUT_DEPTH);
+	for( unsigned int i = 0; i < sizeof(huff_X_dec) / sizeof(sHuffCan); i++){
+		CHuffCodec::init_lut(&huff_X_dec[i], LUT_DEPTH);
 	}
 	init = true;
 }
 
 #ifdef GENERATE_HUFF_STATS
-unsigned int CBandCodec::histo_l[17][17];
-unsigned int CBandCodec::histo_h[17][16];
-uint CBandCodec::bit_cnt[32][32];
+uint CBandCodec::sum_0_cnt[SUM_CTX_NB][MAX_P - 1];
+uint CBandCodec::sum_x_cnt[SUM_CTX_NB][MAX_P - 3]; // 3 is for MAX_P = 21
 #endif
 
 template <cmode mode, class C>
@@ -364,13 +365,31 @@ static int get_best_k(C * s, int k) {
 	return ibest;
 }
 
+#define EST_SIZE 64
+#define EST_SPEED 3
+#define EST_SHIFT 7
+static unsigned short k_est[EST_SIZE];
+// #define EST_CNT 8
+// static unsigned int k_cnt[EST_CNT][EST_SIZE];
+
 template <cmode mode, bool high_band, class C>
 	unsigned int CBandCodec::block_enum(C * pBlock, int stride, CMuxCodec * pCodec,
-	                                    CBitCodec<ZBLOCK_CTX_NB> & zblockCodec, int idx)
+	                                    CBitCodec<ZBLOCK_CTX_NB> & zblockCodec, int sum_)
 {
 	uint k = 0;
 	short enu[16];
 	C tmp[16];
+	int idx = log2i(sum_);
+
+	int tst = idx;
+	if (tst > 0) {
+		tst -= 14;
+		if (tst < 1)
+			tst = 1;
+	}
+
+	int est = (k_est[tst] + (1 << (EST_SHIFT - 1))) >> EST_SHIFT;
+
 	if (mode == encode) {
 		int sum = 0;
 
@@ -382,7 +401,7 @@ template <cmode mode, bool high_band, class C>
 			pBlock += stride - 4;
 		}
 
-		if (!high_band && zblockCodec.code(sum == 0, 0))
+		if (!high_band && zblockCodec.code(sum == 0, idx >= ZBLOCK_CTX_NB ? ZBLOCK_CTX_NB - 1 : idx))
 			return 0;
 
 		k = 0;
@@ -396,11 +415,40 @@ template <cmode mode, bool high_band, class C>
 		for (int i = 0; i < 16; i++)
 			enu[i] = tmp[i] >> (k + 1);
 
-		pCodec->golombCode(k, 0);
-		if (k == 0)
-			pCodec->maxCode(sum - 1, MAX_P - 2);
-		else
-			pCodec->maxCode(sum, MAX_P - 1);
+
+		if (est == 0) {
+			if (k_est[tst] < (1 << (EST_SHIFT - 3)))
+				pCodec->golombCode(k, -3); // TODO adaptive golomb here !
+			else
+				pCodec->golombCode(k, -1);
+		} else {
+			int diff = k - est;
+// 			int est2 = (k_est[tst] + (1 << (EST_SHIFT - 3))) >> (EST_SHIFT - 2);
+// 			if (est2 <= EST_SIZE && k < EST_CNT)
+// 				k_cnt[k][est2 - 1]++;
+			if (k_est[tst] > (est << EST_SHIFT)) // TODO test if really usefull
+				diff = -diff;
+			pCodec->golombCode(s2u(diff), 0); // TODO and maybe here too !
+		}
+
+		if (k == 0) {
+			int tmp = bitlen(sum_);
+			if (unlikely(sum_ == 0)) tmp = 3;
+			if (tmp > SUM_CTX_NB) tmp = SUM_CTX_NB;
+			pCodec->huffCode(huff_0_enc[tmp - 1][sum - 1]);
+#ifdef GENERATE_HUFF_STATS
+			sum_0_cnt[tmp - 1][sum - 1]++;
+#endif
+		} else {
+			int tmp = (sum_ - (2 << k)) >> (k + 2);
+			if (tmp < 0) tmp = 0;
+			if (unlikely(sum_ == 0)) tmp = 2;
+			if (tmp >= SUM_CTX_NB) tmp = SUM_CTX_NB - 1;
+			pCodec->huffCode(huff_X_enc[tmp][sum - 3]);
+#ifdef GENERATE_HUFF_STATS
+			sum_x_cnt[tmp][sum - 3]++;
+#endif
+		}
 		pCodec->enumCode(enu, sum);
 		uint mask = ((1 << k) - 1);
 		for (int i = 0; i < 16; i++) {
@@ -410,14 +458,32 @@ template <cmode mode, bool high_band, class C>
 				pCodec->bitsCode(tmp[i] & 1, 1);
 		}
 	} else {
-		if (!high_band && zblockCodec.decode(0))
+		if (!high_band && zblockCodec.decode(idx >= ZBLOCK_CTX_NB ? ZBLOCK_CTX_NB - 1 : idx))
 			return 0;
-		k = pCodec->golombDecode(0);
+		if (est == 0) {
+			if (k_est[tst] < (1 << (EST_SHIFT - 3)))
+				k = pCodec->golombDecode(-3);
+			else
+				k = pCodec->golombDecode(-1);
+		} else {
+			int diff = u2s(pCodec->golombDecode(0));
+			if (k_est[tst] > (est << EST_SHIFT))
+				diff = -diff;
+			k = est + diff;
+		}
 		int sum;
-		if (k == 0)
-			sum = pCodec->maxDecode(MAX_P - 2) + 1;
-		else
-			sum = pCodec->maxDecode(MAX_P - 1);
+		if (k == 0) {
+			int tmp = bitlen(sum_);
+			if (unlikely(sum_ == 0)) tmp = 3;
+			if (tmp > SUM_CTX_NB) tmp = SUM_CTX_NB;
+			sum = pCodec->huffDecode(&huff_0_dec[tmp - 1]) + 1;
+		} else {
+			int tmp = (sum_ - (2 << k)) >> (k + 2);
+			if (tmp < 0) tmp = 0;
+			if (unlikely(sum_ == 0)) tmp = 2;
+			if (tmp >= SUM_CTX_NB) tmp = SUM_CTX_NB - 1;
+			sum = pCodec->huffDecode(&huff_X_dec[tmp]) + 3;
+		}
 		pCodec->enumDecode(enu, sum);
 		for (int i = 0; i < 16; i++) {
 			tmp[i] = enu[i];
@@ -435,6 +501,10 @@ template <cmode mode, bool high_band, class C>
 			pBlock += stride - 4;
 		}
 	}
+
+	if (tst < EST_SIZE)
+		k_est[tst] += ((k << EST_SHIFT) - k_est[tst]) >> EST_SPEED;
+
 	return k;
 }
 
@@ -443,7 +513,7 @@ template <cmode mode, bool high_band, class C>
 template <cmode mode, bool high_band, class C, class P>
 	void CBandCodec::tree(CMuxCodec * pCodec)
 {
-	static const int thres[] = {0, 2, 4, 7, 11, 17, 26, 39, 57, 82, 119, 170, 242, 344, 489, 694, 983, 1393, 1971, 2790, 3947, 5585, 7900, 11175, 15805, 22355, 0xFFFFFF};
+// 	static const int thres[] = {0, 2, 4, 7, 11, 17, 26, 39, 57, 82, 119, 170, 242, 344, 489, 694, 983, 1393, 1971, 2790, 3947, 5585, 7900, 11175, 15805, 22355, 0xFFFFFF};
 
 	C * pCur1 = (C*) pBand;
 	C * pCur2 = (C*) pBand + DimXAlign * (BLK_SIZE >> 1);
@@ -469,10 +539,10 @@ template <cmode mode, bool high_band, class C, class P>
 
 	for( uint j = 0; j <= DimY - BLK_SIZE; j += BLK_SIZE){
 		int i = 0, bs = BLK_SIZE;
-		if (j & BLK_SIZE) {
-			bs = -bs;
-			i = (DimX & (-1 << BLK_PWR)) + bs;
-		}
+// 		if (j & BLK_SIZE) {
+// 			bs = -bs;
+// 			i = (DimX & (-1 << BLK_PWR)) + bs;
+// 		}
 		for( ; (uint)i <= DimX - BLK_SIZE; i += bs){
 			int ctx = 15, k = i >> 1;
 			if (pPar) ctx = pPar[k];
@@ -489,13 +559,15 @@ template <cmode mode, bool high_band, class C, class P>
 					if (!high_band)
 						pCur1[i] = pCur1[i + (BLK_SIZE >> 1)] = pCur2[i] = pCur2[i + (BLK_SIZE >> 1)] = INSIGNIF_BLOCK;
 				} else {
-					int est = -1;
+					int est = 0;
 					if (i != 0 && j != 0) {
-						int sum = (pCur1[-DimXAlign + i - 1] >> 1) + (pCur1[-DimXAlign + i] >> 1) + (pCur1[-DimXAlign + 1 + i] >> 1) + (pCur1[-DimXAlign + 2 + i] >> 1) + (pCur1[-DimXAlign + 3 + i] >> 1);
+						// TODO regenerate huff tables with this sum :
+						int sum = /*(pCur1[-DimXAlign + i - 1] >> 1) + */(pCur1[-DimXAlign + i] >> 1) + (pCur1[-DimXAlign + 1 + i] >> 1) + (pCur1[-DimXAlign + 2 + i] >> 1) + (pCur1[-DimXAlign + 3 + i] >> 1);
 						sum += (pCur1[-1 + i] >> 1) + (pCur1[DimXAlign - 1 + i] >> 1) + (pCur2[-1 + i] >> 1) + (pCur2[DimXAlign - 1 + i] >> 1);
-						est = 0;
-						while (thres[est] < sum)
-							est++;
+// 						while (thres[est] < sum)
+// 							est++;
+// 						est++;
+						est = sum + 1;
 					}
 
 					pCur1[i] &= ~INSIGNIF_BLOCK;
@@ -508,6 +580,15 @@ template <cmode mode, bool high_band, class C, class P>
 		pCur2 += diff;
 		pPar += diff_par;
 	}
+// 	if (high_band) {
+// 		printf("-->\n");
+// 		for (int j = 0; j < EST_SIZE; j++) {
+// 			for (int i = 0; i < EST_CNT; i++)
+// 				printf("%i	", k_cnt[i][j]);
+// 			printf("\n");
+// 		}
+// 		printf("\n");
+// 	}
 }
 
 template void CBandCodec::tree<encode, true, short, short>(CMuxCodec * );
@@ -525,145 +606,44 @@ template void CBandCodec::tree<encode, false, int, int>(CMuxCodec * );
 template void CBandCodec::tree<decode, true, int, int>(CMuxCodec * );
 template void CBandCodec::tree<decode, false, int, int>(CMuxCodec * );
 
-// low bands (!= first) huffman coding and decoding tables
-static const sHuffSym hcl00[17] = { {1, 1}, {1, 2}, {1, 3}, {1, 4}, {1, 5}, {3, 7}, {2, 7}, {3, 8}, {1, 8}, {2, 8}, {2, 10}, {3, 10}, {3, 11}, {2, 11}, {1, 11}, {1, 12}, {0, 12} };
-static const sHuffSym hdl00[] = { {0x8000, 1, 1}, {0x4000, 2, 2}, {0x2000, 3, 3}, {0x1000, 4, 4}, {0x800, 5, 5}, {0x400, 7, 8}, {0x100, 8, 10}, {0x80, 10, 13}, {0x20, 11, 15}, {0x0, 12, 16} };
-static const unsigned char hdl_lut00[17] = { 0, 1, 2, 3, 4, 5, 6, 7, 9, 8, 11, 10, 12, 13, 14, 15, 16 };
+static const sHuffSym h0c00[20] = { {1, 1}, {3, 3}, {2, 3}, {3, 4}, {2, 4}, {3, 5}, {5, 6}, {4, 6}, {3, 6}, {5, 7}, {4, 7}, {3, 7}, {5, 8}, {4, 8}, {3, 8}, {2, 8}, {3, 9}, {2, 9}, {1, 9}, {0, 9} };
+static const sHuffSym h0d00[] = { {0x8000, 1, 1}, {0x4000, 3, 4}, {0x2000, 4, 6}, {0x1800, 5, 8}, {0xc00, 6, 11}, {0x600, 7, 14}, {0x200, 8, 17}, {0x0, 9, 19} };
+static const uchar h0d_lut00[20] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19 };
 
-static const sHuffSym hcl01[17] = { {2, 3}, {1, 1}, {3, 3}, {1, 3}, {1, 4}, {1, 5}, {3, 7}, {2, 7}, {3, 8}, {2, 8}, {3, 9}, {2, 9}, {1, 9}, {1, 10}, {1, 11}, {1, 12}, {0, 12} };
-static const sHuffSym hdl01[] = { {0x8000, 1, 1}, {0x2000, 3, 4}, {0x1000, 4, 5}, {0x800, 5, 6}, {0x400, 7, 9}, {0x200, 8, 11}, {0x80, 9, 13}, {0x40, 10, 14}, {0x20, 11, 15}, {0x0, 12, 16} };
-static const unsigned char hdl_lut01[17] = { 1, 2, 0, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16 };
+static const sHuffSym h0c01[20] = { {3, 2}, {5, 3}, {4, 3}, {3, 3}, {5, 4}, {4, 4}, {3, 4}, {5, 5}, {4, 5}, {3, 5}, {5, 6}, {4, 6}, {3, 6}, {5, 7}, {4, 7}, {3, 7}, {2, 7}, {1, 7}, {1, 8}, {0, 8} };
+static const sHuffSym h0d01[] = { {0xc000, 2, 3}, {0x6000, 3, 6}, {0x3000, 4, 9}, {0x1800, 5, 12}, {0xc00, 6, 15}, {0x200, 7, 18}, {0x0, 8, 19} };
+static const uchar h0d_lut01[20] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19 };
 
-static const sHuffSym hcl02[17] = { {2, 4}, {1, 1}, {3, 3}, {2, 3}, {3, 4}, {1, 4}, {1, 5}, {1, 6}, {1, 7}, {3, 9}, {2, 9}, {3, 10}, {2, 10}, {1, 10}, {1, 11}, {1, 12}, {0, 12} };
-static const sHuffSym hdl02[] = { {0x8000, 1, 1}, {0x4000, 3, 4}, {0x1000, 4, 6}, {0x800, 5, 7}, {0x400, 6, 8}, {0x200, 7, 9}, {0x100, 9, 12}, {0x40, 10, 14}, {0x20, 11, 15}, {0x0, 12, 16} };
-static const unsigned char hdl_lut02[17] = { 1, 2, 3, 4, 0, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16 };
+static const sHuffSym h0c02[20] = { {13, 4}, {12, 4}, {7, 3}, {11, 4}, {9, 4}, {10, 4}, {8, 4}, {7, 4}, {6, 4}, {5, 4}, {4, 4}, {3, 4}, {5, 5}, {4, 5}, {3, 5}, {2, 5}, {3, 6}, {2, 6}, {1, 6}, {0, 6} };
+static const sHuffSym h0d02[] = { {0xe000, 3, 7}, {0x3000, 4, 14}, {0x1000, 5, 17}, {0x0, 6, 19} };
+static const uchar h0d_lut02[20] = { 2, 0, 1, 3, 5, 4, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19 };
 
-static const sHuffSym hcl03[17] = { {3, 5}, {3, 2}, {2, 2}, {3, 3}, {2, 3}, {3, 4}, {2, 4}, {2, 5}, {1, 5}, {1, 6}, {1, 7}, {1, 8}, {1, 9}, {1, 10}, {1, 11}, {1, 12}, {0, 12} };
-static const sHuffSym hdl03[] = { {0x8000, 2, 3}, {0x4000, 3, 5}, {0x2000, 4, 7}, {0x800, 5, 9}, {0x400, 6, 10}, {0x200, 7, 11}, {0x100, 8, 12}, {0x80, 9, 13}, {0x40, 10, 14}, {0x20, 11, 15}, {0x0, 12, 16} };
-static const unsigned char hdl_lut03[17] = { 1, 2, 3, 4, 5, 6, 0, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16 };
-
-static const sHuffSym hcl04[17] = { {2, 5}, {4, 3}, {6, 3}, {5, 3}, {7, 3}, {3, 3}, {2, 3}, {3, 4}, {2, 4}, {3, 5}, {1, 5}, {1, 6}, {1, 7}, {1, 8}, {1, 9}, {1, 10}, {0, 10} };
-static const sHuffSym hdl04[] = { {0x4000, 3, 7}, {0x2000, 4, 9}, {0x800, 5, 11}, {0x400, 6, 12}, {0x200, 7, 13}, {0x100, 8, 14}, {0x80, 9, 15}, {0x0, 10, 16} };
-static const unsigned char hdl_lut04[17] = { 4, 2, 3, 1, 5, 6, 7, 8, 9, 0, 10, 11, 12, 13, 14, 15, 16 };
-
-static const sHuffSym hcl05[17] = { {2, 6}, {4, 4}, {3, 3}, {5, 3}, {7, 3}, {6, 3}, {4, 3}, {5, 4}, {3, 4}, {2, 4}, {3, 5}, {2, 5}, {3, 6}, {1, 6}, {1, 7}, {1, 8}, {0, 8} };
-static const sHuffSym hdl05[] = { {0x6000, 3, 7}, {0x2000, 4, 10}, {0x1000, 5, 12}, {0x400, 6, 14}, {0x200, 7, 15}, {0x0, 8, 16} };
-static const unsigned char hdl_lut05[17] = { 4, 5, 3, 6, 2, 7, 1, 8, 9, 10, 11, 12, 0, 13, 14, 15, 16 };
-
-static const sHuffSym hcl06[17] = { {1, 8}, {3, 5}, {3, 4}, {5, 4}, {5, 3}, {6, 3}, {7, 3}, {4, 3}, {3, 3}, {4, 4}, {2, 4}, {2, 5}, {1, 5}, {1, 6}, {1, 7}, {1, 9}, {0, 9} };
-static const sHuffSym hdl06[] = { {0x6000, 3, 7}, {0x2000, 4, 10}, {0x800, 5, 12}, {0x400, 6, 13}, {0x200, 7, 14}, {0x100, 8, 15}, {0x0, 9, 16} };
-static const unsigned char hdl_lut06[17] = { 6, 5, 4, 7, 8, 3, 9, 2, 10, 1, 11, 12, 13, 14, 0, 15, 16 };
-
-static const sHuffSym hcl07[17] = { {1, 8}, {1, 5}, {3, 5}, {4, 4}, {6, 4}, {4, 3}, {5, 3}, {6, 3}, {7, 3}, {7, 4}, {5, 4}, {3, 4}, {2, 4}, {2, 5}, {1, 6}, {1, 7}, {0, 8} };
-static const sHuffSym hdl07[] = { {0x8000, 3, 7}, {0x2000, 4, 11}, {0x800, 5, 13}, {0x400, 6, 14}, {0x200, 7, 15}, {0x0, 8, 16} };
-static const unsigned char hdl_lut07[17] = { 8, 7, 6, 5, 9, 4, 10, 3, 11, 12, 2, 13, 1, 14, 15, 0, 16 };
-
-static const sHuffSym hcl08[17] = { {0, 7}, {2, 6}, {3, 6}, {3, 5}, {3, 4}, {5, 4}, {7, 4}, {5, 3}, {7, 3}, {6, 3}, {4, 3}, {6, 4}, {4, 4}, {2, 4}, {2, 5}, {1, 6}, {1, 7} };
-static const sHuffSym hdl08[] = { {0x8000, 3, 7}, {0x2000, 4, 11}, {0x1000, 5, 13}, {0x400, 6, 15}, {0x0, 7, 16} };
-static const unsigned char hdl_lut08[17] = { 8, 9, 7, 10, 6, 11, 5, 12, 4, 13, 3, 14, 2, 1, 15, 16, 0 };
-
-static const sHuffSym hcl09[17] = { {0, 8}, {1, 8}, {1, 6}, {1, 5}, {3, 5}, {3, 4}, {4, 4}, {6, 4}, {5, 3}, {7, 3}, {6, 3}, {4, 3}, {7, 4}, {5, 4}, {2, 4}, {2, 5}, {1, 7} };
-static const sHuffSym hdl09[] = { {0x8000, 3, 7}, {0x2000, 4, 11}, {0x800, 5, 13}, {0x400, 6, 14}, {0x200, 7, 15}, {0x0, 8, 16} };
-static const unsigned char hdl_lut09[17] = { 9, 10, 8, 11, 12, 7, 13, 6, 5, 14, 4, 15, 3, 2, 16, 1, 0 };
-
-static const sHuffSym hcl10[17] = { {0, 8}, {1, 8}, {1, 7}, {1, 6}, {3, 6}, {2, 5}, {2, 4}, {3, 4}, {5, 4}, {4, 3}, {6, 3}, {7, 3}, {5, 3}, {3, 3}, {4, 4}, {3, 5}, {2, 6} };
-static const sHuffSym hdl10[] = { {0x6000, 3, 7}, {0x2000, 4, 10}, {0x1000, 5, 12}, {0x400, 6, 14}, {0x200, 7, 15}, {0x0, 8, 16} };
-static const unsigned char hdl_lut10[17] = { 11, 10, 12, 9, 13, 8, 14, 7, 6, 15, 5, 4, 16, 3, 2, 1, 0 };
-
-static const sHuffSym hcl11[17] = { {0, 10}, {1, 10}, {1, 9}, {1, 8}, {1, 7}, {1, 6}, {1, 5}, {3, 5}, {2, 4}, {2, 3}, {4, 3}, {5, 3}, {7, 3}, {6, 3}, {3, 3}, {3, 4}, {2, 5} };
-static const sHuffSym hdl11[] = { {0x4000, 3, 7}, {0x2000, 4, 9}, {0x800, 5, 11}, {0x400, 6, 12}, {0x200, 7, 13}, {0x100, 8, 14}, {0x80, 9, 15}, {0x0, 10, 16} };
-static const unsigned char hdl_lut11[17] = { 12, 13, 11, 10, 14, 9, 15, 8, 7, 16, 6, 5, 4, 3, 2, 1, 0 };
-
-static const sHuffSym hcl12[17] = { {0, 11}, {1, 11}, {1, 10}, {1, 9}, {1, 8}, {1, 7}, {1, 6}, {1, 5}, {1, 4}, {3, 4}, {2, 3}, {4, 3}, {5, 3}, {7, 3}, {6, 3}, {3, 3}, {2, 4} };
-static const sHuffSym hdl12[] = { {0x4000, 3, 7}, {0x1000, 4, 9}, {0x800, 5, 10}, {0x400, 6, 11}, {0x200, 7, 12}, {0x100, 8, 13}, {0x80, 9, 14}, {0x40, 10, 15}, {0x0, 11, 16} };
-static const unsigned char hdl_lut12[17] = { 13, 14, 12, 11, 15, 10, 9, 16, 8, 7, 6, 5, 4, 3, 2, 1, 0 };
-
-static const sHuffSym hcl13[17] = { {0, 13}, {1, 13}, {1, 12}, {1, 11}, {1, 10}, {1, 9}, {1, 8}, {1, 7}, {1, 6}, {1, 5}, {1, 4}, {1, 3}, {3, 3}, {4, 3}, {3, 2}, {5, 3}, {2, 3} };
-static const sHuffSym hdl13[] = { {0xc000, 2, 3}, {0x2000, 3, 6}, {0x1000, 4, 7}, {0x800, 5, 8}, {0x400, 6, 9}, {0x200, 7, 10}, {0x100, 8, 11}, {0x80, 9, 12}, {0x40, 10, 13}, {0x20, 11, 14}, {0x10, 12, 15}, {0x0, 13, 16} };
-static const unsigned char hdl_lut13[17] = { 14, 15, 13, 12, 16, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0 };
-
-static const sHuffSym hcl14[17] = { {0, 15}, {1, 15}, {1, 14}, {1, 13}, {1, 12}, {1, 11}, {1, 10}, {1, 9}, {1, 8}, {1, 7}, {1, 6}, {1, 5}, {1, 4}, {1, 3}, {2, 2}, {3, 2}, {1, 2} };
-static const sHuffSym hdl14[] = { {0x4000, 2, 3}, {0x2000, 3, 4}, {0x1000, 4, 5}, {0x800, 5, 6}, {0x400, 6, 7}, {0x200, 7, 8}, {0x100, 8, 9}, {0x80, 9, 10}, {0x40, 10, 11}, {0x20, 11, 12}, {0x10, 12, 13}, {0x8, 13, 14}, {0x4, 14, 15}, {0x0, 15, 16} };
-static const unsigned char hdl_lut14[17] = { 15, 14, 16, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0 };
-
-static const sHuffSym hcl15[17] = { {1, 16}, {0, 16}, {1, 15}, {1, 14}, {1, 13}, {1, 12}, {1, 11}, {1, 10}, {1, 9}, {1, 8}, {1, 7}, {1, 6}, {1, 5}, {1, 4}, {1, 3}, {1, 2}, {1, 1} };
-static const sHuffSym hdl15[] = { {0x8000, 1, 1}, {0x4000, 2, 2}, {0x2000, 3, 3}, {0x1000, 4, 4}, {0x800, 5, 5}, {0x400, 6, 6}, {0x200, 7, 7}, {0x100, 8, 8}, {0x80, 9, 9}, {0x40, 10, 10}, {0x20, 11, 11}, {0x10, 12, 12}, {0x8, 13, 13}, {0x4, 14, 14}, {0x2, 15, 15}, {0x0, 16, 16} };
-static const unsigned char hdl_lut15[17] = { 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 0, 1 };
-
-static const sHuffSym hcl16[17] = { {0, 15}, {1, 13}, {1, 14}, {1, 15}, {1, 12}, {1, 11}, {1, 10}, {2, 10}, {3, 10}, {1, 8}, {1, 7}, {1, 6}, {1, 5}, {1, 4}, {1, 3}, {1, 2}, {1, 1} };
-static const sHuffSym hdl16[] = { {0x8000, 1, 1}, {0x4000, 2, 2}, {0x2000, 3, 3}, {0x1000, 4, 4}, {0x800, 5, 5}, {0x400, 6, 6}, {0x200, 7, 7}, {0x100, 8, 8}, {0x40, 10, 11}, {0x20, 11, 12}, {0x10, 12, 13}, {0x8, 13, 14}, {0x4, 14, 15}, {0x0, 15, 16} };
-static const unsigned char hdl_lut16[17] = { 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 1, 2, 3, 0 };
+static const sHuffSym h0c03[20] = { {0, 5}, {1, 5}, {2, 5}, {3, 5}, {4, 5}, {5, 5}, {6, 5}, {7, 5}, {4, 4}, {5, 4}, {8, 4}, {10, 4}, {13, 4}, {15, 4}, {14, 4}, {12, 4}, {11, 4}, {9, 4}, {7, 4}, {6, 4} };
+static const sHuffSym h0d03[] = { {0x4000, 4, 15}, {0x0, 5, 19} };
+static const uchar h0d_lut03[20] = { 13, 14, 12, 15, 16, 11, 17, 10, 18, 19, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0 };
 
 
-// high bands (== first) huffman coding and decoding tables
-static const sHuffSym hch01[16] = { {1, 1}, {1, 2}, {1, 3}, {1, 4}, {1, 5}, {1, 6}, {1, 7}, {1, 8}, {1, 10}, {1, 9}, {1, 11}, {1, 12}, {1, 13}, {1, 14}, {1, 15}, {0, 15} };
-static const sHuffSym hdh01[] = { {0x8000, 1, 1}, {0x4000, 2, 2}, {0x2000, 3, 3}, {0x1000, 4, 4}, {0x800, 5, 5}, {0x400, 6, 6}, {0x200, 7, 7}, {0x100, 8, 8}, {0x80, 9, 9}, {0x40, 10, 10}, {0x20, 11, 11}, {0x10, 12, 12}, {0x8, 13, 13}, {0x4, 14, 14}, {0x0, 15, 15} };
-static const unsigned char hdh_lut01[16] = { 0, 1, 2, 3, 4, 5, 6, 7, 9, 8, 10, 11, 12, 13, 14, 15 };
 
-static const sHuffSym hch02[16] = { {1, 1}, {1, 2}, {1, 3}, {1, 4}, {1, 5}, {1, 6}, {1, 7}, {1, 8}, {1, 9}, {1, 10}, {1, 11}, {1, 12}, {1, 13}, {1, 14}, {1, 15}, {0, 15} };
-static const sHuffSym hdh02[] = { {0x8000, 1, 1}, {0x4000, 2, 2}, {0x2000, 3, 3}, {0x1000, 4, 4}, {0x800, 5, 5}, {0x400, 6, 6}, {0x200, 7, 7}, {0x100, 8, 8}, {0x80, 9, 9}, {0x40, 10, 10}, {0x20, 11, 11}, {0x10, 12, 12}, {0x8, 13, 13}, {0x4, 14, 14}, {0x0, 15, 15} };
-static const unsigned char hdh_lut02[16] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15 };
+static const sHuffSym hXc00[18] = { {0, 8}, {1, 8}, {1, 7}, {5, 5}, {4, 3}, {7, 3}, {6, 3}, {5, 3}, {3, 3}, {5, 4}, {4, 4}, {3, 4}, {4, 5}, {3, 5}, {2, 5}, {3, 6}, {2, 6}, {1, 6} };
+static const sHuffSym hXd00[] = { {0x6000, 3, 7}, {0x3000, 4, 10}, {0x1000, 5, 13}, {0x400, 6, 15}, {0x200, 7, 16}, {0x0, 8, 17} };
+static const uchar hXd_lut00[18] = { 5, 6, 7, 4, 8, 9, 10, 11, 3, 12, 13, 14, 15, 16, 17, 2, 1, 0 };
 
-static const sHuffSym hch03[16] = { {3, 2}, {2, 2}, {3, 3}, {2, 3}, {1, 3}, {1, 4}, {1, 5}, {1, 6}, {1, 7}, {1, 8}, {1, 9}, {1, 10}, {1, 11}, {1, 12}, {1, 13}, {0, 13} };
-static const sHuffSym hdh03[] = { {0x8000, 2, 3}, {0x2000, 3, 5}, {0x1000, 4, 6}, {0x800, 5, 7}, {0x400, 6, 8}, {0x200, 7, 9}, {0x100, 8, 10}, {0x80, 9, 11}, {0x40, 10, 12}, {0x20, 11, 13}, {0x10, 12, 14}, {0x0, 13, 15} };
-static const unsigned char hdh_lut03[16] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15 };
+static const sHuffSym hXc01[18] = { {0, 8}, {1, 8}, {1, 7}, {2, 5}, {6, 4}, {6, 3}, {7, 3}, {5, 3}, {4, 3}, {7, 4}, {5, 4}, {4, 4}, {3, 4}, {5, 5}, {4, 5}, {3, 5}, {1, 5}, {1, 6} };
+static const sHuffSym hXd01[] = { {0x8000, 3, 7}, {0x3000, 4, 11}, {0x800, 5, 14}, {0x400, 6, 15}, {0x200, 7, 16}, {0x0, 8, 17} };
+static const uchar hXd_lut01[18] = { 6, 5, 7, 8, 9, 4, 10, 11, 12, 13, 14, 15, 3, 16, 17, 2, 1, 0 };
 
-static const sHuffSym hch04[16] = { {3, 3}, {5, 3}, {4, 3}, {3, 2}, {2, 3}, {3, 4}, {2, 4}, {1, 4}, {1, 5}, {1, 6}, {1, 7}, {1, 8}, {1, 9}, {1, 10}, {1, 11}, {0, 11} };
-static const sHuffSym hdh04[] = { {0xc000, 2, 3}, {0x4000, 3, 6}, {0x1000, 4, 8}, {0x800, 5, 9}, {0x400, 6, 10}, {0x200, 7, 11}, {0x100, 8, 12}, {0x80, 9, 13}, {0x40, 10, 14}, {0x0, 11, 15} };
-static const unsigned char hdh_lut04[16] = { 3, 1, 2, 0, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15 };
+static const sHuffSym hXc02[18] = { {0, 8}, {1, 8}, {1, 7}, {1, 6}, {1, 5}, {7, 4}, {6, 3}, {7, 3}, {11, 4}, {10, 4}, {9, 4}, {8, 4}, {6, 4}, {5, 4}, {4, 4}, {3, 4}, {2, 4}, {1, 4} };
+static const sHuffSym hXd02[] = { {0xc000, 3, 7}, {0x1000, 4, 13}, {0x800, 5, 14}, {0x400, 6, 15}, {0x200, 7, 16}, {0x0, 8, 17} };
+static const uchar hXd_lut02[18] = { 7, 6, 8, 9, 10, 11, 5, 12, 13, 14, 15, 16, 17, 4, 3, 2, 1, 0 };
 
-static const sHuffSym hch05[16] = { {2, 3}, {4, 3}, {6, 3}, {7, 3}, {5, 3}, {3, 3}, {3, 4}, {2, 4}, {1, 4}, {1, 5}, {1, 6}, {1, 7}, {1, 8}, {1, 9}, {1, 10}, {0, 10} };
-static const sHuffSym hdh05[] = { {0x4000, 3, 7}, {0x1000, 4, 9}, {0x800, 5, 10}, {0x400, 6, 11}, {0x200, 7, 12}, {0x100, 8, 13}, {0x80, 9, 14}, {0x0, 10, 15} };
-static const unsigned char hdh_lut05[16] = { 3, 2, 4, 1, 5, 0, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15 };
-
-static const sHuffSym hch06[16] = { {2, 4}, {4, 4}, {5, 4}, {5, 3}, {6, 3}, {7, 3}, {4, 3}, {3, 3}, {3, 4}, {1, 4}, {1, 5}, {1, 6}, {1, 7}, {1, 8}, {1, 9}, {0, 9} };
-static const sHuffSym hdh06[] = { {0x6000, 3, 7}, {0x1000, 4, 10}, {0x800, 5, 11}, {0x400, 6, 12}, {0x200, 7, 13}, {0x100, 8, 14}, {0x0, 9, 15} };
-static const unsigned char hdh_lut06[16] = { 5, 4, 3, 6, 7, 2, 1, 8, 0, 9, 10, 11, 12, 13, 14, 15 };
-
-static const sHuffSym hch07[16] = { {1, 5}, {3, 5}, {3, 4}, {5, 4}, {4, 3}, {6, 3}, {7, 3}, {5, 3}, {3, 3}, {4, 4}, {2, 4}, {2, 5}, {1, 6}, {1, 7}, {1, 8}, {0, 8} };
-static const sHuffSym hdh07[] = { {0x6000, 3, 7}, {0x2000, 4, 10}, {0x800, 5, 12}, {0x400, 6, 13}, {0x200, 7, 14}, {0x0, 8, 15} };
-static const unsigned char hdh_lut07[16] = { 6, 5, 7, 4, 8, 3, 9, 2, 10, 1, 11, 0, 12, 13, 14, 15 };
-
-static const sHuffSym hch08[16] = { {1, 6}, {3, 6}, {3, 5}, {3, 4}, {4, 4}, {3, 3}, {5, 3}, {7, 3}, {6, 3}, {4, 3}, {5, 4}, {2, 4}, {2, 5}, {2, 6}, {1, 7}, {0, 7} };
-static const sHuffSym hdh08[] = { {0x6000, 3, 7}, {0x2000, 4, 10}, {0x1000, 5, 12}, {0x400, 6, 14}, {0x0, 7, 15} };
-static const unsigned char hdh_lut08[16] = { 7, 8, 6, 9, 5, 10, 4, 3, 11, 2, 12, 1, 13, 0, 14, 15 };
-
-static const sHuffSym hch09[16] = { {1, 7}, {1, 6}, {3, 6}, {3, 5}, {2, 4}, {4, 4}, {3, 3}, {5, 3}, {7, 3}, {6, 3}, {4, 3}, {5, 4}, {3, 4}, {2, 5}, {2, 6}, {0, 7} };
-static const sHuffSym hdh09[] = { {0x6000, 3, 7}, {0x2000, 4, 10}, {0x1000, 5, 12}, {0x400, 6, 14}, {0x0, 7, 15} };
-static const unsigned char hdh_lut09[16] = { 8, 9, 7, 10, 6, 11, 5, 12, 4, 3, 13, 2, 14, 1, 0, 15 };
-
-static const sHuffSym hch10[16] = { {0, 7}, {1, 7}, {2, 6}, {3, 6}, {3, 5}, {2, 4}, {4, 4}, {3, 3}, {4, 3}, {6, 3}, {7, 3}, {5, 3}, {5, 4}, {3, 4}, {2, 5}, {1, 6} };
-static const sHuffSym hdh10[] = { {0x6000, 3, 7}, {0x2000, 4, 10}, {0x1000, 5, 12}, {0x400, 6, 14}, {0x0, 7, 15} };
-static const unsigned char hdh_lut10[16] = { 10, 9, 11, 8, 7, 12, 6, 13, 5, 4, 14, 3, 2, 15, 1, 0 };
-
-static const sHuffSym hch11[16] = { {0, 9}, {1, 9}, {1, 8}, {1, 7}, {1, 6}, {2, 5}, {3, 5}, {3, 4}, {2, 3}, {4, 3}, {6, 3}, {7, 3}, {5, 3}, {3, 3}, {2, 4}, {1, 5} };
-static const sHuffSym hdh11[] = { {0x4000, 3, 7}, {0x2000, 4, 9}, {0x800, 5, 11}, {0x400, 6, 12}, {0x200, 7, 13}, {0x100, 8, 14}, {0x0, 9, 15} };
-static const unsigned char hdh_lut11[16] = { 11, 10, 12, 9, 13, 8, 7, 14, 6, 5, 15, 4, 3, 2, 1, 0 };
-
-static const sHuffSym hch12[16] = { {0, 10}, {1, 10}, {1, 9}, {1, 8}, {1, 7}, {1, 6}, {1, 5}, {1, 4}, {3, 4}, {2, 3}, {4, 3}, {6, 3}, {7, 3}, {5, 3}, {3, 3}, {2, 4} };
-static const sHuffSym hdh12[] = { {0x4000, 3, 7}, {0x1000, 4, 9}, {0x800, 5, 10}, {0x400, 6, 11}, {0x200, 7, 12}, {0x100, 8, 13}, {0x80, 9, 14}, {0x0, 10, 15} };
-static const unsigned char hdh_lut12[16] = { 12, 11, 13, 10, 14, 9, 8, 15, 7, 6, 5, 4, 3, 2, 1, 0 };
-
-static const sHuffSym hch13[16] = { {0, 12}, {1, 12}, {1, 11}, {1, 10}, {1, 9}, {1, 8}, {1, 7}, {1, 6}, {1, 5}, {1, 4}, {3, 4}, {2, 3}, {2, 2}, {3, 2}, {3, 3}, {2, 4} };
-static const sHuffSym hdh13[] = { {0x8000, 2, 3}, {0x4000, 3, 5}, {0x1000, 4, 7}, {0x800, 5, 8}, {0x400, 6, 9}, {0x200, 7, 10}, {0x100, 8, 11}, {0x80, 9, 12}, {0x40, 10, 13}, {0x20, 11, 14}, {0x0, 12, 15} };
-static const unsigned char hdh_lut13[16] = { 13, 12, 14, 11, 10, 15, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0 };
-
-static const sHuffSym hch14[16] = { {0, 13}, {1, 13}, {1, 12}, {1, 11}, {1, 10}, {1, 9}, {1, 8}, {1, 7}, {1, 6}, {1, 5}, {1, 4}, {1, 3}, {2, 3}, {2, 2}, {3, 2}, {3, 3} };
-static const sHuffSym hdh14[] = { {0x8000, 2, 3}, {0x2000, 3, 5}, {0x1000, 4, 6}, {0x800, 5, 7}, {0x400, 6, 8}, {0x200, 7, 9}, {0x100, 8, 10}, {0x80, 9, 11}, {0x40, 10, 12}, {0x20, 11, 13}, {0x10, 12, 14}, {0x0, 13, 15} };
-static const unsigned char hdh_lut14[16] = { 14, 13, 15, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0 };
-
-static const sHuffSym hch15[16] = { {0, 14}, {1, 14}, {1, 13}, {1, 12}, {1, 11}, {1, 10}, {1, 9}, {1, 8}, {1, 7}, {1, 6}, {1, 5}, {1, 4}, {1, 3}, {1, 2}, {3, 2}, {2, 2} };
-static const sHuffSym hdh15[] = { {0x4000, 2, 3}, {0x2000, 3, 4}, {0x1000, 4, 5}, {0x800, 5, 6}, {0x400, 6, 7}, {0x200, 7, 8}, {0x100, 8, 9}, {0x80, 9, 10}, {0x40, 10, 11}, {0x20, 11, 12}, {0x10, 12, 13}, {0x8, 13, 14}, {0x0, 14, 15} };
-static const unsigned char hdh_lut15[16] = { 14, 15, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0 };
-
-static const sHuffSym hch16[16] = { {3, 12}, {2, 12}, {1, 12}, {0, 12}, {1, 9}, {3, 9}, {2, 9}, {1, 10}, {3, 8}, {2, 8}, {1, 6}, {1, 5}, {1, 4}, {1, 3}, {1, 2}, {1, 1} };
-static const sHuffSym hdh16[] = { {0x8000, 1, 1}, {0x4000, 2, 2}, {0x2000, 3, 3}, {0x1000, 4, 4}, {0x800, 5, 5}, {0x400, 6, 6}, {0x200, 8, 9}, {0x80, 9, 11}, {0x40, 10, 12}, {0x0, 12, 15} };
-static const unsigned char hdh_lut16[16] = { 15, 14, 13, 12, 11, 10, 8, 9, 5, 6, 4, 7, 0, 1, 2, 3 };
+static const sHuffSym hXc03[18] = { {0, 9}, {1, 9}, {1, 8}, {1, 7}, {1, 6}, {1, 5}, {1, 4}, {2, 4}, {3, 4}, {4, 4}, {5, 4}, {6, 4}, {7, 4}, {8, 4}, {9, 4}, {6, 3}, {5, 3}, {7, 3} };
+static const sHuffSym hXd03[] = { {0xa000, 3, 7}, {0x1000, 4, 12}, {0x800, 5, 13}, {0x400, 6, 14}, {0x200, 7, 15}, {0x100, 8, 16}, {0x0, 9, 17} };
+static const uchar hXd_lut03[18] = { 17, 15, 16, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0 };
 
 
-sHuffSym const * const CBandCodec::huff_lk_enc[17] = { hcl00, hcl01, hcl02, hcl03, hcl04, hcl05, hcl06, hcl07, hcl08, hcl09, hcl10, hcl11, hcl12, hcl13, hcl14, hcl15, hcl16 };
-sHuffSym const * const CBandCodec::huff_hk_enc[16] = { hch01, hch02, hch03, hch04, hch05, hch06, hch07, hch08, hch09, hch10, hch11, hch12, hch13, hch14, hch15, hch16 };
-sHuffCan CBandCodec::huff_lk_dec[17] = { {hdl00, hdl_lut00}, {hdl01, hdl_lut01}, {hdl02, hdl_lut02}, {hdl03, hdl_lut03}, {hdl04, hdl_lut04}, {hdl05, hdl_lut05}, {hdl06, hdl_lut06}, {hdl07, hdl_lut07}, {hdl08, hdl_lut08}, {hdl09, hdl_lut09}, {hdl10, hdl_lut10}, {hdl11, hdl_lut11}, {hdl12, hdl_lut12}, {hdl13, hdl_lut13}, {hdl14, hdl_lut14}, {hdl15, hdl_lut15}, {hdl16, hdl_lut16} };
-sHuffCan CBandCodec::huff_hk_dec[16] = { {hdh01, hdh_lut01}, {hdh02, hdh_lut02}, {hdh03, hdh_lut03}, {hdh04, hdh_lut04}, {hdh05, hdh_lut05}, {hdh06, hdh_lut06}, {hdh07, hdh_lut07}, {hdh08, hdh_lut08}, {hdh09, hdh_lut09}, {hdh10, hdh_lut10}, {hdh11, hdh_lut11}, {hdh12, hdh_lut12}, {hdh13, hdh_lut13}, {hdh14, hdh_lut14}, {hdh15, hdh_lut15}, {hdh16, hdh_lut16} };
+sHuffSym const * const CBandCodec::huff_0_enc[4] = { h0c00, h0c01, h0c02, h0c03 };
+sHuffSym const * const CBandCodec::huff_X_enc[4] = { hXc00, hXc01, hXc02, hXc03 };
+sHuffCan CBandCodec::huff_0_dec[4] = { {h0d00, h0d_lut00}, {h0d01, h0d_lut01}, {h0d02, h0d_lut02}, {h0d03, h0d_lut03} };
+sHuffCan CBandCodec::huff_X_dec[4] = { {hXd00, hXd_lut00}, {hXd01, hXd_lut01}, {hXd02, hXd_lut02}, {hXd03, hXd_lut03} };
 
 }

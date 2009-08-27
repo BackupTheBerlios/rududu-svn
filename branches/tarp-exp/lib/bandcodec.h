@@ -33,7 +33,8 @@
 // go too far from zero
 // #define ERR_SH 2
 
-#define ZBLOCK_CTX_NB 1 // TODO use more contexts !
+#define ZBLOCK_CTX_NB 16 // TODO use more contexts !
+#define SUM_CTX_NB 4
 
 namespace rududu {
 
@@ -49,9 +50,8 @@ public:
 	template <cmode mode, bool high_band, class C, class P> void tree(CMuxCodec * pCodec);
 
 #ifdef GENERATE_HUFF_STATS
-	static unsigned int histo_l[17][17];
-	static unsigned int histo_h[17][16];
-	static uint bit_cnt[32][32];
+	static uint sum_0_cnt[SUM_CTX_NB][MAX_P - 1];
+	static uint sum_x_cnt[SUM_CTX_NB][MAX_P - 3];
 #endif
 
 private :
@@ -74,10 +74,10 @@ private :
 	int q_err; /// sum of the quantization error (for quant bin > 1)
 #endif
 
-	static sHuffSym const * const huff_lk_enc[17];
-	static sHuffSym const * const huff_hk_enc[16];
-	static sHuffCan huff_lk_dec[17];
-	static sHuffCan huff_hk_dec[16];
+	static sHuffSym const * const huff_0_enc[4];
+	static sHuffSym const * const huff_X_enc[4];
+	static sHuffCan huff_0_dec[4];
+	static sHuffCan huff_X_dec[4];
 	static const char blen[BLK_SIZE * BLK_SIZE + 1];
 };
 

@@ -87,21 +87,21 @@ void CWavelet2D::CodeBand(CMuxCodec * pCodec, int Quant, int lambda)
 #ifdef GENERATE_HUFF_STATS
 	cin.peek();
 	if (cin.eof()) {
-		for( int i = 0; i < 17; i++){
-			for( int j = 0; j < 17; j++){
-				CBandCodec::histo_l[i][j] = 0;
-				if (j != 16) CBandCodec::histo_h[i][j] = 0;
+		for( int i = 0; i < SUM_CTX_NB; i++){
+			for( int j = 0; j < MAX_P - 1; j++){
+				CBandCodec::sum_0_cnt[i][j] = 0;
+				if (j < MAX_P - 3) CBandCodec::sum_x_cnt[i][j] = 0;
 			}
 		}
 	} else {
-		for( int i = 0; i < 17; i++){
-			for( int j = 0; j < 17; j++){
-				cin >> CBandCodec::histo_l[i][j];
+		for( int i = 0; i < SUM_CTX_NB; i++){
+			for( int j = 0; j < MAX_P - 1; j++){
+				cin >> CBandCodec::sum_0_cnt[i][j];
 			}
 		}
-		for( int i = 0; i < 17; i++){
-			for( int j = 0; j < 16; j++){
-				cin >> CBandCodec::histo_h[i][j];
+		for( int i = 0; i < SUM_CTX_NB; i++){
+			for( int j = 0; j < MAX_P - 3; j++){
+				cin >> CBandCodec::sum_x_cnt[i][j];
 			}
 		}
 	}
@@ -159,25 +159,18 @@ void CWavelet2D::CodeBand(CMuxCodec * pCodec, int Quant, int lambda)
 	}
 
 #ifdef GENERATE_HUFF_STATS
-	for( int i = 0; i < 17; i++){
-		for( int j = 0; j < 17; j++){
-			cout << CBandCodec::histo_l[i][j] << "\t";
+	for( int i = 0; i < SUM_CTX_NB; i++){
+		for( int j = 0; j < MAX_P - 1; j++){
+			cout << CBandCodec::sum_0_cnt[i][j] << "\t";
 		}
 		cout << endl;
 	}
 	cout << endl;
-	for( int i = 0; i < 17; i++){
-		for( int j = 0; j < 16; j++){
-			cout << CBandCodec::histo_h[i][j] << "\t";
+	for( int i = 0; i < SUM_CTX_NB; i++){
+		for( int j = 0; j < MAX_P - 3; j++){
+			cout << CBandCodec::sum_x_cnt[i][j] << "\t";
 		}
 		cout << endl;
-	}
-	cout << endl;
-	for( int i = 0; i <= 8; i++){
-		for( int j = 0; j < 17; j++){
-			cout << CBandCodec::bit_cnt[i][j] << "\t";
-		}
-// 		cout << endl;
 	}
 	cout << endl;
 #endif
