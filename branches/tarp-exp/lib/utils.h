@@ -169,6 +169,28 @@ int inline bitlen(unsigned int v)
 	return r + log_int[v];
 }
 
+/**
+ * approximate log function in base 2
+ * @param v
+ * @return log2(v) in Q5.2
+ */
+int inline log2i(unsigned int v)
+{
+	int s = bitlen(v);
+	v <<= 32 - s;
+	s <<= 2;
+	if (v > 3037000500u) {
+		if (v > 3611622603u)
+			s += 3;
+		else
+			s += 2;
+	} else {
+		if (v > 2553802834u)
+			s += 1;
+	}
+	return s;
+}
+
 template <class a, int x, int y, bool add>
 	void inline copy(a * src, a * dst, const int src_stride, const int dst_stride)
 {
