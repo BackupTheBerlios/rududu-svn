@@ -263,6 +263,11 @@ public:
 		return (buffer >> nbBits) & (-1u >> (-length & 31));
 	}
 
+	void inline huffCode(const sHuffSym sym)
+	{
+		bitsCode(sym.code, sym.len);
+	}
+	
 	// canonical huffman codes decoding
 	unsigned int inline huffDecode(const sHuffSym * huffTable)
 	{
