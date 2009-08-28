@@ -513,8 +513,6 @@ template <cmode mode, bool high_band, class C>
 template <cmode mode, bool high_band, class C, class P>
 	void CBandCodec::tree(CMuxCodec * pCodec)
 {
-// 	static const int thres[] = {0, 2, 4, 7, 11, 17, 26, 39, 57, 82, 119, 170, 242, 344, 489, 694, 983, 1393, 1971, 2790, 3947, 5585, 7900, 11175, 15805, 22355, 0xFFFFFF};
-
 	C * pCur1 = (C*) pBand;
 	C * pCur2 = (C*) pBand + DimXAlign * (BLK_SIZE >> 1);
 	int diff = DimXAlign * BLK_SIZE;
@@ -559,16 +557,19 @@ template <cmode mode, bool high_band, class C, class P>
 					if (!high_band)
 						pCur1[i] = pCur1[i + (BLK_SIZE >> 1)] = pCur2[i] = pCur2[i + (BLK_SIZE >> 1)] = INSIGNIF_BLOCK;
 				} else {
-					int est = 0;
-					if (i != 0 && j != 0) {
-						// TODO regenerate huff tables with this sum :
-						int sum = /*(pCur1[-DimXAlign + i - 1] >> 1) + */(pCur1[-DimXAlign + i] >> 1) + (pCur1[-DimXAlign + 1 + i] >> 1) + (pCur1[-DimXAlign + 2 + i] >> 1) + (pCur1[-DimXAlign + 3 + i] >> 1);
+					int est = 0, sum = 0;
+					if (likely(i != 0)) {
 						sum += (pCur1[-1 + i] >> 1) + (pCur1[DimXAlign - 1 + i] >> 1) + (pCur2[-1 + i] >> 1) + (pCur2[DimXAlign - 1 + i] >> 1);
-// 						while (thres[est] < sum)
-// 							est++;
-// 						est++;
-						est = sum + 1;
+						est++;
 					}
+					if (likely(j != 0)) {
+						sum += (pCur1[-DimXAlign + i] >> 1) + (pCur1[-DimXAlign + 1 + i] >> 1) + (pCur1[-DimXAlign + 2 + i] >> 1) + (pCur1[-DimXAlign + 3 + i] >> 1);
+						est++;
+					}
+					if (likely(est == 2))
+						est = sum + 1;
+					else if (est == 1)
+						est = 2 * sum + 1;
 
 					pCur1[i] &= ~INSIGNIF_BLOCK;
 
@@ -580,15 +581,6 @@ template <cmode mode, bool high_band, class C, class P>
 		pCur2 += diff;
 		pPar += diff_par;
 	}
-// 	if (high_band) {
-// 		printf("-->\n");
-// 		for (int j = 0; j < EST_SIZE; j++) {
-// 			for (int i = 0; i < EST_CNT; i++)
-// 				printf("%i	", k_cnt[i][j]);
-// 			printf("\n");
-// 		}
-// 		printf("\n");
-// 	}
 }
 
 template void CBandCodec::tree<encode, true, short, short>(CMuxCodec * );
@@ -614,31 +606,30 @@ static const sHuffSym h0c01[20] = { {3, 2}, {5, 3}, {4, 3}, {3, 3}, {5, 4}, {4, 
 static const sHuffSym h0d01[] = { {0xc000, 2, 3}, {0x6000, 3, 6}, {0x3000, 4, 9}, {0x1800, 5, 12}, {0xc00, 6, 15}, {0x200, 7, 18}, {0x0, 8, 19} };
 static const uchar h0d_lut01[20] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19 };
 
-static const sHuffSym h0c02[20] = { {13, 4}, {12, 4}, {7, 3}, {11, 4}, {9, 4}, {10, 4}, {8, 4}, {7, 4}, {6, 4}, {5, 4}, {4, 4}, {3, 4}, {5, 5}, {4, 5}, {3, 5}, {2, 5}, {3, 6}, {2, 6}, {1, 6}, {0, 6} };
-static const sHuffSym h0d02[] = { {0xe000, 3, 7}, {0x3000, 4, 14}, {0x1000, 5, 17}, {0x0, 6, 19} };
-static const uchar h0d_lut02[20] = { 2, 0, 1, 3, 5, 4, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19 };
+static const sHuffSym h0c02[20] = { {14, 4}, {13, 4}, {15, 4}, {11, 4}, {10, 4}, {12, 4}, {9, 4}, {8, 4}, {7, 4}, {6, 4}, {5, 4}, {4, 4}, {3, 4}, {5, 5}, {4, 5}, {3, 5}, {2, 5}, {1, 5}, {1, 6}, {0, 6} };
+static const sHuffSym h0d02[] = { {0x3000, 4, 15}, {0x800, 5, 18}, {0x0, 6, 19} };
+static const uchar h0d_lut02[20] = { 2, 0, 1, 5, 3, 4, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19 };
 
-static const sHuffSym h0c03[20] = { {0, 5}, {1, 5}, {2, 5}, {3, 5}, {4, 5}, {5, 5}, {6, 5}, {7, 5}, {4, 4}, {5, 4}, {8, 4}, {10, 4}, {13, 4}, {15, 4}, {14, 4}, {12, 4}, {11, 4}, {9, 4}, {7, 4}, {6, 4} };
+static const sHuffSym h0c03[20] = { {0, 5}, {1, 5}, {2, 5}, {3, 5}, {4, 5}, {5, 5}, {6, 5}, {7, 5}, {4, 4}, {5, 4}, {6, 4}, {7, 4}, {10, 4}, {12, 4}, {14, 4}, {15, 4}, {13, 4}, {11, 4}, {9, 4}, {8, 4} };
 static const sHuffSym h0d03[] = { {0x4000, 4, 15}, {0x0, 5, 19} };
-static const uchar h0d_lut03[20] = { 13, 14, 12, 15, 16, 11, 17, 10, 18, 19, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0 };
-
+static const uchar h0d_lut03[20] = { 15, 14, 16, 13, 17, 12, 18, 19, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0 };
 
 
 static const sHuffSym hXc00[18] = { {0, 8}, {1, 8}, {1, 7}, {5, 5}, {4, 3}, {7, 3}, {6, 3}, {5, 3}, {3, 3}, {5, 4}, {4, 4}, {3, 4}, {4, 5}, {3, 5}, {2, 5}, {3, 6}, {2, 6}, {1, 6} };
 static const sHuffSym hXd00[] = { {0x6000, 3, 7}, {0x3000, 4, 10}, {0x1000, 5, 13}, {0x400, 6, 15}, {0x200, 7, 16}, {0x0, 8, 17} };
 static const uchar hXd_lut00[18] = { 5, 6, 7, 4, 8, 9, 10, 11, 3, 12, 13, 14, 15, 16, 17, 2, 1, 0 };
 
-static const sHuffSym hXc01[18] = { {0, 8}, {1, 8}, {1, 7}, {2, 5}, {6, 4}, {6, 3}, {7, 3}, {5, 3}, {4, 3}, {7, 4}, {5, 4}, {4, 4}, {3, 4}, {5, 5}, {4, 5}, {3, 5}, {1, 5}, {1, 6} };
-static const sHuffSym hXd01[] = { {0x8000, 3, 7}, {0x3000, 4, 11}, {0x800, 5, 14}, {0x400, 6, 15}, {0x200, 7, 16}, {0x0, 8, 17} };
-static const uchar hXd_lut01[18] = { 6, 5, 7, 8, 9, 4, 10, 11, 12, 13, 14, 15, 3, 16, 17, 2, 1, 0 };
+static const sHuffSym hXc01[18] = { {0, 8}, {1, 8}, {1, 7}, {1, 6}, {6, 4}, {6, 3}, {7, 3}, {5, 3}, {9, 4}, {8, 4}, {7, 4}, {5, 4}, {4, 4}, {3, 4}, {2, 4}, {3, 5}, {2, 5}, {1, 5} };
+static const sHuffSym hXd01[] = { {0xa000, 3, 7}, {0x2000, 4, 12}, {0x800, 5, 14}, {0x400, 6, 15}, {0x200, 7, 16}, {0x0, 8, 17} };
+static const uchar hXd_lut01[18] = { 6, 5, 7, 8, 9, 10, 4, 11, 12, 13, 14, 15, 16, 17, 3, 2, 1, 0 };
 
-static const sHuffSym hXc02[18] = { {0, 8}, {1, 8}, {1, 7}, {1, 6}, {1, 5}, {7, 4}, {6, 3}, {7, 3}, {11, 4}, {10, 4}, {9, 4}, {8, 4}, {6, 4}, {5, 4}, {4, 4}, {3, 4}, {2, 4}, {1, 4} };
+static const sHuffSym hXc02[18] = { {0, 8}, {1, 8}, {1, 7}, {1, 6}, {1, 5}, {5, 4}, {10, 4}, {6, 3}, {7, 3}, {11, 4}, {9, 4}, {8, 4}, {7, 4}, {6, 4}, {4, 4}, {3, 4}, {2, 4}, {1, 4} };
 static const sHuffSym hXd02[] = { {0xc000, 3, 7}, {0x1000, 4, 13}, {0x800, 5, 14}, {0x400, 6, 15}, {0x200, 7, 16}, {0x0, 8, 17} };
-static const uchar hXd_lut02[18] = { 7, 6, 8, 9, 10, 11, 5, 12, 13, 14, 15, 16, 17, 4, 3, 2, 1, 0 };
+static const uchar hXd_lut02[18] = { 8, 7, 9, 6, 10, 11, 12, 13, 5, 14, 15, 16, 17, 4, 3, 2, 1, 0 };
 
-static const sHuffSym hXc03[18] = { {0, 9}, {1, 9}, {1, 8}, {1, 7}, {1, 6}, {1, 5}, {1, 4}, {2, 4}, {3, 4}, {4, 4}, {5, 4}, {6, 4}, {7, 4}, {8, 4}, {9, 4}, {6, 3}, {5, 3}, {7, 3} };
+static const sHuffSym hXc03[18] = { {0, 9}, {1, 9}, {1, 8}, {1, 7}, {1, 6}, {1, 5}, {1, 4}, {2, 4}, {3, 4}, {4, 4}, {5, 4}, {6, 4}, {7, 4}, {8, 4}, {9, 4}, {5, 3}, {6, 3}, {7, 3} };
 static const sHuffSym hXd03[] = { {0xa000, 3, 7}, {0x1000, 4, 12}, {0x800, 5, 13}, {0x400, 6, 14}, {0x200, 7, 15}, {0x100, 8, 16}, {0x0, 9, 17} };
-static const uchar hXd_lut03[18] = { 17, 15, 16, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0 };
+static const uchar hXd_lut03[18] = { 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0 };
 
 
 sHuffSym const * const CBandCodec::huff_0_enc[4] = { h0c00, h0c01, h0c02, h0c03 };
