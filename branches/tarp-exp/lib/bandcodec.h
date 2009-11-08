@@ -20,10 +20,10 @@
 
 #pragma once
 
-#include <utils.h>
-#include <band.h>
-#include <geomcodec.h>
-#include <bitcodec.h>
+#include "utils.h"
+#include "band.h"
+#include "geomcodec.h"
+#include "bitcodec.h"
 
 #define BLK_PWR		2
 #define BLK_SIZE	(1 << BLK_PWR)

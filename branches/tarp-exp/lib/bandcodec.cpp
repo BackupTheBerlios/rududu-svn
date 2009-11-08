@@ -22,7 +22,7 @@
 
 #include "bandcodec.h"
 #include "huffcodec.h"
-#include "huff.h" // huffman tables
+#include "hufftables.h" // huffman tables
 
 #ifdef GENERATE_HUFF_STATS
 #include <math.h>
@@ -388,8 +388,8 @@ template <cmode mode, bool high_band, class C>
 			for (C * pEnd = pBlock + 4; pBlock < pEnd; pBlock++) {
 				tmp[k++] = pBlock[0];
 				sum += pBlock[0] >> 1;
- 				if (pBlock[0] != 0)
- 					cnt++;
+				if (pBlock[0] != 0)
+					cnt++;
 			}
 			pBlock += stride - 4;
 		}
