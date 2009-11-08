@@ -38,16 +38,23 @@ typedef struct {
 	unsigned char len;
 } sHuffRL;
 
+/// Huffman table entry, 32 bits version.
+typedef struct {
+	unsigned long code;
+	unsigned short len;
+	unsigned short value;
+} sHuffSymExt;
+
 class CHuffCodec{
 public:
 	CHuffCodec(cmode mode, const sHuffRL * pInitTable, unsigned int n);
 
     ~CHuffCodec();
 
-	static void make_huffman(sHuffSym * sym, uint n, int max_len);
+	template <class H> static void make_huffman(H * sym, uint n, int max_len);
 	static void init_lut(sHuffCan * data, const int bits);
 
-	static void print(sHuffSym * sym, int n, int print_type, char * name);
+	template <class H> static void print(H * sym, int n, int print_type, char * name);
 	void print(int print_type, char * name);
 
 	unsigned int nbSym;
@@ -64,12 +71,12 @@ private:
 	void init(const sHuffRL * pInitTable);
 	void update_code(void);
 
-	static void make_codes(sHuffSym * sym, int n);
-	static void make_len(sHuffSym * sym, int n);
-	static void make_len(sHuffSym * sym, int n, int max_len);
+	template <class H> static void make_codes(H * sym, int n);
+	template <class H> static void make_len(H * sym, int n);
+	template <class H> static void make_len(H * sym, int n, int max_len);
 
 	static void RL2len(const sHuffRL * pRL, sHuffSym * pHuff, int n);
-	static int len2RL(sHuffRL * pRL, const sHuffSym * pHuff, int n);
+	template <class H> static int len2RL(sHuffRL * pRL, const H * pHuff, int n);
 	static int enc2dec(sHuffSym * sym, sHuffSym * outSym, unsigned char * pSymLUT, int n);
 
 public:

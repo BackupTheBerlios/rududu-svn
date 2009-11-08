@@ -85,26 +85,26 @@ void CWavelet2D::CodeBand(CMuxCodec * pCodec, int Quant, int lambda)
 	CWavelet2D * pCurWav = this;
 
 #ifdef GENERATE_HUFF_STATS
-	cin.peek();
-	if (cin.eof()) {
-		for( int i = 0; i < SUM_CTX_NB; i++){
-			for( int j = 0; j < MAX_P - 1; j++){
-				CBandCodec::sum_0_cnt[i][j] = 0;
-				if (j < MAX_P - 3) CBandCodec::sum_x_cnt[i][j] = 0;
-			}
-		}
-	} else {
-		for( int i = 0; i < SUM_CTX_NB; i++){
-			for( int j = 0; j < MAX_P - 1; j++){
-				cin >> CBandCodec::sum_0_cnt[i][j];
-			}
-		}
-		for( int i = 0; i < SUM_CTX_NB; i++){
-			for( int j = 0; j < MAX_P - 3; j++){
-				cin >> CBandCodec::sum_x_cnt[i][j];
-			}
-		}
-	}
+// 	cin.peek();
+// 	if (cin.eof()) {
+// 		for( int i = 0; i < SUM_CTX_NB; i++){
+// 			for( int j = 0; j < MAX_P - 1; j++){
+// 				CBandCodec::sum_0_cnt[i][j] = 0;
+// 				if (j < MAX_P - 3) CBandCodec::sum_x_cnt[i][j] = 0;
+// 			}
+// 		}
+// 	} else {
+// 		for( int i = 0; i < SUM_CTX_NB; i++){
+// 			for( int j = 0; j < MAX_P - 1; j++){
+// 				cin >> CBandCodec::sum_0_cnt[i][j];
+// 			}
+// 		}
+// 		for( int i = 0; i < SUM_CTX_NB; i++){
+// 			for( int j = 0; j < MAX_P - 3; j++){
+// 				cin >> CBandCodec::sum_x_cnt[i][j];
+// 			}
+// 		}
+// 	}
 #endif
 
 	if (DBand.type == sshort) {
@@ -159,20 +159,20 @@ void CWavelet2D::CodeBand(CMuxCodec * pCodec, int Quant, int lambda)
 	}
 
 #ifdef GENERATE_HUFF_STATS
-	for( int i = 0; i < SUM_CTX_NB; i++){
-		for( int j = 0; j < MAX_P - 1; j++){
-			cout << CBandCodec::sum_0_cnt[i][j] << "\t";
-		}
-		cout << endl;
-	}
-	cout << endl;
-	for( int i = 0; i < SUM_CTX_NB; i++){
-		for( int j = 0; j < MAX_P - 3; j++){
-			cout << CBandCodec::sum_x_cnt[i][j] << "\t";
-		}
-		cout << endl;
-	}
-	cout << endl;
+// 	for( int i = 0; i < SUM_CTX_NB; i++){
+// 		for( int j = 0; j < MAX_P - 1; j++){
+// 			cout << CBandCodec::sum_0_cnt[i][j] << "\t";
+// 		}
+// 		cout << endl;
+// 	}
+// 	cout << endl;
+// 	for( int i = 0; i < SUM_CTX_NB; i++){
+// 		for( int j = 0; j < MAX_P - 3; j++){
+// 			cout << CBandCodec::sum_x_cnt[i][j] << "\t";
+// 		}
+// 		cout << endl;
+// 	}
+// 	cout << endl;
 #endif
 }
 

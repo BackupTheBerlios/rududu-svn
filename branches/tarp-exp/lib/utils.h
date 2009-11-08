@@ -172,21 +172,23 @@ int inline bitlen(unsigned int v)
 /**
  * approximate log function in base 2
  * @param v
- * @return log2(v) in Q5.2
+ * @return log2(v) + 1 in Q5.2
  */
 int inline log2i(unsigned int v)
 {
 	int s = bitlen(v);
 	v <<= 32 - s;
 	s <<= 2;
-	if (v > 3037000500u) {
-		if (v > 3611622603u)
-			s += 3;
+	if (v > 3311872529u) {
+		if (v > 3938502376u)
+			s += 4;
 		else
-			s += 2;
+			s += 3;
 	} else {
-		if (v > 2553802834u)
-			s += 1;
+		if (v > 2784941738u)
+			s += 2;
+		else if (v > 2341847524u)
+			s++;
 	}
 	return s;
 }

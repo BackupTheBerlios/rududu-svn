@@ -37,6 +37,16 @@ using namespace rududu;
 #define NORM	"\x1B[0m"
 #endif // _WIN32
 
+#define NAME_MAX_SIZE 128
+#define MAX_CTX_NB	64
+
+struct huff_tab_t {
+	int cnt;
+	sHuffSymExt huff[MAX_HUFF_SYM];
+};
+
+huff_tab_t ctx[MAX_CTX_NB];
+
 void usage(void)
 {
 	printf(
@@ -46,13 +56,26 @@ void usage(void)
 		  );
 }
 
+static void skip_line(istream & input, char c)
+{
+	while (c != '\n' && ! input.eof())
+		c = input.get();
+}
+
+static void print_huff(char * tab_name, int idx, bool enc)
+{
+	char name[NAME_MAX_SIZE];
+	sprintf(name, "%s%c%02i", tab_name, enc ? 'c' : 'd', idx);
+	CHuffCodec::print(ctx[idx].huff, ctx[idx].cnt, enc ? 0 : 2, name);
+}
+
 int main( int argc, char *argv[] )
 {
 	string progname = argv[0];
-	sHuffSym input[MAX_HUFF_SYM];
 	unsigned int counts[MAX_HUFF_SYM], tab_idx = 0, gran_cnt = 0;
 	double huff_size = 0, theo_size = 0;
 	int huff_len = 0;
+	char t_name[NAME_MAX_SIZE] = "tab";
 
 	if (argc > 1) {
 		char* end;
@@ -71,54 +94,56 @@ int main( int argc, char *argv[] )
 		int sym_cnt = 0;
 		unsigned int sum = 0;
 		char c = cin.get();
+
+		if (c < '0' || c > '9') {
+			if (c == '>') {
+				cin.width(NAME_MAX_SIZE);
+				cin >> t_name;
+			}
+			skip_line(cin, c);
+			tab_idx = 0;
+			continue;
+		}
+
 		while(c != '\n' && ! cin.eof()) {
 			cin.putback(c);
 			cin >> counts[sym_cnt];
 			sum += counts[sym_cnt];
+			ctx[tab_idx].huff[sym_cnt].code = counts[sym_cnt];
+			ctx[tab_idx].huff[sym_cnt].value = sym_cnt;
 			sym_cnt++;
 			do c = cin.get();
 			while( c == ' ' or c == '\t' );
 		}
+		ctx[tab_idx].cnt = sym_cnt;
 
-		int max_len = bitlen(sum), shift = 0;
-		if (max_len > 16) shift = max_len - 16;
+		if (sym_cnt <= 1 || sum <= 1)
+			continue;
 
+		CHuffCodec::make_huffman(ctx[tab_idx].huff, ctx[tab_idx].cnt, huff_len);
+		print_huff(t_name, tab_idx, true);
+
+		double total_cnt = 0, total_size = 0, optim_size = 0;
 		for( int i = 0; i < sym_cnt; i++) {
-			counts[i] >>= shift;
-			input[i].code = counts[i];
-			input[i].value = i;
+			total_cnt += counts[i];
+			total_size += counts[i] * ctx[tab_idx].huff[i].len;
+			if (counts[i] != 0)
+				optim_size += counts[i] * log2(counts[i]);
 		}
+		optim_size = total_cnt * log2(total_cnt) - optim_size;
 
-		if (sym_cnt != 0) {
-			CHuffCodec::make_huffman(input, sym_cnt, huff_len);
-			char name[16];
-			sprintf(name, "enc%02i", tab_idx);
-			CHuffCodec::print(input, sym_cnt, 0, name);
+		print_huff(t_name, tab_idx, false);
 
-			double total_cnt = 0, total_size = 0, optim_size = 0;
-			for( int i = 0; i < sym_cnt; i++) {
-				total_cnt += counts[i];
-				total_size += counts[i] * input[i].len;
-				if (counts[i] != 0)
-					optim_size += counts[i] * log2(counts[i]);
-			}
-			optim_size = total_cnt * log2(total_cnt) - optim_size;
-
-			sprintf(name, "dec%02i", tab_idx);
-			CHuffCodec::print(input, sym_cnt, 2, name);
-			cout << "// count : " << total_cnt << endl;
-			if (total_cnt > 0) {
-				cout << "// huff : " << total_size / total_cnt << " bps, " << total_size << " bits" << endl;
-				cout << "// opt : " << optim_size / total_cnt << " bps, " << optim_size << " bits" << endl;
-				cout << "// loss : " << (total_size - optim_size) / total_cnt << " bps (" << (total_size - optim_size) * 100 / optim_size << "%)\n" << endl;
-				double mult = 1;
-				if (shift != 0) mult = (double) sum / total_cnt;
-				huff_size += total_size * mult;
-				theo_size += optim_size * mult;
-				gran_cnt += sum;
-			}
-			tab_idx++;
-		} else tab_idx = 0;
+		cout << "// count : " << total_cnt << endl;
+		if (total_cnt > 0) {
+			cout << "// huff : " << total_size / total_cnt << " bps, " << total_size << " bits" << endl;
+			cout << "// opt : " << optim_size / total_cnt << " bps, " << optim_size << " bits" << endl;
+			cout << "// loss : " << (total_size - optim_size) / total_cnt << " bps (" << (total_size - optim_size) * 100 / optim_size << "%)\n" << endl;
+			huff_size += total_size;
+			theo_size += optim_size;
+			gran_cnt += sum;
+		}
+		tab_idx++;
 	}
 	cout << "// " << gran_cnt << " symbols, total size : " << huff_size << " bits (" << huff_size / gran_cnt <<" bps)" << endl;
 	cout << "// loss : " << (huff_size - theo_size) * 100 / theo_size << "%" << endl;

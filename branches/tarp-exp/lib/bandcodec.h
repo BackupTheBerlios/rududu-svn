@@ -27,14 +27,15 @@
 
 #define BLK_PWR		2
 #define BLK_SIZE	(1 << BLK_PWR)
-// #define GENERATE_HUFF_STATS
+#define GENERATE_HUFF_STATS
 
 // define this to track the quantization error mean and try to make it don't
 // go too far from zero
 // #define ERR_SH 2
 
-#define ZBLOCK_CTX_NB 16 // TODO use more contexts !
-#define SUM_CTX_NB 4
+#define ZBLOCK_CTX_NB 16
+#define ZK_CTX_NB 6
+#define MORE_CTX_NB 16
 
 namespace rududu {
 
@@ -49,11 +50,6 @@ public:
 	template <bool high_band, class C>void buildTree(C Quant, int lambda);
 	template <cmode mode, bool high_band, class C, class P> void tree(CMuxCodec * pCodec);
 
-#ifdef GENERATE_HUFF_STATS
-	static uint sum_0_cnt[SUM_CTX_NB][MAX_P - 1];
-	static uint sum_x_cnt[SUM_CTX_NB][MAX_P - 3];
-#endif
-
 private :
 	template <class C> int tsuqBlock(C * pCur, int stride, C Quant, int iQuant,
 	                                 int lambda, C * rd_thres);
@@ -62,7 +58,7 @@ private :
 		static inline int maxLen(C * pBlock, int stride);
 	template <cmode mode, bool high_band, class C>
 		static unsigned int block_enum(C * pBlock, int stride, CMuxCodec * pCodec,
-		                               CBitCodec<ZBLOCK_CTX_NB> & zblockCodec, int idx);
+									   CBitCodec<ZBLOCK_CTX_NB + ZK_CTX_NB + MORE_CTX_NB + 1> & zblockCodec, int idx);
 	static inline int clen(int coef, unsigned int cnt);
 	template <class C>
 		static void inSort (C ** pKeys, int len);
@@ -73,11 +69,7 @@ private :
 #ifdef ERR_SH
 	int q_err; /// sum of the quantization error (for quant bin > 1)
 #endif
-
-	static sHuffSym const * const huff_0_enc[4];
-	static sHuffSym const * const huff_X_enc[4];
-	static sHuffCan huff_0_dec[4];
-	static sHuffCan huff_X_dec[4];
+	
 	static const char blen[BLK_SIZE * BLK_SIZE + 1];
 };
 

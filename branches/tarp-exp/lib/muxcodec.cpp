@@ -442,7 +442,7 @@ void CMuxCodec::initEnum(void)
 	}
 }
 
-void CMuxCodec::enumCode(short * values, int sum)
+void CMuxCodec::enumCode(short * values, int sum, int n_val)
 {
 	unsigned long code = 0;
 	int sum_sav = sum;
@@ -450,7 +450,7 @@ void CMuxCodec::enumCode(short * values, int sum)
 	if (sum <= 0)
 		return;
 
-	for (int i = MAX_Q - 2; i >= 0; i--) {
+	for (int i = n_val - 2; i >= 0; i--) {
 		code += G_p_q[sum][i];
 		sum -= values[i];
 		code -= G_p_q[sum][i];
@@ -462,9 +462,9 @@ void CMuxCodec::enumCode(short * values, int sum)
 		bitsCode(code + lost[sum_sav], len[sum_sav]);
 }
 
-void CMuxCodec::enumDecode(short * values, int sum)
+void CMuxCodec::enumDecode(short * values, int sum, int n_val)
 {
-	memset(values, 0, sizeof(short) * MAX_Q);
+	memset(values, 0, sizeof(short) * n_val);
 
 	if (sum <= 0)
 		return;
@@ -473,7 +473,7 @@ void CMuxCodec::enumDecode(short * values, int sum)
 	if (code >= lost[sum])
 		code = ((code << 1) | bitsDecode(1)) - lost[sum];
 
-	for (int i = MAX_Q - 2; i >= 0; i--) {
+	for (int i = n_val - 2; i >= 0; i--) {
 		if (code >= G_p_q[sum][i] - G_p_q[sum - 1][i]) {
 			do {
 				values[i]++;
@@ -482,7 +482,7 @@ void CMuxCodec::enumDecode(short * values, int sum)
 			sum -= values[i];
 		}
 	}
-	values[MAX_Q - 1] = sum;
+	values[n_val - 1] = sum;
 }
 
 

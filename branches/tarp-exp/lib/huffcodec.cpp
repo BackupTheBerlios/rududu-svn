@@ -26,22 +26,26 @@
 
 namespace rududu {
 
-static int comp_sym(const sHuffSym * sym1, const sHuffSym * sym2)
+template <class H>
+static int comp_sym(const H * sym1, const H * sym2)
 {
 	return sym1->value - sym2->value;
 }
 
-static int comp_freq(const sHuffSym * sym1, const sHuffSym * sym2)
+template <class H>
+static int comp_freq(const H * sym1, const H * sym2)
 {
 	return sym2->code - sym1->code;
 }
 
-static int _comp_freq(const sHuffSym * sym1, const sHuffSym * sym2)
+template <class H>
+static int _comp_freq(const H * sym1, const H * sym2)
 {
 	return sym1->code - sym2->code;
 }
 
-static int comp_len(const sHuffSym * sym1, const sHuffSym * sym2)
+template <class H>
+	static int comp_len(const H * sym1, const H * sym2)
 {
 	if (sym1->len == sym2->len)
 		return sym2->code - sym1->code;
@@ -83,12 +87,12 @@ void CHuffCodec::init(const sHuffRL * pInitTable)
 
 	RL2len(pInitTable, TmpHuff, nbSym);
 	qsort(TmpHuff, nbSym, sizeof(sHuffSym),
-	      (int (*)(const void *, const void *)) comp_len);
+	      (int (*)(const void *, const void *)) (int (*)(const sHuffSym *, const sHuffSym *)) comp_len<sHuffSym>);
 	make_codes(TmpHuff, nbSym);
 
 	if (pSymLUT == 0) {
 		qsort(TmpHuff, nbSym, sizeof(sHuffSym),
-		      (int (*)(const void *, const void *)) comp_sym);
+		      (int (*)(const void *, const void *)) (int (*)(const sHuffSym *, const sHuffSym *)) comp_sym<sHuffSym>);
 		memcpy(pSym, TmpHuff, sizeof(sHuffSym) * nbSym);
 	} else {
 		enc2dec(TmpHuff, pSym, pSymLUT, nbSym);
@@ -99,9 +103,10 @@ void CHuffCodec::init(const sHuffRL * pInitTable)
 #define UNKNOW_WEIGHT	((1 << 16) - 1)
 #define MAX_WEIGHT		(UNKNOW_WEIGHT - 1)
 
-static unsigned short calc_weight(sHuffSym const * sym, int n,
+template <class H>
+static unsigned long calc_weight(H const * sym, int n,
                                   unsigned char const * leaf_cnt,
-                                  unsigned short * pack_weight,
+                                  unsigned long * pack_weight,
                                   unsigned char * pack_leaf, int max_len)
 {
 	if (max_len == 1) {
@@ -115,7 +120,7 @@ static unsigned short calc_weight(sHuffSym const * sym, int n,
 			return MAX_WEIGHT;
 	}
 
-	unsigned short weight = 0;
+	unsigned long weight = 0;
 	memcpy(pack_leaf, leaf_cnt, max_len);
 
 	for( int i = 0; i < 2; i++){
@@ -145,9 +150,10 @@ static unsigned short calc_weight(sHuffSym const * sym, int n,
  * @param n number of symbols
  * @param max_len maximum symbol lenth
  */
-void CHuffCodec::make_len(sHuffSym * sym, int n, int max_len)
+template <class H>
+void CHuffCodec::make_len(H * sym, int n, int max_len)
 {
-	unsigned short pack_weight[max_len - 1]; // weight of the lookahead packages
+	unsigned long pack_weight[max_len - 1]; // weight of the lookahead packages
 	unsigned char leaf_cnt[(max_len * (max_len + 1)) >> 1];
 
 	memset(leaf_cnt, 0, sizeof leaf_cnt);
@@ -190,7 +196,8 @@ void CHuffCodec::make_len(sHuffSym * sym, int n, int max_len)
  * @param sym frequency of the symbols in decreasing order
  * @param n number of symbols
  */
-void CHuffCodec::make_len(sHuffSym * sym, int n)
+template <class H>
+void CHuffCodec::make_len(H * sym, int n)
 {
 	int root = n - 1, leaf = n - 3, next, nodes_left, nb_nodes, depth;
 
@@ -220,7 +227,7 @@ void CHuffCodec::make_len(sHuffSym * sym, int n)
 	root = 1;
 	next = 0;
 	while (nodes_left > 0) {
-		while (root < n && sym[root].code == depth) {
+		while (root < n && sym[root].code == (uint)depth) {
 			nb_nodes++;
 			root++;
 		}
@@ -239,7 +246,8 @@ void CHuffCodec::make_len(sHuffSym * sym, int n)
  * @param sym
  * @param n
  */
-void CHuffCodec::make_codes(sHuffSym * sym, int n)
+template <class H>
+void CHuffCodec::make_codes(H * sym, int n)
 {
 	unsigned int bits = sym[n - 1].len, code = 0;
 	sym[n - 1].code = 0;
@@ -265,7 +273,8 @@ void CHuffCodec::RL2len(const sHuffRL * pRL, sHuffSym * pHuff, int n)
 	}
 }
 
-int CHuffCodec::len2RL(sHuffRL * pRL, const sHuffSym * pHuff, int n)
+template <class H>
+int CHuffCodec::len2RL(sHuffRL * pRL, const H * pHuff, int n)
 {
 	int i = 0, j = 0, len = 0;
 	while( i < n ){
@@ -311,7 +320,7 @@ void CHuffCodec::update_code(void)
 		sym[i].value = i;
 	}
 	qsort(sym, nbSym, sizeof(sHuffSym),
-	      (int (*)(const void *, const void *)) comp_freq);
+	      (int (*)(const void *, const void *)) (int (*)(const sHuffSym *, const sHuffSym *)) comp_freq<sHuffSym>);
 
 	make_len(sym, nbSym);
 	if (sym[nbSym - 1].len > MAX_HUFF_LEN) {
@@ -320,7 +329,7 @@ void CHuffCodec::update_code(void)
 			sym[i].value = i;
 		}
 		qsort(sym, nbSym, sizeof(sHuffSym),
-		      (int (*)(const void *, const void *)) _comp_freq);
+		      (int (*)(const void *, const void *)) (int (*)(const sHuffSym *, const sHuffSym *)) _comp_freq<sHuffSym>);
 		make_len(sym, nbSym, MAX_HUFF_LEN);
 		for( unsigned int i = 0; i < (nbSym >> 1); i++){
 			sHuffSym tmp = sym[i];
@@ -335,7 +344,7 @@ void CHuffCodec::update_code(void)
 	make_codes(sym, nbSym);
 	if (pSymLUT == 0) {
 		qsort(sym, nbSym, sizeof(sHuffSym),
-		      (int (*)(const void *, const void *)) comp_sym);
+		      (int (*)(const void *, const void *)) (int (*)(const sHuffSym *, const sHuffSym *)) comp_sym<sHuffSym>);
 		memcpy(pSym, sym, sizeof(sHuffSym) * nbSym);
 	} else {
 		enc2dec(sym, pSym, pSymLUT, nbSym);
@@ -345,24 +354,28 @@ void CHuffCodec::update_code(void)
 	update_step = MAX(update_step, UPDATE_STEP_MIN);
 }
 
-void CHuffCodec::make_huffman(sHuffSym * sym, uint n, int max_len)
+template <class H>
+void CHuffCodec::make_huffman(H * sym, uint n, int max_len)
 {
 	if (max_len <= 0) {
-		qsort(sym, n, sizeof(sHuffSym),
-		      (int (*)(const void *, const void *)) comp_freq);
+		qsort(sym, n, sizeof(H),
+		      (int (*)(const void *, const void *)) (int (*)(const H *, const H *)) comp_freq<H>);
 		make_len(sym, n);
 	} else {
-		qsort(sym, n, sizeof(sHuffSym),
-		      (int (*)(const void *, const void *)) _comp_freq);
+		qsort(sym, n, sizeof(H),
+		      (int (*)(const void *, const void *)) (int (*)(const H *, const H *)) _comp_freq<H>);
 		make_len(sym, n, max_len);
 		for( uint i = 0; i < (n >> 1); i++) {
-			sHuffSym tmp = sym[i];
+			H tmp = sym[i];
 			sym[i] = sym[n - 1 - i];
 			sym[n - 1 - i] = tmp;
 		}
 	}
 	make_codes(sym, n);
 }
+
+template void CHuffCodec::make_huffman(sHuffSymExt * sym, uint n, int max_len);
+template void CHuffCodec::make_huffman(sHuffSym * sym, uint n, int max_len);
 
 /**
  * Print the huffman tables
@@ -375,50 +388,52 @@ void CHuffCodec::make_huffman(sHuffSym * sym, uint n, int max_len)
  * @param n
  * @param print_type
  */
-void CHuffCodec::print(sHuffSym * sym, int n, int print_type, char * name)
+template <class H>
+void CHuffCodec::print(H * sym, int n, int print_type, char * name)
 {
 	unsigned int bits, cnt;
+	int (*sort_fc)(const H *, const H *);
 	switch( print_type ) {
 	case 0 :
-		qsort(sym, n, sizeof(sHuffSym),
-		      (int (*)(const void *, const void *)) comp_sym);
-		printf("%s[%i] = { ", name, n);
+		sort_fc = comp_sym<H>;
+		qsort(sym, n, sizeof(H), (int (*)(const void *, const void *)) sort_fc);
+		printf("static const sHuffSym %s[%i] = { ", name, n);
 		for( int i = 0; i < n; i++) {
 			if (i != 0)
 				printf(", ");
-			printf("{%u, %u}", sym[i].code, sym[i].len);
+			printf("{%u, %u}", (uint) sym[i].code, sym[i].len);
 		}
 		printf(" };\n");
 		break;
 	case 1:
-		qsort(sym, n, sizeof(sHuffSym),
-		      (int (*)(const void *, const void *)) comp_len);
+		sort_fc = comp_len<H>;
+		qsort(sym, n, sizeof(H), (int (*)(const void *, const void *)) sort_fc);
 		printf("{\n	");
 		for( int i = 0; i < n; i++) {
-			printf("{0x%.4x, %u, %u}", sym[i].code << (16 - sym[i].len), sym[i].len, sym[i].value);
+			printf("{0x%.4x, %u, %u}", (uint) sym[i].code << (16 - sym[i].len), sym[i].len, sym[i].value);
 			if (i != 0)
 				printf(", ");
 		}
 		printf("\n}\n");
 		break;
 	case 2:
-		qsort(sym, n, sizeof(sHuffSym),
-		      (int (*)(const void *, const void *)) comp_len);
-		printf("%s[] = { ", name);
+		sort_fc = comp_len<H>;
+		qsort(sym, n, sizeof(H), (int (*)(const void *, const void *)) sort_fc);
+		printf("static const sHuffSym %s[] = { ", name);
 		bits = sym[0].len;
 		cnt = 1;
 		for ( int i = 1; i < n; i++ ) {
 			if (sym[i].len != bits) {
 				bits = sym[i].len;
-				printf("{0x%x, %u, %u}", sym[i-1].code << (16 - sym[i-1].len),
+				printf("{0x%x, %u, %u}", (uint) sym[i-1].code << (16 - sym[i-1].len),
 				       sym[i-1].len, (unsigned char)(sym[i-1].code + i - 1));
 				printf(", ");
 				cnt++;
 			}
 		}
-		printf("{0x%x, %u, %u}", sym[n-1].code << (16 - sym[n-1].len),
+		printf("{0x%x, %u, %u}", (uint) sym[n-1].code << (16 - sym[n-1].len),
 		       sym[n-1].len, (unsigned char)(sym[n-1].code + n - 1));
-		printf(" };\nlut_%s[%i] = { ", name, n);
+		printf(" };\nstatic const uchar lut_%s[%i] = { ", name, n);
 		for ( int i = 0; i < n; i++ ) {
 			printf("%u", sym[i].value);
 			if (i != n - 1)
@@ -427,8 +442,8 @@ void CHuffCodec::print(sHuffSym * sym, int n, int print_type, char * name)
 		printf(" };\n");
 		break;
 	case 4:
-		qsort(sym, n, sizeof(sHuffSym),
-		      (int (*)(const void *, const void *)) comp_sym);
+		sort_fc = comp_sym<H>;
+		qsort(sym, n, sizeof(H), (int (*)(const void *, const void *)) sort_fc);
 	case 3:
 		sHuffRL rl_table[MAX_HUFF_SYM];
 		int k = len2RL(rl_table, sym, n);
@@ -442,6 +457,8 @@ void CHuffCodec::print(sHuffSym * sym, int n, int print_type, char * name)
 	}
 	fflush(0);
 }
+
+template void CHuffCodec::print(sHuffSymExt *, int, int, char *);
 
 void CHuffCodec::print(int print_type, char * name)
 {

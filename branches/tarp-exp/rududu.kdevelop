@@ -31,7 +31,7 @@
   </general>
   <kdevautoproject>
     <general>
-      <activetarget>encoder/rudenc</activetarget>
+      <activetarget>ric/ric</activetarget>
       <useconfiguration>optimized</useconfiguration>
     </general>
     <run>
@@ -54,16 +54,16 @@
       <debugarguments>
         <testmotion>&lt; /home/nico/films/video_test/ParkJoy.rgb 2> /home/nico/testmotion</testmotion>
         <sgi2rgb>/home/nico/films/video_test/CrowdRun/0711*.sgi > /home/nico/films/video_test/test.rgb</sgi2rgb>
-        <ric>-i &quot;/home/nico/Documents/Images/Images test/lena_ext.pgm&quot; -o &quot;/home/nico/Documents/Images/Images test/lena_ext.ric&quot;</ric>
-        <huffgen>&lt; &quot;/home/nico/Documents/Images/Images test/huff_in&quot;</huffgen>
+        <ric>-q 1 -i img_0589.pgm > enc.txt</ric>
+        <huffgen>&lt; &quot;/home/nico/src/tst_img/autres/5d2/pgm/enc.txt&quot;</huffgen>
         <rudenc>/home/nico/films/video_test/sunflower_528.avi /home/nico/test.rdd 2> /home/nico/enc_size.dat</rudenc>
         <ruddec>/home/nico/test.rdd 2> /home/nico/dec_size.dat</ruddec>
       </debugarguments>
       <cwd>
         <testmotion>/home/nico/src/rududu/debug/./utils</testmotion>
         <sgi2rgb>/home/nico/src/rududu/debug/./utils</sgi2rgb>
-        <ric>/home/nico/src/rududu/debug/./ric</ric>
-        <huffgen>/home/nico/src/rududu/optimized/./utils</huffgen>
+        <ric>/home/nico/src/tst_img/autres/5d2/pgm</ric>
+        <huffgen>/home/nico/</huffgen>
         <rudenc>/home/nico/</rudenc>
         <ruddec>/home/nico/</ruddec>
       </cwd>
@@ -79,7 +79,7 @@
         <ccompiler>kdevgccoptions</ccompiler>
         <cxxcompiler>kdevgppoptions</cxxcompiler>
         <f77compiler>kdevg77options</f77compiler>
-        <cxxflags>-O3 -g0 -Wall -fomit-frame-pointer -funroll-loops -msse -m3dnow -march=athlon-xp -ftree-vectorizer-verbose=0</cxxflags>
+        <cxxflags>-O3 -g0 -Wall -fomit-frame-pointer -funroll-loops -msse -m3dnow -march=athlon-xp -ftree-vectorizer-verbose=0 -flax-vector-conversions</cxxflags>
         <envvars/>
         <configargs/>
         <topsourcedir/>
@@ -97,7 +97,7 @@
         <ccompiler>kdevgccoptions</ccompiler>
         <cxxcompiler>kdevgppoptions</cxxcompiler>
         <f77compiler>kdevg77options</f77compiler>
-        <cxxflags>-O0 -g3 -msse</cxxflags>
+        <cxxflags>-O0 -g3 -msse -flax-vector-conversions</cxxflags>
         <envvars/>
         <topsourcedir/>
         <cppflags>-DDEBUG</cppflags>
@@ -304,15 +304,15 @@
   <kdevdebugger>
     <general>
       <programargs>-i &quot;/home/nico/Documents/Images/Images test/lena.pgm&quot;</programargs>
-      <gdbpath/>
-      <dbgshell>libtool</dbgshell>
+      <gdbpath>gdb</gdbpath>
+      <dbgshell/>
       <configGdbScript/>
       <runShellScript/>
       <runGdbScript/>
       <breakonloadinglibs>true</breakonloadinglibs>
       <separatetty>false</separatetty>
       <floatingtoolbar>false</floatingtoolbar>
-      <raiseGDBOnStart>false</raiseGDBOnStart>
+      <raiseGDBOnStart>true</raiseGDBOnStart>
     </general>
     <display>
       <staticmembers>false</staticmembers>

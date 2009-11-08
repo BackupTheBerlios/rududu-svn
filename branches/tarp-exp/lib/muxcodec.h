@@ -136,8 +136,8 @@ public:
 	template <unsigned int n_max>
 		flatten fastcall unsigned int enumDecode(unsigned int k);
 	unsigned int enumDecode(unsigned int k, unsigned int n_max);
-	void enumCode(short * values, int sum);
-	void enumDecode(short * values, int sum);
+	void enumCode(short * values, int sum, int n_val);
+	void enumDecode(short * values, int sum, int n_val);
 
 	fastcall void maxCode(unsigned int value, unsigned int max);
 	fastcall unsigned int maxDecode(unsigned int max);
@@ -267,7 +267,7 @@ public:
 	{
 		bitsCode(sym.code, sym.len);
 	}
-	
+
 	// canonical huffman codes decoding
 	unsigned int inline huffDecode(const sHuffSym * huffTable)
 	{

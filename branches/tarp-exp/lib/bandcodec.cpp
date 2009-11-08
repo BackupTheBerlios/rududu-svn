@@ -22,6 +22,7 @@
 
 #include "bandcodec.h"
 #include "huffcodec.h"
+#include "huff.h" // huffman tables
 
 #ifdef GENERATE_HUFF_STATS
 #include <math.h>
@@ -61,10 +62,16 @@ void CBandCodec::init_lut(void)
 	init = true;
 }
 
-#ifdef GENERATE_HUFF_STATS
-uint CBandCodec::sum_0_cnt[SUM_CTX_NB][MAX_P - 1];
-uint CBandCodec::sum_x_cnt[SUM_CTX_NB][MAX_P - 3]; // 3 is for MAX_P = 21
-#endif
+static void print_hist(sHuffSym const * const * hist, uint cnt, uint ctx, const char * name)
+{
+	printf(">%s\n", name);
+	for (uint j = 0; j < ctx; j++) {
+		for (uint i = 0; i < cnt; i++)
+			printf("%i	", *(uint*)&hist[i][j]);
+		printf("\n");
+	}
+	printf("\n");
+}
 
 template <cmode mode, class C>
 		void CBandCodec::pred(CMuxCodec * pCodec)
@@ -305,205 +312,241 @@ template <int block_size, class C>
 	return bitlen(U(max) >> 1);
 }
 
-/**
- * find the best k (shift factor) for Rice coding based on the sum of the
- * 16 samples of a block;
- *
- * @param sum sum of the 16 samples
- * @return k * 2 if k is the best estimate and k - 1 the second best or
- * k * 2 + 1 if k is the best estimate and k + 1 the second best
- */
-static int get_best_k_estimate(int sum) {
-	const int thres[] =
-	{2, 9, 24, 56, 119, 247, 503, 1014, 2036, 4080, 8169, 16347, 32703, 0xFFFFFF}; // 1/2 + 1/32
-		// {2, 9, 25, 57, 122, 253, 514, 1036, 2081, 4170, 8348, 16705, 33419, 0xFFFFFF}; // 1/2
-	const int thres2[] = {5, 16, 38, 84, 176, 361, 730, 1469, 2946, 5901, 11810, 23629, 47266}; // 0
-		// {3, 12, 31, 69, 147, 302, 613, 1234, 2476, 4960, 9929, 19867, 39743}; // 1/4
+static const char k0_lim[] = {16, 18, 22, 30, 37};
+static const char k0_lut[10] = {2, 0, 0, 1, 1, 1, 2, 2, 2, 2};
 
-	int s = 0;
-	while (thres[s] < sum)
-		s++;
-	if (s > 0) {
-		if (thres2[s - 1] <= sum)
-			s = (s << 1) + 1;
-		else
-			s <<= 1;
+static void sum_cnt_encode(int sum, int cnt, int idx, CMuxCodec * pCodec)
+{
+	int k_cnt, n = 0, ctx;
+	if (sum < 16) {
+		k_cnt = 8 * (sum - 1) + cnt - 1;
+		if (cnt > 8)
+			k_cnt = 8 * 14 + 15 - k_cnt;
+	} else {
+		while (k0_lim[++n] < sum){}
+		k_cnt = 15 * 8 + (((n - 1) << 4) | (cnt - 1));
 	}
-	return s;
+
+	if (idx > 9)
+		ctx = 3;
+	else
+		ctx = k0_lut[idx];
+	pCodec->huffCode(huff_0_enc[ctx][k_cnt]);
+	if (n > 0)
+		pCodec->maxCode(sum - k0_lim[n - 1], k0_lim[n] - k0_lim[n - 1] - 1);
 }
 
-/**
- * find the best k (shift factor) for Rice coding for a 4x4 bloc using
- *
- * @param s samples array
- * @param k number of samples (<= 16, only samples != 0)
- * @return the best shift factor + 2 (0 is 2, 0 and 1 allows k = -2 and -1)
- */
-template <class C>
-static int get_best_k(C * s, int k) {
-	int ibest = 0, best_len = 0xFFFF;
-	int bits[2][2] = {{12, 32}, {53, 16}}; // {1.48975 * 8, 4 * 8}, {6.6406 * 8, 2 * 8}
-	for (int i = 0; i < 2; i++) {
-		int len = bits[i][0];
-		for (uint j = 0; j < k; j++)
-			len += (U(s[j]) >> 1) * bits[i][1];
-		if (len <= best_len) {
-			best_len = len;
-			ibest = i;
+static void sum_cnt_decode(int & sum, int & cnt, int idx, CMuxCodec * pCodec)
+{
+	int k_cnt, n = 0, ctx;
+
+	if (idx > 9)
+		ctx = 3;
+	else
+		ctx = k0_lut[idx];
+	k_cnt = pCodec->huffDecode(&huff_0_dec[ctx]);
+
+	if (k_cnt < 15 * 8) {
+		sum = (k_cnt >> 3) + 1;
+		cnt = (k_cnt & 7) + 1;
+		if (unlikely(cnt > sum)) {
+			cnt = 17 - cnt;
+			sum = 16 - sum;
 		}
+	} else {
+		k_cnt -= 15 * 8;
+		cnt = k_cnt & 0xF;
+		n = (k_cnt >> 4) + 1;
 	}
-	for (int i = 1; i < 13; i++) {
-		int len = 16 * i;
-		for (uint j = 0; j < k; j++)
-			len += U(s[j]) >> i;
-		len <<= 3;
-		if (len <= best_len) {
-			best_len = len;
-			ibest = i + 1;
-		}
-	}
-	return ibest;
+
+	if (n > 0)
+		sum = pCodec->maxDecode(k0_lim[n] - k0_lim[n - 1] - 1) + k0_lim[n - 1];
 }
 
-#define EST_SIZE 64
-#define EST_SPEED 3
-#define EST_SHIFT 7
-static unsigned short k_est[EST_SIZE];
-// #define EST_CNT 8
-// static unsigned int k_cnt[EST_CNT][EST_SIZE];
+#define AVG_SHIFT 5
+#define AVG_DECAY 3
 
 template <cmode mode, bool high_band, class C>
 	unsigned int CBandCodec::block_enum(C * pBlock, int stride, CMuxCodec * pCodec,
-	                                    CBitCodec<ZBLOCK_CTX_NB> & zblockCodec, int sum_)
+										CBitCodec<ZBLOCK_CTX_NB + ZK_CTX_NB + MORE_CTX_NB + 1> & bitCodec, int sum_)
 {
+	
+	static uint k_avg[64] = {128, 56, 56, 56, 56, 56, 56, 56, 56, 56, 56, 56, 56, 56, 56, 64, 64, 72, 72, 80, 88, 88, 96, 104, 112, 120, 128, 128, 136, 144, 152, 160, 168, 176, 184, 192, 200, 200, 208, 216, 224, 232, 240, 248, 248, 256, 264, 272, 280, 288, 296, 296, 304, 312, 320, 328, 336, 344, 344, 352, 360, 368, 376, 384}; // FIXME static is bad here
+	static const uint k_max[K_2_CTX + K_3_CTX + K_4_CTX] = {2, 3, 3, 4, 4};
 	uint k = 0;
 	short enu[16];
+	unsigned short ones = 0;
 	C tmp[16];
-	int idx = log2i(sum_);
+	int sum = 0, cnt = 0;
 
-	int tst = idx;
-	if (tst > 0) {
-		tst -= 14;
-		if (tst < 1)
-			tst = 1;
-	}
-
-	int est = (k_est[tst] + (1 << (EST_SHIFT - 1))) >> EST_SHIFT;
+	int tst = sum_;
+	if (tst > 3)
+		tst = log2i(sum_) - 8;
 
 	if (mode == encode) {
-		int sum = 0;
-
-		for (int j = 0; j < 4; j++){
-			for (C * pEnd = pBlock + 4; pBlock < pEnd; pBlock++){
+		for (int j = 0; j < 4; j++) {
+			for (C * pEnd = pBlock + 4; pBlock < pEnd; pBlock++) {
 				tmp[k++] = pBlock[0];
 				sum += pBlock[0] >> 1;
+ 				if (pBlock[0] != 0)
+ 					cnt++;
 			}
 			pBlock += stride - 4;
 		}
 
-		if (!high_band && zblockCodec.code(sum == 0, idx >= ZBLOCK_CTX_NB ? ZBLOCK_CTX_NB - 1 : idx))
+		if (!high_band && bitCodec.code(sum == 0, tst >= ZBLOCK_CTX_NB ? ZBLOCK_CTX_NB - 1 : tst))
 			return 0;
 
 		k = 0;
-		while (sum >= MAX_P) {
-			sum = 0;
-			k++;
-			for (int i = 0; i < 16; i++)
-				sum += tmp[i] >> (k + 1);
-		}
+		if (sum >= (MAX_P + 16))
+			while (sum >= MAX_P) {
+				sum = 0;
+				cnt = 0;
+				k++;
+				for (int i = 0; i < 16; i++) {
+					int coef = tmp[i] >> (k + 1);
+					sum += coef;
+				}
+			}
 
-		for (int i = 0; i < 16; i++)
-			enu[i] = tmp[i] >> (k + 1);
-
-
-		if (est == 0) {
-			if (k_est[tst] < (1 << (EST_SHIFT - 3)))
-				pCodec->golombCode(k, -3); // TODO adaptive golomb here !
-			else
-				pCodec->golombCode(k, -1);
-		} else {
-			int diff = k - est;
-// 			int est2 = (k_est[tst] + (1 << (EST_SHIFT - 3))) >> (EST_SHIFT - 2);
-// 			if (est2 <= EST_SIZE && k < EST_CNT)
-// 				k_cnt[k][est2 - 1]++;
-			if (k_est[tst] > (est << EST_SHIFT)) // TODO test if really usefull
-				diff = -diff;
-			pCodec->golombCode(s2u(diff), 0); // TODO and maybe here too !
-		}
-
-		if (k == 0) {
-			int tmp = bitlen(sum_);
-			if (unlikely(sum_ == 0)) tmp = 3;
-			if (tmp > SUM_CTX_NB) tmp = SUM_CTX_NB;
-			pCodec->huffCode(huff_0_enc[tmp - 1][sum - 1]);
-#ifdef GENERATE_HUFF_STATS
-			sum_0_cnt[tmp - 1][sum - 1]++;
-#endif
-		} else {
-			int tmp = (sum_ - (2 << k)) >> (k + 2);
-			if (tmp < 0) tmp = 0;
-			if (unlikely(sum_ == 0)) tmp = 2;
-			if (tmp >= SUM_CTX_NB) tmp = SUM_CTX_NB - 1;
-			pCodec->huffCode(huff_X_enc[tmp][sum - 3]);
-#ifdef GENERATE_HUFF_STATS
-			sum_x_cnt[tmp][sum - 3]++;
-#endif
-		}
-		pCodec->enumCode(enu, sum);
-		uint mask = ((1 << k) - 1);
 		for (int i = 0; i < 16; i++) {
-			if (k > 0)
+			int coef = tmp[i] >> (k + 1);
+			ones <<= 1;
+			if (coef != 0)
+				ones |= 1;
+			enu[i] = coef - 1;
+		}
+
+		if (bitCodec.code(k == 0, tst >= ZK_CTX_NB ? ZBLOCK_CTX_NB + ZK_CTX_NB - 1 : ZBLOCK_CTX_NB + tst)) {
+			sum_cnt_encode(sum, cnt, tst, pCodec);
+			pCodec->enumCode<16>(ones, cnt);
+			pCodec->enumCode(enu, sum, cnt);
+			for (int i = 0; i < 16; i++) {
+				if (tmp[i] != 0)
+					pCodec->bitsCode(tmp[i] & 1, 1);
+			}
+		} else {
+			if (tst != 0) {
+				int ctx = (k_avg[tst] >> (AVG_SHIFT - 1)) - 2, more = 0;
+				if (ctx < 0) ctx = 0;
+
+				sum -= 5;
+				if (sum < 0) {
+					sum = 0;
+					more = -sum;
+				}
+
+				if (ctx < K_2_CTX + K_3_CTX + K_4_CTX) {
+					if (k <= k_max[ctx]) {
+						pCodec->huffCode(huff_X_enc[ctx][((k - 1) << 4) + sum]);
+					} else {
+						pCodec->huffCode(huff_X_enc[ctx][k_max[ctx] * 16 + sum]);
+						for (uint i = k_max[ctx] + 1; i < k; i++)
+							bitCodec.code(1, ZBLOCK_CTX_NB + ZK_CTX_NB + MORE_CTX_NB);
+						bitCodec.code(0, ZBLOCK_CTX_NB + ZK_CTX_NB + MORE_CTX_NB);
+					}
+				} else {
+					uint k_est = (k_avg[tst] + 16) >> (AVG_SHIFT - 1);
+					ctx = (k_est & 1) + K_2_CTX + K_3_CTX + K_4_CTX;
+					k_est >>= 1;
+					if ((uint)(k - k_est + 2) > 4) {
+						if (k < k_est) {
+							pCodec->huffCode(huff_X_enc[ctx][sum]);
+						} else {
+							pCodec->huffCode(huff_X_enc[ctx][4 * 16 + sum]);
+						}
+						for (int i = 2; i < abs(k - k_est); i++)
+							bitCodec.code(1, ZBLOCK_CTX_NB + ZK_CTX_NB + MORE_CTX_NB);
+						bitCodec.code(0, ZBLOCK_CTX_NB + ZK_CTX_NB + MORE_CTX_NB);
+					} else {
+						pCodec->huffCode(huff_X_enc[ctx][(k - k_est + 2) * 16 + sum]);
+					}
+				}
+
+				if (sum == 0) {
+					int i = 0;
+					while (i < more)
+						bitCodec.code(1, ZBLOCK_CTX_NB + ZK_CTX_NB + i++);
+					if (more < 2)
+						bitCodec.code(0, ZBLOCK_CTX_NB + ZK_CTX_NB + i);
+				}
+
+				k_avg[tst] += (((int)k << AVG_SHIFT) - k_avg[tst]) >> AVG_DECAY;
+			} else {
+				pCodec->tabooCode(k - 1);
+				pCodec->maxCode(sum - 3, 17);
+			}
+			pCodec->enumCode(enu, sum, 16);
+			uint mask = ((1 << k) - 1);
+			for (int i = 0; i < 16; i++) {
 				pCodec->bitsCode((tmp[i] >> 1) & mask, k);
-			if (tmp[i] != 0)
-				pCodec->bitsCode(tmp[i] & 1, 1);
+				if (tmp[i] != 0)
+					pCodec->bitsCode(tmp[i] & 1, 1);
+			}
 		}
 	} else {
-		if (!high_band && zblockCodec.decode(idx >= ZBLOCK_CTX_NB ? ZBLOCK_CTX_NB - 1 : idx))
+		if (!high_band && bitCodec.decode(tst >= ZBLOCK_CTX_NB ? ZBLOCK_CTX_NB - 1 : tst))
 			return 0;
-		if (est == 0) {
-			if (k_est[tst] < (1 << (EST_SHIFT - 3)))
-				k = pCodec->golombDecode(-3);
-			else
-				k = pCodec->golombDecode(-1);
-		} else {
-			int diff = u2s(pCodec->golombDecode(0));
-			if (k_est[tst] > (est << EST_SHIFT))
-				diff = -diff;
-			k = est + diff;
-		}
-		int sum;
-		if (k == 0) {
-			int tmp = bitlen(sum_);
-			if (unlikely(sum_ == 0)) tmp = 3;
-			if (tmp > SUM_CTX_NB) tmp = SUM_CTX_NB;
-			sum = pCodec->huffDecode(&huff_0_dec[tmp - 1]) + 1;
-		} else {
-			int tmp = (sum_ - (2 << k)) >> (k + 2);
-			if (tmp < 0) tmp = 0;
-			if (unlikely(sum_ == 0)) tmp = 2;
-			if (tmp >= SUM_CTX_NB) tmp = SUM_CTX_NB - 1;
-			sum = pCodec->huffDecode(&huff_X_dec[tmp]) + 3;
-		}
-		pCodec->enumDecode(enu, sum);
-		for (int i = 0; i < 16; i++) {
-			tmp[i] = enu[i];
-			if (k > 0)
-				tmp[i] = (tmp[i] << k) | pCodec->bitsDecode(k);
-			if (tmp[i] != 0)
-				tmp[i] = (tmp[i] << 1) | pCodec->bitsDecode(1);
-		}
-
-		int i = 0;
-		for (int j = 0; j < 4; j++){
-			for (C * pEnd = pBlock + 4; pBlock < pEnd; pBlock++){
-				pBlock[0] = tmp[i++];
+		if (bitCodec.decode(tst >= ZK_CTX_NB ? ZBLOCK_CTX_NB + ZK_CTX_NB - 1 : ZBLOCK_CTX_NB + tst)) {
+			sum_cnt_decode(sum, cnt, tst, pCodec);
+			ones = pCodec->enumDecode<16>(cnt);
+			pCodec->enumDecode(enu, sum, cnt);
+			for (int i = 0, j = 0; i < 16; i++) {
+				tmp[i] = 0;
+				if ((ones << i) & (1 << 15)) // FIXME maybe something simpler
+					tmp[i] = (enu[j++] << 1) | pCodec->bitsDecode(1);
 			}
-			pBlock += stride - 4;
+		} else {
+			if (tst != 0) {
+				int ctx = (k_avg[tst] >> (AVG_SHIFT - 1)) - 2;
+				if (ctx < 0) ctx = 0;
+
+				if (ctx < K_2_CTX + K_3_CTX + K_4_CTX) {
+					int sym = pCodec->huffDecode(&huff_X_dec[ctx]);
+					k = (sym >> 4) + 1;
+					sum = sym & 0xF;
+					if (k > k_max[ctx]) {
+						while (bitCodec.decode(ZBLOCK_CTX_NB + ZK_CTX_NB + MORE_CTX_NB))
+							k++;
+					}
+				} else {
+					uint k_est = (k_avg[tst] + 16) >> (AVG_SHIFT - 1);
+					ctx = (k_est & 1) + K_2_CTX + K_3_CTX + K_4_CTX;
+					k_est >>= 1;
+					int sym = pCodec->huffDecode(&huff_X_dec[ctx]);
+					k = (sym >> 4) + k_est - 2;
+					sum = sym & 0xF;
+					if (k == k_est - 2) {
+						while (bitCodec.decode(ZBLOCK_CTX_NB + ZK_CTX_NB + MORE_CTX_NB))
+							k--;
+					}
+					if (k == k_est + 2) {
+						while (bitCodec.decode(ZBLOCK_CTX_NB + ZK_CTX_NB + MORE_CTX_NB))
+							k++;
+					}
+				}
+
+				if (sum == 0) {
+					int i = 0;
+					while (sum > -2 && bitCodec.decode(ZBLOCK_CTX_NB + ZK_CTX_NB + i++))
+						sum--;
+				}
+
+				sum += 5;
+
+				k_avg[tst] += (((int)k << AVG_SHIFT) - k_avg[tst]) >> AVG_DECAY;
+			} else {
+				pCodec->tabooCode(k - 1);
+				pCodec->maxCode(sum - 3, 17);
+			}
+			pCodec->enumDecode(enu, sum, 16);
+			for (int i = 0; i < 16; i++) {
+				tmp[i] = (enu[i] << (k + 1)) | pCodec->bitsDecode(k);
+				if (tmp[i] != 0)
+					tmp[i] |= pCodec->bitsDecode(1);
+			}
 		}
 	}
-
-	if (tst < EST_SIZE)
-		k_est[tst] += ((k << EST_SHIFT) - k_est[tst]) >> EST_SPEED;
 
 	return k;
 }
@@ -527,7 +570,7 @@ template <cmode mode, bool high_band, class C, class P>
 	if (mode == decode) Clear(false);
 
 	CBitCodec<TREE_CTX_NB> treeCodec(pCodec);
-	CBitCodec<ZBLOCK_CTX_NB> zblockCodec(pCodec);
+	CBitCodec<ZBLOCK_CTX_NB + ZK_CTX_NB + MORE_CTX_NB + 1> bitCodec(pCodec);
 
 	// TODO : pb rate-distortion : c'est quoi cette courbe ?
 	// TODO : utiliser le prédicteur comme un predicteur (coder l'erreur) ?
@@ -573,13 +616,44 @@ template <cmode mode, bool high_band, class C, class P>
 
 					pCur1[i] &= ~INSIGNIF_BLOCK;
 
-					block_enum<mode, high_band>(&pCur1[i], DimXAlign, pCodec, zblockCodec, est);
+					block_enum<mode, high_band>(&pCur1[i], DimXAlign, pCodec, bitCodec, est);
 				}
 			}
 		}
 		pCur1 += diff;
 		pCur2 += diff;
 		pPar += diff_par;
+	}
+	if (high_band) {
+		static int cnt = 0;
+		if (cnt++ == 2) {
+// 			printf("--> (more : %i)\n", more_bits);
+			print_hist(huff_0_enc, K_0_CNT, K_0_CTX, "k_0_");
+			print_hist(huff_X_enc, K_2_CNT, K_2_CTX, "k_2_");
+			print_hist(&huff_X_enc[K_2_CTX], K_3_CNT, K_3_CTX, "k_3_");
+			print_hist(&huff_X_enc[K_2_CTX + K_3_CTX], K_4_CNT, K_4_CTX, "k_4_");
+			print_hist(&huff_X_enc[K_2_CTX + K_3_CTX + K_4_CTX], K_X_CNT, K_X_CTX, "k_X_");
+// 			print_hist((uint *)k_est_cnt, 16, 64, "h_hist_");
+// 			for (int i = 0; i < 64; i++) {
+// 				int cnt = 0, sum = 0;
+// 				for( int j = 0; j < 16; j++) {
+// 					cnt += k_est_cnt[j][i];
+// 					sum += k_est_cnt[j][i] * (j + 1);
+// 				}
+// 				int tmp = cnt >> 1;
+// 				int j = 0;
+// 				do {
+// 					tmp -= k_est_cnt[j++][i];
+// 				} while (tmp > 0);
+// 				printf("%i\t", j);
+// 				k_est_cnt[0][i] = cnt;
+// 				k_est_cnt[1][i] = sum;
+// 			}
+// 			printf("\n");
+// 			for (int i = 0; i < 64; i++)
+// 				printf("%f\t", (float) k_est_cnt[1][i] / k_est_cnt[0][i]);
+// 			printf("\n");
+		}
 	}
 }
 
@@ -597,44 +671,4 @@ template void CBandCodec::tree<encode, true, int, int>(CMuxCodec * );
 template void CBandCodec::tree<encode, false, int, int>(CMuxCodec * );
 template void CBandCodec::tree<decode, true, int, int>(CMuxCodec * );
 template void CBandCodec::tree<decode, false, int, int>(CMuxCodec * );
-
-static const sHuffSym h0c00[20] = { {1, 1}, {3, 3}, {2, 3}, {3, 4}, {2, 4}, {3, 5}, {5, 6}, {4, 6}, {3, 6}, {5, 7}, {4, 7}, {3, 7}, {5, 8}, {4, 8}, {3, 8}, {2, 8}, {3, 9}, {2, 9}, {1, 9}, {0, 9} };
-static const sHuffSym h0d00[] = { {0x8000, 1, 1}, {0x4000, 3, 4}, {0x2000, 4, 6}, {0x1800, 5, 8}, {0xc00, 6, 11}, {0x600, 7, 14}, {0x200, 8, 17}, {0x0, 9, 19} };
-static const uchar h0d_lut00[20] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19 };
-
-static const sHuffSym h0c01[20] = { {3, 2}, {5, 3}, {4, 3}, {3, 3}, {5, 4}, {4, 4}, {3, 4}, {5, 5}, {4, 5}, {3, 5}, {5, 6}, {4, 6}, {3, 6}, {5, 7}, {4, 7}, {3, 7}, {2, 7}, {1, 7}, {1, 8}, {0, 8} };
-static const sHuffSym h0d01[] = { {0xc000, 2, 3}, {0x6000, 3, 6}, {0x3000, 4, 9}, {0x1800, 5, 12}, {0xc00, 6, 15}, {0x200, 7, 18}, {0x0, 8, 19} };
-static const uchar h0d_lut01[20] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19 };
-
-static const sHuffSym h0c02[20] = { {14, 4}, {13, 4}, {15, 4}, {11, 4}, {10, 4}, {12, 4}, {9, 4}, {8, 4}, {7, 4}, {6, 4}, {5, 4}, {4, 4}, {3, 4}, {5, 5}, {4, 5}, {3, 5}, {2, 5}, {1, 5}, {1, 6}, {0, 6} };
-static const sHuffSym h0d02[] = { {0x3000, 4, 15}, {0x800, 5, 18}, {0x0, 6, 19} };
-static const uchar h0d_lut02[20] = { 2, 0, 1, 5, 3, 4, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19 };
-
-static const sHuffSym h0c03[20] = { {0, 5}, {1, 5}, {2, 5}, {3, 5}, {4, 5}, {5, 5}, {6, 5}, {7, 5}, {4, 4}, {5, 4}, {6, 4}, {7, 4}, {10, 4}, {12, 4}, {14, 4}, {15, 4}, {13, 4}, {11, 4}, {9, 4}, {8, 4} };
-static const sHuffSym h0d03[] = { {0x4000, 4, 15}, {0x0, 5, 19} };
-static const uchar h0d_lut03[20] = { 15, 14, 16, 13, 17, 12, 18, 19, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0 };
-
-
-static const sHuffSym hXc00[18] = { {0, 8}, {1, 8}, {1, 7}, {5, 5}, {4, 3}, {7, 3}, {6, 3}, {5, 3}, {3, 3}, {5, 4}, {4, 4}, {3, 4}, {4, 5}, {3, 5}, {2, 5}, {3, 6}, {2, 6}, {1, 6} };
-static const sHuffSym hXd00[] = { {0x6000, 3, 7}, {0x3000, 4, 10}, {0x1000, 5, 13}, {0x400, 6, 15}, {0x200, 7, 16}, {0x0, 8, 17} };
-static const uchar hXd_lut00[18] = { 5, 6, 7, 4, 8, 9, 10, 11, 3, 12, 13, 14, 15, 16, 17, 2, 1, 0 };
-
-static const sHuffSym hXc01[18] = { {0, 8}, {1, 8}, {1, 7}, {1, 6}, {6, 4}, {6, 3}, {7, 3}, {5, 3}, {9, 4}, {8, 4}, {7, 4}, {5, 4}, {4, 4}, {3, 4}, {2, 4}, {3, 5}, {2, 5}, {1, 5} };
-static const sHuffSym hXd01[] = { {0xa000, 3, 7}, {0x2000, 4, 12}, {0x800, 5, 14}, {0x400, 6, 15}, {0x200, 7, 16}, {0x0, 8, 17} };
-static const uchar hXd_lut01[18] = { 6, 5, 7, 8, 9, 10, 4, 11, 12, 13, 14, 15, 16, 17, 3, 2, 1, 0 };
-
-static const sHuffSym hXc02[18] = { {0, 8}, {1, 8}, {1, 7}, {1, 6}, {1, 5}, {5, 4}, {10, 4}, {6, 3}, {7, 3}, {11, 4}, {9, 4}, {8, 4}, {7, 4}, {6, 4}, {4, 4}, {3, 4}, {2, 4}, {1, 4} };
-static const sHuffSym hXd02[] = { {0xc000, 3, 7}, {0x1000, 4, 13}, {0x800, 5, 14}, {0x400, 6, 15}, {0x200, 7, 16}, {0x0, 8, 17} };
-static const uchar hXd_lut02[18] = { 8, 7, 9, 6, 10, 11, 12, 13, 5, 14, 15, 16, 17, 4, 3, 2, 1, 0 };
-
-static const sHuffSym hXc03[18] = { {0, 9}, {1, 9}, {1, 8}, {1, 7}, {1, 6}, {1, 5}, {1, 4}, {2, 4}, {3, 4}, {4, 4}, {5, 4}, {6, 4}, {7, 4}, {8, 4}, {9, 4}, {5, 3}, {6, 3}, {7, 3} };
-static const sHuffSym hXd03[] = { {0xa000, 3, 7}, {0x1000, 4, 12}, {0x800, 5, 13}, {0x400, 6, 14}, {0x200, 7, 15}, {0x100, 8, 16}, {0x0, 9, 17} };
-static const uchar hXd_lut03[18] = { 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0 };
-
-
-sHuffSym const * const CBandCodec::huff_0_enc[4] = { h0c00, h0c01, h0c02, h0c03 };
-sHuffSym const * const CBandCodec::huff_X_enc[4] = { hXc00, hXc01, hXc02, hXc03 };
-sHuffCan CBandCodec::huff_0_dec[4] = { {h0d00, h0d_lut00}, {h0d01, h0d_lut01}, {h0d02, h0d_lut02}, {h0d03, h0d_lut03} };
-sHuffCan CBandCodec::huff_X_dec[4] = { {hXd00, hXd_lut00}, {hXd01, hXd_lut01}, {hXd02, hXd_lut02}, {hXd03, hXd_lut03} };
-
 }
