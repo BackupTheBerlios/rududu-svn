@@ -100,7 +100,7 @@ void CHuffCodec::init(const sHuffRL * pInitTable)
 	update_step = UPDATE_STEP_MIN;
 }
 
-#define UNKNOW_WEIGHT	((1 << 16) - 1)
+#define UNKNOW_WEIGHT	((uint)-1)
 #define MAX_WEIGHT		(UNKNOW_WEIGHT - 1)
 
 template <class H>
@@ -127,7 +127,7 @@ static unsigned long calc_weight(H const * sym, int n,
 		if (pack_weight[0] == UNKNOW_WEIGHT)
 			pack_weight[0] = calc_weight(sym, n, pack_leaf + 1, pack_weight + 1,
 			                             pack_leaf + max_len, max_len - 1);
-		if (pack_leaf[0] >= n || pack_weight[0] <= sym[pack_leaf[0]].code) {
+		if (pack_leaf[0] >= n || pack_weight[0] < sym[pack_leaf[0]].code) {
 			memcpy(pack_leaf + 1, pack_leaf + max_len, (max_len - 1) * sizeof(*pack_leaf));
 			weight += pack_weight[0];
 			pack_weight[0] = UNKNOW_WEIGHT;
@@ -170,7 +170,7 @@ void CHuffCodec::make_len(H * sym, int n, int max_len)
 		if (pack_weight[0] == UNKNOW_WEIGHT)
 			pack_weight[0] = calc_weight(sym, n, leaf_cnt + 1, pack_weight + 1,
 			                             leaf_cnt + max_len, max_len - 1);
-		if (leaf_cnt[0] >= n || pack_weight[0] <= sym[leaf_cnt[0]].code) {
+		if (leaf_cnt[0] >= n || pack_weight[0] < sym[leaf_cnt[0]].code) {
 			memcpy(leaf_cnt + 1, leaf_cnt + max_len, (max_len - 1) * sizeof(*leaf_cnt));
 			pack_weight[0] = UNKNOW_WEIGHT;
 		} else
@@ -178,11 +178,14 @@ void CHuffCodec::make_len(H * sym, int n, int max_len)
 	}
 
 	int len = 0;
+	int sum = 0;
 	for( int i = n - 1; i >= 0; i--){
 		while(len < max_len && leaf_cnt[len] > i)
 			len++;
 		sym[i].len = len;
+		sum += 1 << (max_len - len);
 	}
+	ASSERT(sum == (1 << max_len)); // if sum > (1 << max_len), the code is not decodable, if sum < (1 << max_len) the code is not optimal
 }
 
 /**
