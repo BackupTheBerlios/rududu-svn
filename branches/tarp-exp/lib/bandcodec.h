@@ -27,7 +27,7 @@
 
 #define BLK_PWR		2
 #define BLK_SIZE	(1 << BLK_PWR)
-#define GENERATE_HUFF_STATS
+// #define GENERATE_HUFF_STATS
 
 // define this to track the quantization error mean and try to make it don't
 // go too far from zero
@@ -69,7 +69,7 @@ private :
 #ifdef ERR_SH
 	int q_err; /// sum of the quantization error (for quant bin > 1)
 #endif
-	
+
 	static const char blen[BLK_SIZE * BLK_SIZE + 1];
 };
 

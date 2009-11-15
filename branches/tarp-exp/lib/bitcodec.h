@@ -65,6 +65,7 @@ public:
 	}
 
 	unsigned int inline code(unsigned int sym, unsigned int ctx = 0) {
+		ASSERT(ctx < size);
 		unsigned int s = sym ^ ctxs[ctx].mps;
 		pRange->codeBin(ctxs[ctx].freq, s ^ 1);
 		ctxs[ctx].freq += (s << SPEED) - (ctxs[ctx].freq >> DECAY);
@@ -75,6 +76,7 @@ public:
 	}
 
 	unsigned int inline decode(unsigned int ctx = 0) {
+		ASSERT(ctx < size);
 		register unsigned int sym = pRange->getBit(ctxs[ctx].freq) ^ 1;
 		ctxs[ctx].freq += (sym << SPEED) - (ctxs[ctx].freq >> DECAY);
 		sym ^= ctxs[ctx].mps;

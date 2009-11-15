@@ -144,6 +144,7 @@ public:
 
 	void inline encode(const unsigned int lowFreq, const unsigned int topFreq)
 	{
+		ASSERT(lowFreq != topFreq);
 		if (unlikely(range <= MIN_RANGE))
 			normalize_enc();
 		unsigned int tmp = range * lowFreq;
@@ -153,6 +154,7 @@ public:
 
 	void inline code0(const unsigned int topFreq)
 	{
+		ASSERT(0 < topFreq && topFreq < FREQ_COUNT);
 		if (unlikely(range <= MIN_RANGE))
 			normalize_enc();
 		range = (range * topFreq) >> FREQ_POWER;
@@ -160,6 +162,7 @@ public:
 
 	void inline code1(const unsigned int lowFreq)
 	{
+		ASSERT(0 < lowFreq && lowFreq < FREQ_COUNT);
 		if (unlikely(range <= MIN_RANGE))
 			normalize_enc();
 		const unsigned int tmp = (range * lowFreq) >> FREQ_POWER;
@@ -169,6 +172,7 @@ public:
 
 	void inline codeBin(const unsigned int freq, const int bit)
 	{
+		ASSERT(0 < freq && freq < FREQ_COUNT);
 		if (unlikely(range <= MIN_RANGE))
 			normalize_enc();
 		const unsigned int tmp = (range * freq) >> FREQ_POWER;
@@ -178,6 +182,7 @@ public:
 
 	void inline codeSkew(const unsigned int shift, const unsigned int bit)
 	{
+		ASSERT(0 < shift && shift < RANGE_BITS);
 		if (unlikely(range <= MIN_RANGE))
 			normalize_enc();
 		const unsigned int tmp = range - (range >> shift);
@@ -187,6 +192,7 @@ public:
 
 	void inline codeSkew0(const unsigned int shift)
 	{
+		ASSERT(0 < shift && shift < RANGE_BITS);
 		if (unlikely(range <= MIN_RANGE))
 			normalize_enc();
 		range -= range >> shift;
@@ -194,6 +200,7 @@ public:
 
 	void inline codeSkew1(const unsigned int shift)
 	{
+		ASSERT(0 < shift && shift < RANGE_BITS);
 		if (unlikely(range <= MIN_RANGE))
 			normalize_enc();
 		const unsigned int tmp = range - (range >> shift);
@@ -265,6 +272,7 @@ public:
 
 	void inline huffCode(const sHuffSym sym)
 	{
+		ASSERT(sym.len > 0);
 		bitsCode(sym.code, sym.len);
 	}
 

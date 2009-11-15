@@ -221,5 +221,13 @@ template <class a, int x, int y>
 	return ret;
 }
 
+#ifndef NDEBUG
+#define ASSERT(test) \
+	if ((test) == 0) \
+		asm("int $3");
+#else
+#define ASSERT(test)
+#endif
+
 }
 

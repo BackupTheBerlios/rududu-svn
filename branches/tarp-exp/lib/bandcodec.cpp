@@ -18,8 +18,6 @@
  *   59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.             *
  ***************************************************************************/
 
-#include <math.h>
-
 #include "bandcodec.h"
 #include "huffcodec.h"
 #include "hufftables.h" // huffman tables
@@ -59,19 +57,34 @@ void CBandCodec::init_lut(void)
 	for( unsigned int i = 0; i < sizeof(huff_X_dec) / sizeof(sHuffCan); i++){
 		CHuffCodec::init_lut(&huff_X_dec[i], LUT_DEPTH);
 	}
+#ifdef GENERATE_HUFF_STATS
+	memset(k_0_c00, 0, sizeof(k_0_c00));
+	memset(k_0_c01, 0, sizeof(k_0_c01));
+	memset(k_0_c02, 0, sizeof(k_0_c02));
+	memset(k_0_c03, 0, sizeof(k_0_c03));
+	memset(k_2_c00, 0, sizeof(k_2_c00));
+	memset(k_3_c00, 0, sizeof(k_3_c00));
+	memset(k_3_c01, 0, sizeof(k_3_c01));
+	memset(k_4_c00, 0, sizeof(k_4_c00));
+	memset(k_4_c01, 0, sizeof(k_4_c01));
+	memset(k_X_c00, 0, sizeof(k_X_c00));
+	memset(k_X_c01, 0, sizeof(k_X_c01));
+#endif
 	init = true;
 }
 
+#ifdef GENERATE_HUFF_STATS
 static void print_hist(sHuffSym const * const * hist, uint cnt, uint ctx, const char * name)
 {
 	printf(">%s\n", name);
 	for (uint j = 0; j < ctx; j++) {
 		for (uint i = 0; i < cnt; i++)
-			printf("%i	", *(uint*)&hist[i][j]);
+			printf("%i	", *(uint*)&hist[j][i]);
 		printf("\n");
 	}
 	printf("\n");
 }
+#endif
 
 template <cmode mode, class C>
 		void CBandCodec::pred(CMuxCodec * pCodec)
@@ -315,28 +328,30 @@ template <int block_size, class C>
 static const char k0_lim[] = {16, 18, 22, 30, 37};
 static const char k0_lut[10] = {2, 0, 0, 1, 1, 1, 2, 2, 2, 2};
 
-static void sum_cnt_encode(int sum, int cnt, int idx, CMuxCodec * pCodec)
+static void sum_cnt_encode(const int sum, const int cnt, const int idx, CMuxCodec * pCodec)
 {
 	int k_cnt, n = 0, ctx;
+
+	if (idx > 9)
+		ctx = 3;
+	else
+		ctx = k0_lut[idx];
+
 	if (sum < 16) {
 		k_cnt = 8 * (sum - 1) + cnt - 1;
 		if (cnt > 8)
 			k_cnt = 8 * 14 + 15 - k_cnt;
 	} else {
-		while (k0_lim[++n] < sum){}
+		while (k0_lim[++n] <= sum) {}
 		k_cnt = 15 * 8 + (((n - 1) << 4) | (cnt - 1));
 	}
 
-	if (idx > 9)
-		ctx = 3;
-	else
-		ctx = k0_lut[idx];
 	pCodec->huffCode(huff_0_enc[ctx][k_cnt]);
 	if (n > 0)
 		pCodec->maxCode(sum - k0_lim[n - 1], k0_lim[n] - k0_lim[n - 1] - 1);
 }
 
-static void sum_cnt_decode(int & sum, int & cnt, int idx, CMuxCodec * pCodec)
+static void sum_cnt_decode(int & sum, int & cnt, const int idx, CMuxCodec * pCodec)
 {
 	int k_cnt, n = 0, ctx;
 
@@ -344,6 +359,7 @@ static void sum_cnt_decode(int & sum, int & cnt, int idx, CMuxCodec * pCodec)
 		ctx = 3;
 	else
 		ctx = k0_lut[idx];
+
 	k_cnt = pCodec->huffDecode(&huff_0_dec[ctx]);
 
 	if (k_cnt < 15 * 8) {
@@ -355,7 +371,7 @@ static void sum_cnt_decode(int & sum, int & cnt, int idx, CMuxCodec * pCodec)
 		}
 	} else {
 		k_cnt -= 15 * 8;
-		cnt = k_cnt & 0xF;
+		cnt = (k_cnt & 0xF) + 1;
 		n = (k_cnt >> 4) + 1;
 	}
 
@@ -370,12 +386,10 @@ template <cmode mode, bool high_band, class C>
 	unsigned int CBandCodec::block_enum(C * pBlock, int stride, CMuxCodec * pCodec,
 										CBitCodec<ZBLOCK_CTX_NB + ZK_CTX_NB + MORE_CTX_NB + 1> & bitCodec, int sum_)
 {
-	
 	static uint k_avg[64] = {128, 56, 56, 56, 56, 56, 56, 56, 56, 56, 56, 56, 56, 56, 56, 64, 64, 72, 72, 80, 88, 88, 96, 104, 112, 120, 128, 128, 136, 144, 152, 160, 168, 176, 184, 192, 200, 200, 208, 216, 224, 232, 240, 248, 248, 256, 264, 272, 280, 288, 296, 296, 304, 312, 320, 328, 336, 344, 344, 352, 360, 368, 376, 384}; // FIXME static is bad here
 	static const uint k_max[K_2_CTX + K_3_CTX + K_4_CTX] = {2, 3, 3, 4, 4};
 	uint k = 0;
 	short enu[16];
-	unsigned short ones = 0;
 	C tmp[16];
 	int sum = 0, cnt = 0;
 
@@ -398,29 +412,31 @@ template <cmode mode, bool high_band, class C>
 			return 0;
 
 		k = 0;
-		if (sum >= (MAX_P + 16))
-			while (sum >= MAX_P) {
+		if (sum - cnt >= MAX_P) {
+			cnt = 0;
+			do {
 				sum = 0;
-				cnt = 0;
 				k++;
 				for (int i = 0; i < 16; i++) {
 					int coef = tmp[i] >> (k + 1);
 					sum += coef;
 				}
-			}
-
-		for (int i = 0; i < 16; i++) {
-			int coef = tmp[i] >> (k + 1);
-			ones <<= 1;
-			if (coef != 0)
-				ones |= 1;
-			enu[i] = coef - 1;
+			} while (sum >= MAX_P);
 		}
 
 		if (bitCodec.code(k == 0, tst >= ZK_CTX_NB ? ZBLOCK_CTX_NB + ZK_CTX_NB - 1 : ZBLOCK_CTX_NB + tst)) {
+			unsigned short ones = 0;
+			for (int i = 0, j = 0; i < 16; i++) {
+				int coef = tmp[i] >> (k + 1);
+				ones <<= 1;
+				if (coef != 0) {
+					ones |= 1;
+					enu[j++] = coef - 1;
+				}
+			}
 			sum_cnt_encode(sum, cnt, tst, pCodec);
-			pCodec->enumCode<16>(ones, cnt);
-			pCodec->enumCode(enu, sum, cnt);
+			if (cnt < 16) pCodec->enumCode<16>(ones, cnt);
+			pCodec->enumCode(enu, sum - cnt, cnt);
 			for (int i = 0; i < 16; i++) {
 				if (tmp[i] != 0)
 					pCodec->bitsCode(tmp[i] & 1, 1);
@@ -432,8 +448,8 @@ template <cmode mode, bool high_band, class C>
 
 				sum -= 5;
 				if (sum < 0) {
-					sum = 0;
 					more = -sum;
+					sum = 0;
 				}
 
 				if (ctx < K_2_CTX + K_3_CTX + K_4_CTX) {
@@ -449,7 +465,7 @@ template <cmode mode, bool high_band, class C>
 					uint k_est = (k_avg[tst] + 16) >> (AVG_SHIFT - 1);
 					ctx = (k_est & 1) + K_2_CTX + K_3_CTX + K_4_CTX;
 					k_est >>= 1;
-					if ((uint)(k - k_est + 2) > 4) {
+					if (k < k_est - 1 || k > k_est + 1) {
 						if (k < k_est) {
 							pCodec->huffCode(huff_X_enc[ctx][sum]);
 						} else {
@@ -470,12 +486,15 @@ template <cmode mode, bool high_band, class C>
 					if (more < 2)
 						bitCodec.code(0, ZBLOCK_CTX_NB + ZK_CTX_NB + i);
 				}
+				sum += 5 - more;
 
-				k_avg[tst] += (((int)k << AVG_SHIFT) - k_avg[tst]) >> AVG_DECAY;
+				k_avg[tst] += (((int)k << AVG_SHIFT) - (int)k_avg[tst]) >> AVG_DECAY;
 			} else {
 				pCodec->tabooCode(k - 1);
 				pCodec->maxCode(sum - 3, 17);
 			}
+			for (int i = 0; i < 16; i++)
+				enu[i] = tmp[i] >> (k + 1);
 			pCodec->enumCode(enu, sum, 16);
 			uint mask = ((1 << k) - 1);
 			for (int i = 0; i < 16; i++) {
@@ -488,13 +507,15 @@ template <cmode mode, bool high_band, class C>
 		if (!high_band && bitCodec.decode(tst >= ZBLOCK_CTX_NB ? ZBLOCK_CTX_NB - 1 : tst))
 			return 0;
 		if (bitCodec.decode(tst >= ZK_CTX_NB ? ZBLOCK_CTX_NB + ZK_CTX_NB - 1 : ZBLOCK_CTX_NB + tst)) {
+			k = 0;
 			sum_cnt_decode(sum, cnt, tst, pCodec);
-			ones = pCodec->enumDecode<16>(cnt);
-			pCodec->enumDecode(enu, sum, cnt);
+			unsigned short ones = 0xFFFF;
+			if (cnt < 16) ones = pCodec->enumDecode<16>(cnt);
+			pCodec->enumDecode(enu, sum - cnt, cnt);
 			for (int i = 0, j = 0; i < 16; i++) {
 				tmp[i] = 0;
 				if ((ones << i) & (1 << 15)) // FIXME maybe something simpler
-					tmp[i] = (enu[j++] << 1) | pCodec->bitsDecode(1);
+					tmp[i] = ((enu[j++] + 1) << 1) | pCodec->bitsDecode(1);
 			}
 		} else {
 			if (tst != 0) {
@@ -534,17 +555,23 @@ template <cmode mode, bool high_band, class C>
 
 				sum += 5;
 
-				k_avg[tst] += (((int)k << AVG_SHIFT) - k_avg[tst]) >> AVG_DECAY;
+				k_avg[tst] += (((int)k << AVG_SHIFT) - (int)k_avg[tst]) >> AVG_DECAY;
 			} else {
-				pCodec->tabooCode(k - 1);
-				pCodec->maxCode(sum - 3, 17);
+				k = pCodec->tabooDecode() + 1;
+				sum = pCodec->maxDecode(17) + 3;
 			}
 			pCodec->enumDecode(enu, sum, 16);
 			for (int i = 0; i < 16; i++) {
-				tmp[i] = (enu[i] << (k + 1)) | pCodec->bitsDecode(k);
+				tmp[i] = ((enu[i] << k) | pCodec->bitsDecode(k)) << 1;
 				if (tmp[i] != 0)
 					tmp[i] |= pCodec->bitsDecode(1);
 			}
+		}
+		for (int j = 0, i = 0; j < 4; j++) {
+			for (C * pEnd = pBlock + 4; pBlock < pEnd; pBlock++) {
+				pBlock[0] = tmp[i++];
+			}
+			pBlock += stride - 4;
 		}
 	}
 
@@ -624,6 +651,7 @@ template <cmode mode, bool high_band, class C, class P>
 		pCur2 += diff;
 		pPar += diff_par;
 	}
+#ifdef GENERATE_HUFF_STATS
 	if (high_band) {
 		static int cnt = 0;
 		if (cnt++ == 2) {
@@ -655,6 +683,7 @@ template <cmode mode, bool high_band, class C, class P>
 // 			printf("\n");
 		}
 	}
+#endif
 }
 
 template void CBandCodec::tree<encode, true, short, short>(CMuxCodec * );

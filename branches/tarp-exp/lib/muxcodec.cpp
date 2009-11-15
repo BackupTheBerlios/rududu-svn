@@ -65,6 +65,7 @@ void CMuxCodec::initDecoder(unsigned char *pInStream)
 flatten fastcall void CMuxCodec::normalize_enc(void)
 {
 	flushBuffer<false>();
+	ASSERT(range != 0);
 	do{
 		*pLast[outCount++ & ROT_BUF_MASK] = low >> 24;
 		if (((low + range - 1) ^ low) >= 0x01000000)
@@ -342,6 +343,7 @@ const unsigned short CMuxCodec::CnkLost[MAX_Q][MAX_Q >> 1] =
  */
 void CMuxCodec::enumCode(unsigned int bits, unsigned int k, unsigned int n_max)
 {
+	ASSERT(k != 0 && k < n_max);
 	unsigned int code = 0;
 	const unsigned short * C = Cnk[0];
 	unsigned int n = 0;
@@ -382,6 +384,7 @@ template void CMuxCodec::enumCode<16>(unsigned int, unsigned int);
  */
 unsigned int CMuxCodec::enumDecode(unsigned int k, unsigned int n_max)
 {
+	ASSERT(k != 0 && k < n_max);
 	unsigned int n = n_max - 1, bits = 0;
 
 	if (k > ((n_max + 1) >> 1)) {
@@ -593,6 +596,7 @@ unsigned int CMuxCodec::golombLinDecode(int k, int m)
 
 fastcall void CMuxCodec::maxCode(unsigned int value, unsigned int max)
 {
+	ASSERT(value <= max);
 	unsigned int len = bitlen(max);
 	unsigned int lost = (1 << len) - max - 1;
 	if (value < lost)
