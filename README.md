@@ -22,6 +22,7 @@
 ### BUILD
 
 ```bash
+cd src
 autoreconf -fiv
 ./configure --prefix=/usr
 make
